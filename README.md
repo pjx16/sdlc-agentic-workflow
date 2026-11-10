@@ -220,11 +220,11 @@ The project is not yet open for code contributions while the foundation is being
 - Please read [`BUILD_PLAN.md`](./BUILD_PLAN.md) first. Features outside its scope (§2) will not be accepted into v1.
 - Use npm and Turborepo only (no pnpm or yarn). Commits must not carry `Co-Authored-By` trailers or AI attribution.
 
-A `CONTRIBUTING.md` and a code of conduct will be added before the first release.
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) and the [Code of Conduct](./CODE_OF_CONDUCT.md) (both are placeholders for now, to be expanded before the first release).
 
 ## Security
 
-Please do **not** report security vulnerabilities in public issues. Use GitHub's private vulnerability reporting (the repository's **Security** tab → **Report a vulnerability**) once it is enabled. A `SECURITY.md` will be added before the first release.
+Please do **not** report security vulnerabilities in public issues. Use GitHub's private vulnerability reporting (the repository's **Security** tab → **Report a vulnerability**) once it is enabled. See [`SECURITY.md`](./SECURITY.md) (a placeholder for now).
 
 This tool runs AI-generated code and holds a GitHub token. Review the [security model](#security-model), use a fine-grained token limited to the repositories you need, and enable branch protection.
 
