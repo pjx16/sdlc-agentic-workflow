@@ -230,7 +230,7 @@ This tool runs AI-generated code and holds a GitHub token. Review the [security 
 
 ## License
 
-No license has been chosen yet. Until a `LICENSE` file is added, all rights are reserved by the author.
+Released under the [MIT License](./LICENSE).
 
 ## Disclaimer
 
