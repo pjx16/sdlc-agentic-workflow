@@ -1,6 +1,6 @@
 # sdlc-agent
 
-A self-hosted, Docker-based **shipping engine** for solo developers. It turns tickets into reviewable pull requests with AI agents, while spending as little of a Claude Code Pro allowance as possible and never giving agents access to your machine or credentials.
+A self-hosted, Docker-based **shipping engine** for solo developers. It turns tickets into reviewable pull requests with AI agents, while keeping AI usage lean and never giving agents access to your machine or credentials.
 
 > **Status: planning / pre-alpha.** The design is complete ([`BUILD_PLAN.md`](./BUILD_PLAN.md)) and broken into sub-tasks ([`SUB_TASKS.md`](./SUB_TASKS.md)), but the application is not built yet. Everything below describes the intended behaviour. Nothing here can be run today.
 
@@ -39,7 +39,7 @@ You stay in control at three points only: plan approval, breakdown approval, and
 
 Turning tickets into reviewable PRs should take little hand-holding. This project aims to do that while:
 
-- using the limited Claude Code Pro usage allowance sparingly (one AI stage at a time, capped turns, small prompts, a usage gate that pauses the pipeline), and
+- keeping AI usage efficient (one AI stage at a time, capped turns, small prompts, the right model per stage, and a usage gate that pauses the pipeline), and
 - never exposing your machine, GitHub credentials or Jira credentials to AI agents.
 
 Anyone can clone the repository and run it with Docker Compose on macOS or a Linux VM.
@@ -84,7 +84,7 @@ The full flow, state machine and acceptance criteria are in [`BUILD_PLAN.md`](./
 2. **Agents only edit files.** The orchestrator makes every commit, push, PR and Jira call. Agent containers never hold GitHub credentials (and Jira credentials only in the optional Jira MCP mode).
 3. **Every AI stage is a fresh, narrow, capped run:** its own container, its own model, its own step limit, and only the context it needs.
 4. **Humans gate three points:** plan approval, breakdown approval, and merge.
-5. **One AI stage runs at a time**, system-wide, to protect the shared usage allowance.
+5. **One AI stage runs at a time**, system-wide, to keep usage predictable.
 6. **Everything is configurable per project** (stored in the database), with defaults shipped as files in the repository.
 
 ## Security model
@@ -122,7 +122,7 @@ Supported target stacks: TypeScript/Node, NestJS and Next.js.
 Requirements:
 
 - Docker and Docker Compose, on macOS or a Linux VM
-- A Claude Code Pro subscription
+- Access to Claude Code (a token from `claude setup-token`)
 - A GitHub repository to ship into, and optionally a Jira Cloud project
 
 ```bash
@@ -141,7 +141,7 @@ Planned environment variables (`.env.example` will list all of them with comment
 
 | Name | Required | Purpose |
 | --- | --- | --- |
-| `CLAUDE_CODE_OAUTH_TOKEN` | yes | Output of `claude setup-token` for the Pro account |
+| `CLAUDE_CODE_OAUTH_TOKEN` | yes | Output of `claude setup-token` |
 | `GITHUB_TOKEN` | yes | Fine-grained token for git and `gh` |
 | `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL` | yes | Identity for every commit |
 | `DASHBOARD_PASSWORD`, `SESSION_SECRET` | yes | Single login password and session secret |
@@ -154,7 +154,7 @@ Planned environment variables (`.env.example` will list all of them with comment
 **Token guidance**
 
 - **GitHub:** a fine-grained personal access token limited to the target repositories, with Contents (read/write), Pull requests (read/write), Actions (read), Commit statuses (read) and Metadata (read). Do not grant administration permission.
-- **Claude:** run `claude setup-token` on a machine logged in to the Pro account.
+- **Claude:** run `claude setup-token` on a machine where Claude Code is logged in.
 - **Jira:** an API token for the account that should read and update tickets.
 
 Never commit `.env` or any token to the repository.
@@ -234,4 +234,4 @@ No license has been chosen yet. Until a `LICENSE` file is added, all rights are 
 
 ## Disclaimer
 
-This is an independent project. It is not affiliated with, endorsed by or sponsored by Anthropic, Atlassian or GitHub. "Claude" and "Claude Code" are trademarks of Anthropic, "Jira" and "Atlassian" of Atlassian, and "GitHub" of GitHub, Inc. You are responsible for making sure your use of this tool complies with the terms of your Claude Code subscription and of every service it connects to.
+This is an independent project. It is not affiliated with, endorsed by or sponsored by Anthropic, Atlassian or GitHub. "Claude" and "Claude Code" are trademarks of Anthropic, "Jira" and "Atlassian" of Atlassian, and "GitHub" of GitHub, Inc. You are responsible for making sure your use of this tool complies with the terms of your Claude Code plan and of every service it connects to.
