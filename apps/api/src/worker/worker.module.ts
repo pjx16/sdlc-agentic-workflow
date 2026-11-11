@@ -18,7 +18,9 @@ import { MirrorService } from './git/mirror.service';
 import { WorkspaceService } from './git/workspace.service';
 import { VerifyService } from './verify/verify.service';
 import { IntakePoller } from './intake/intake-poller';
-import { KbHandler } from './pipeline/kb.handler';
+import { KB_BUILDER, KbHandler } from './pipeline/kb.handler';
+import { KbBuildService } from './pipeline/kb-build.service';
+import { StageLauncher } from './pipeline/stage-launcher';
 import { NewTicketHandler } from './pipeline/new-ticket.handler';
 import { STEP_HANDLERS, type StepHandler } from './pipeline/step-handler';
 import { StageOutcomes } from './pipeline/stage-outcomes';
@@ -43,6 +45,9 @@ import { WorkerRunner } from './worker-runner';
     { provide: IntakePoller, useFactory: (prisma: PrismaService, clients: JiraClients) => new IntakePoller(prisma, clients), inject: [PrismaService, JiraClients] },
     ApprovalPoller,
     StageOutcomes,
+    StageLauncher,
+    KbBuildService,
+    { provide: KB_BUILDER, useExisting: KbBuildService },
     NewTicketHandler,
     KbHandler,
     { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler] },

@@ -93,6 +93,18 @@ describe('commitAll (BUILD_PLAN 6.2)', () => {
     expect(existsSync(marker)).toBe(false);
   });
 
+  it('can limit what is staged to given paths, leaving other changes alone', async () => {
+    const git = new GitRunner({ githubToken: '' });
+    const { ws } = await workspace(git);
+    mkdirSync(path.join(ws, 'docs/kb'), { recursive: true });
+    writeFileSync(path.join(ws, 'docs/kb/a.md'), 'doc');
+    writeFileSync(path.join(ws, 'outside.txt'), 'not for this commit');
+    const res = await commitAll(git, ws, 'docs(KEY-1): add a knowledge base doc', identity, { paths: ['docs/kb'] });
+    expect(res.committed).toBe(true);
+    expect(sh(ws, 'show', '--name-only', '--format=', 'HEAD')).toBe('docs/kb/a.md');
+    expect(sh(ws, 'status', '--porcelain')).toBe('?? outside.txt');
+  });
+
   it('refuses a message with attribution, and a missing identity, before touching the index', async () => {
     const git = new GitRunner({ githubToken: '' });
     const { ws } = await workspace(git);

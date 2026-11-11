@@ -44,11 +44,12 @@ export type CommitResult = { committed: false } | { committed: true; sha: string
  * Stages everything and commits it as the configured identity (BUILD_PLAN 6.2). Repository hooks never run
  * (`core.hooksPath=/dev/null`) and the commit uses `--no-verify`. Returns `committed: false` when nothing changed.
  */
-export async function commitAll(git: GitRunner, workspace: string, message: string, identity: GitIdentity): Promise<CommitResult> {
+export async function commitAll(git: GitRunner, workspace: string, message: string, identity: GitIdentity, opts: { paths?: readonly string[] } = {}): Promise<CommitResult> {
   assertCommitMessage(message);
   if (!identity.name.trim() || !identity.email.trim()) throw new Error('GIT_AUTHOR_NAME and GIT_AUTHOR_EMAIL must be set to commit');
 
-  await git.run(['add', '-A'], { cwd: workspace });
+  // `paths` limits what is staged (the KB commit stages only the KB directory); the default stages everything.
+  await git.run(['add', '-A', ...(opts.paths && opts.paths.length > 0 ? ['--', ...opts.paths] : [])], { cwd: workspace });
   if ((await git.out(['diff', '--cached', '--name-only'], { cwd: workspace })) === '') return { committed: false };
 
   await git.run(['commit', '--no-verify', '-m', message], {

@@ -69,9 +69,9 @@ export class WorkspaceService {
   }
 
   /** `Git.commit(ticket, message)`: commits the workspace as the configured identity; hooks never run. */
-  async commit(ticketId: string, message: string): Promise<CommitResult> {
+  async commit(ticketId: string, message: string, opts: { paths?: readonly string[] } = {}): Promise<CommitResult> {
     const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
-    const result = await commitAll(this.git, this.config.workspacePath(ticket.projectId, ticket.key), message, { name: this.config.authorName, email: this.config.authorEmail });
+    const result = await commitAll(this.git, this.config.workspacePath(ticket.projectId, ticket.key), message, { name: this.config.authorName, email: this.config.authorEmail }, opts);
     if (result.committed) await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Committed ${result.sha.slice(0, 8)}: ${message.split('\n')[0]}`.slice(0, 500) } });
     return result;
   }
