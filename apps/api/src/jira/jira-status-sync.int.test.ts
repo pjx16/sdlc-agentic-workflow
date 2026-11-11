@@ -153,7 +153,7 @@ describe('Jira status mapping (F15)', () => {
 
     it('approves a breakdown, and ignores any other Jira status', async () => {
       const p = await project();
-      const a = await ticket(p.id, { status: 'AWAITING_BREAKDOWN_APPROVAL' });
+      const a = await ticket(p.id, { status: 'AWAITING_BREAKDOWN_APPROVAL', breakdownDraft: [{ seq: 1, title: 'only', description: '', acceptanceCriteria: ['c'], files: [], dependsOn: [] }] });
       const b = await ticket(p.id, { status: 'AWAITING_PLAN_APPROVAL' });
       jira.statuses[a.externalKey!] = 'Ready for Dev';
       jira.statuses[b.externalKey!] = 'In Progress'; // a manual change that must be ignored
