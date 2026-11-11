@@ -8,7 +8,9 @@
 //   - exits with the entry's exitCode; delayMs waits first (for timeout and kill tests)
 //
 // Entry: { edits: [{ path, content }], deletes: [], result: <stage envelope>, usage: {...}, rateLimit?: {...},
-//          exitCode?, delayMs?, subtype?: "error_max_turns", fenced?: true, noResult?: true, leakEnv?: ["NAME"] }
+//          exitCode?, delayMs?, subtype?: "error_max_turns", fenced?: true, noResult?: true, leakEnv?: ["NAME"],
+//          promptMatches?: "regex" }
+//   promptMatches selects the entry by the prompt text; attempt n then picks among the matching entries.
 //   leakEnv prints those environment variables in the assistant text, to test that logs are redacted.
 //
 // Environment: FAKE_SCENARIO (default "default"), FAKE_SCENARIOS_DIR (default: ./scenarios next to this file),
@@ -43,7 +45,11 @@ if (!attempt) {
     attempt = 1;
   }
 }
-const entry = entries[Math.min(attempt - 1, entries.length - 1)];
+// An entry may carry `promptMatches` (a regular expression tested against the prompt), so one scenario can behave differently
+// for different inputs, for example per subtask. Attempt n then picks among the entries that match.
+const applicable = entries.filter((e) => !e.promptMatches || new RegExp(e.promptMatches).test(prompt));
+if (applicable.length === 0) fail(`no entry of ${file} matches this prompt`);
+const entry = applicable[Math.min(attempt - 1, applicable.length - 1)];
 
 const safePath = (p) => {
   const resolved = path.resolve(process.cwd(), p);
