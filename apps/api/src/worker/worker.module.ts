@@ -37,6 +37,7 @@ import { STEP_HANDLERS, type StepHandler } from './pipeline/step-handler';
 import { StageOutcomes } from './pipeline/stage-outcomes';
 import { RestartRecovery } from './loop/restart-recovery';
 import { HOUSEKEEPERS, type Housekeeper, WorkerLoop } from './loop/worker-loop';
+import { HoldNotifier } from './ci/hold-notifier';
 import { CiPoller } from './ci/ci-poller';
 import { MergePoller } from './ci/merge-poller';
 import { CiFixHandler } from './ci/ci-fix.handler';
@@ -76,7 +77,8 @@ import { WorkerRunner } from './worker-runner';
     ReviewService,
     ReviewHandler,
     CiFixHandler,
-    { provide: CiPoller, useFactory: (p: PrismaService, st: StateMachine, pr: PrService, gh: GitHubClient) => new CiPoller(p, st, pr, gh), inject: [PrismaService, StateMachine, PrService, GITHUB_CLIENT] },
+    HoldNotifier,
+    { provide: CiPoller, useFactory: (p: PrismaService, st: StateMachine, pr: PrService, gh: GitHubClient, hn: HoldNotifier) => new CiPoller(p, st, pr, gh, undefined, hn), inject: [PrismaService, StateMachine, PrService, GITHUB_CLIENT, HoldNotifier] },
     { provide: MergePoller, useFactory: (p: PrismaService, st: StateMachine, gh: GitHubClient) => new MergePoller(p, st, gh), inject: [PrismaService, StateMachine, GITHUB_CLIENT] },
     { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller): Housekeeper[] => [ci, merge], inject: [CiPoller, MergePoller] },
     NewTicketHandler,
@@ -85,8 +87,8 @@ import { WorkerRunner } from './worker-runner';
     RestartRecovery,
     {
       provide: WorkerLoop,
-      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine, handlers: StepHandler[], housekeepers: Housekeeper[]) => new WorkerLoop(prisma, mirrors, intake, approvals, states, handlers, undefined, housekeepers),
-      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine, STEP_HANDLERS, HOUSEKEEPERS],
+      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine, handlers: StepHandler[], housekeepers: Housekeeper[], holds: HoldNotifier) => new WorkerLoop(prisma, mirrors, intake, approvals, states, handlers, undefined, housekeepers, holds),
+      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine, STEP_HANDLERS, HOUSEKEEPERS, HoldNotifier],
     },
     WorkerRunner,
   ],

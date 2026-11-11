@@ -50,6 +50,24 @@ export class TicketsController {
     return this.tickets.rejectBreakdown(id, body);
   }
 
+  @Post(':id/hold')
+  @HttpCode(HttpStatus.OK)
+  hold(@Param('id') id: string) {
+    return this.tickets.holdTicket(id);
+  }
+
+  @Post(':id/resume')
+  @HttpCode(HttpStatus.OK)
+  resume(@Param('id') id: string) {
+    return this.tickets.resumeTicket(id);
+  }
+
+  @Post(':id/retry')
+  @HttpCode(HttpStatus.OK)
+  retry(@Param('id') id: string) {
+    return this.tickets.retryTicket(id);
+  }
+
   @Post(':id/kb-update/rerun')
   @HttpCode(HttpStatus.OK)
   rerunKbUpdate(@Param('id') id: string) {

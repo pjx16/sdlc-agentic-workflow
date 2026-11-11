@@ -5,6 +5,7 @@ import { StateMachine } from '../../state/state-machine.service';
 import { StepsHarness, sh } from '../../testing/steps-harness';
 import { CiFixHandler } from './ci-fix.handler';
 import { CiPoller } from './ci-poller';
+import { HoldNotifier } from './hold-notifier';
 import { MergePoller } from './merge-poller';
 
 describe('CI polling and the CI fix round (F12)', () => {
@@ -181,6 +182,32 @@ describe('CI polling and the CI fix round (F12)', () => {
       };
       await expect(merge.check()).resolves.toBeUndefined();
       expect(await status(t.id)).toBe('IN_HUMAN_REVIEW');
+    });
+  });
+
+  describe('hold notice (3.7)', () => {
+    it('a needs_help hold comments on the open PR; other reasons and tickets without a PR do not', async () => {
+      const notifier = new HoldNotifier(h.prisma, h.github);
+      const t = await awaitingCi();
+      await notifier.onHold(t.id, 'needs_help', 'The tests stage failed twice');
+      expect(h.github.comments).toHaveLength(1);
+      expect(h.github.comments[0]?.body).toContain('Paused: needs help');
+      expect(h.github.comments[0]?.body).toContain('The tests stage failed twice');
+      await notifier.onHold(t.id, 'manual');
+      await notifier.onHold(t.id, 'awaiting_answer');
+      expect(h.github.comments).toHaveLength(1);
+      const noPr = await awaitingCi({ prNumber: null, prUrl: null });
+      await notifier.onHold(noPr.id, 'needs_help', 'x');
+      expect(h.github.comments).toHaveLength(1);
+    });
+
+    it('a failure to comment is only a warning', async () => {
+      const t = await awaitingCi();
+      h.github.comment = async () => {
+        throw new Error('gh down');
+      };
+      await expect(new HoldNotifier(h.prisma, h.github).onHold(t.id, 'needs_help', 'x')).resolves.toBeUndefined();
+      expect((await h.prisma.event.findMany({ where: { ticketId: t.id } })).some((e) => e.message.includes('gh down'))).toBe(true);
     });
   });
 });

@@ -48,6 +48,7 @@ export class WorkerLoop {
     @Optional() @Inject(STEP_HANDLERS) private readonly handlers: StepHandler[] = [],
     private readonly now: () => number = () => Date.now(),
     @Optional() @Inject(HOUSEKEEPERS) private readonly housekeepers: Housekeeper[] = [],
+    @Optional() private readonly holds?: { onHold(ticketId: string, reason: string, note?: string): Promise<void> },
   ) {
     this.schedule = new Schedule(now);
   }
@@ -115,6 +116,7 @@ export class WorkerLoop {
         break;
       case 'hold':
         await this.states.hold(ticket.id, outcome.reason, 'system', outcome.note, outcome.stageRunId);
+        await this.holds?.onHold(ticket.id, outcome.reason, outcome.note).catch((e: unknown) => this.logger.warn(`Hold notice failed: ${String(e)}`));
         break;
       case 'continue':
       case 'stay':

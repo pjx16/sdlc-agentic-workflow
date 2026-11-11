@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { KillRunButton } from './kill-run-button';
 import { formatDateTime, formatDuration } from '@/lib/ticket-status';
 import type { RunView } from '@/lib/types';
 
@@ -25,6 +26,12 @@ export function RunsTable({ runs }: { runs: RunView[] }) {
             <td className="py-3">{r.attempt}</td>
             <td className="py-3">
               {r.status}
+              {r.status === 'running' && (
+                <>
+                  {' '}
+                  <KillRunButton runId={r.id} />
+                </>
+              )}
               {r.error && <span className="block text-xs text-red">{r.error}</span>}
             </td>
             <td className="py-3 text-muted">{formatDateTime(r.startedAt)}</td>

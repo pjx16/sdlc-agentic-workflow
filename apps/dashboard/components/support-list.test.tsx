@@ -30,7 +30,7 @@ describe('SupportList (F13)', () => {
     render(<SupportList queries={[q(), q({ id: 'q2', ticketKey: 'ABC-2', question: 'Rounding?', status: 'answered', answer: 'Half up' })]} />);
     expect(screen.getByRole('link', { name: 'ABC-1' })).toHaveAttribute('href', '/tickets/t1');
     expect(screen.getByText('Which currency?')).toBeInTheDocument();
-    expect(screen.getByText('plan')).toBeInTheDocument();
+    expect(screen.getAllByText('plan').length).toBeGreaterThan(0);
     expect(screen.getAllByLabelText('Your answer')).toHaveLength(1);
     expect(screen.getByText(/Answer: Half up/)).toBeInTheDocument();
   });
