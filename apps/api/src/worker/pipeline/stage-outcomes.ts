@@ -1,0 +1,39 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import type { StageResult } from '../agent-runner/agent-runner';
+import type { StepOutcome } from './step-handler';
+
+export type NonDoneResult = Exclude<StageResult, { kind: 'done' }>;
+
+/**
+ * What a ticket does when a stage did not simply succeed (BUILD_PLAN 6.8). `done` is the stage's own business;
+ * everything else is the same for every stage, so it lives here.
+ */
+@Injectable()
+export class StageOutcomes {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async forResult(ticketId: string, stage: string, result: NonDoneResult): Promise<StepOutcome> {
+    switch (result.kind) {
+      case 'needs_input':
+        // The stage asks the developer something: store the question and wait for the answer (milestone 9 adds the answer flow).
+        await this.prisma.supportQuery.create({ data: { ticketId, stageRunId: result.stageRunId, stage, question: result.question } });
+        return { kind: 'hold', reason: 'awaiting_answer', note: result.question.slice(0, 200), stageRunId: result.stageRunId };
+      case 'failed':
+        return { kind: 'hold', reason: 'needs_help', note: `The ${stage} stage failed twice: ${result.reason}`.slice(0, 500), stageRunId: result.stageRunId };
+      case 'turn_limit':
+        return { kind: 'hold', reason: 'needs_help', note: `The ${stage} stage reached its turn limit`, stageRunId: result.stageRunId };
+      case 'killed':
+        return { kind: 'hold', reason: 'manual', note: `The ${stage} stage was killed from the dashboard`, stageRunId: result.stageRunId };
+      case 'rate_limited':
+        // Pause the pipeline and re-queue the stage; not counted as an attempt. (The full usage gate is milestone 10.)
+        await this.prisma.globalSettings.upsert({
+          where: { id: 'global' },
+          update: { pipelinePaused: true, pausedReason: 'rate_limit', resetsAt: result.resetsAt },
+          create: { id: 'global', pipelinePaused: true, pausedReason: 'rate_limit', resetsAt: result.resetsAt },
+        });
+        await this.prisma.event.create({ data: { ticketId, type: 'usage', message: `The ${stage} stage was rate limited: the pipeline is paused` } });
+        return { kind: 'stay' };
+    }
+  }
+}

@@ -18,6 +18,10 @@ import { MirrorService } from './git/mirror.service';
 import { WorkspaceService } from './git/workspace.service';
 import { VerifyService } from './verify/verify.service';
 import { IntakePoller } from './intake/intake-poller';
+import { KbHandler } from './pipeline/kb.handler';
+import { NewTicketHandler } from './pipeline/new-ticket.handler';
+import { STEP_HANDLERS, type StepHandler } from './pipeline/step-handler';
+import { StageOutcomes } from './pipeline/stage-outcomes';
 import { RestartRecovery } from './loop/restart-recovery';
 import { WorkerLoop } from './loop/worker-loop';
 import { WorkerConfig } from './worker-config';
@@ -38,11 +42,15 @@ import { WorkerRunner } from './worker-runner';
     VerifyService,
     { provide: IntakePoller, useFactory: (prisma: PrismaService, clients: JiraClients) => new IntakePoller(prisma, clients), inject: [PrismaService, JiraClients] },
     ApprovalPoller,
+    StageOutcomes,
+    NewTicketHandler,
+    KbHandler,
+    { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler] },
     RestartRecovery,
     {
       provide: WorkerLoop,
-      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine) => new WorkerLoop(prisma, mirrors, intake, approvals, states, []),
-      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine],
+      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine, handlers: StepHandler[]) => new WorkerLoop(prisma, mirrors, intake, approvals, states, handlers),
+      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine, STEP_HANDLERS],
     },
     WorkerRunner,
   ],
