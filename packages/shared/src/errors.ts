@@ -13,5 +13,6 @@ export const ErrorCodes = {
   tooManyRequests: 'too_many_requests',
   validation: 'validation_error',
   notFound: 'not_found',
+  conflict: 'conflict',
   internal: 'internal_error',
 } as const;

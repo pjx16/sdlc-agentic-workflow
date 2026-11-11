@@ -3,6 +3,7 @@ import { ErrorCodes } from '@sdlc/shared';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { ApiException } from '../common/api-exception';
+import { parseBody } from '../common/parse-body';
 import { AppConfig } from '../config';
 import { AuthService } from './auth.service';
 import { SESSION_COOKIE } from './constants';
@@ -36,14 +37,9 @@ export class AuthController {
       throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, ErrorCodes.tooManyRequests, 'Too many failed logins. Try again later.');
     }
 
-    const parsed = LoginBody.safeParse(body ?? {});
-    if (!parsed.success) {
-      const fields: Record<string, string> = {};
-      for (const issue of parsed.error.issues) fields[String(issue.path[0] ?? 'body')] = issue.message;
-      throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Invalid login request', fields);
-    }
+    const input = parseBody(LoginBody, body ?? {}, 'Invalid login request');
 
-    if (!(await this.auth.verifyPassword(parsed.data.password))) {
+    if (!(await this.auth.verifyPassword(input.password))) {
       this.limiter.recordFailure(ip);
       throw new ApiException(HttpStatus.UNAUTHORIZED, ErrorCodes.unauthorized, 'Wrong password');
     }
