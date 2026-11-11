@@ -148,7 +148,7 @@ Planned environment variables (`.env.example` will list all of them with comment
 | `POSTGRES_PASSWORD` | yes | Database password |
 | `DATA_DIR` | yes | Absolute host path for mirrors, workspaces, runs and logs |
 | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira REST mode | Jira Cloud access |
-| `JIRA_MCP_CONFIG_PATH`, `JIRA_MCP_HOST` | Jira MCP mode | Jira MCP server configuration and proxy allowlist host |
+| `JIRA_MCP_CONFIG_FILE`, `JIRA_MCP_CONFIG_PATH`, `JIRA_MCP_HOST`, `JIRA_MCP_AUTH` | Jira MCP mode | Jira MCP server file (host path, and `/config/jira-mcp.json` in the worker), the proxy allowlist host, and the credential the file refers to as `${JIRA_MCP_AUTH}`. Only the two Jira stages receive it. Each MCP read or write is a stage run (about 50-70k tokens), so prefer REST mode where it works. |
 | `COOKIE_SECURE`, `DASHBOARD_BIND`, `AGENT_IMAGE`, `AGENT_MEMORY`, `AGENT_CPUS`, `LOG_LEVEL` | no | Optional tuning |
 
 **Token guidance**
