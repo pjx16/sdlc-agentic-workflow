@@ -91,6 +91,13 @@ describe('F1 authentication', () => {
     expect(res.body.error).toBe('not_found');
   });
 
+  it('GET /auth/session reports whether the cookie is a valid session', async () => {
+    await request(app.getHttpServer()).get('/auth/session').expect(401);
+    const cookie = sessionCookie(await login(PASSWORD).expect(200));
+    const res = await request(app.getHttpServer()).get('/auth/session').set('Cookie', cookie).expect(200);
+    expect(res.body).toEqual({ ok: true });
+  });
+
   it('rejects a wrong password with 401 and sets no cookie', async () => {
     const res = await login('nope', '10.0.0.2').expect(401);
     expect(res.body.error).toBe('unauthorized');

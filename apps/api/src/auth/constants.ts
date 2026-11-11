@@ -1,1 +1,1 @@
-export const SESSION_COOKIE = 'sdlc_session';
+export { SESSION_COOKIE } from '@sdlc/shared';

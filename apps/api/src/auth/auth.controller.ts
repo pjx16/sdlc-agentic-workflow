@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
 import { ErrorCodes } from '@sdlc/shared';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
@@ -57,6 +57,12 @@ export class AuthController {
       maxAge: SESSION_TTL_MS,
       path: '/',
     });
+    return { ok: true };
+  }
+
+  /** Lets the dashboard check a session cookie. The session middleware answers 401 when it is not valid. */
+  @Get('session')
+  session(): { ok: true } {
     return { ok: true };
   }
 
