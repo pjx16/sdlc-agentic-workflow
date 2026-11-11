@@ -32,12 +32,16 @@ export class StageOutcomes {
       case 'killed':
         return { kind: 'hold', reason: 'manual', note: `The ${stage} stage was killed from the dashboard`, stageRunId: result.stageRunId };
       case 'rate_limited':
-        // Pause the pipeline and re-queue the stage; not counted as an attempt. (The full usage gate is milestone 10.)
-        await this.prisma.globalSettings.upsert({
-          where: { id: 'global' },
-          update: { pipelinePaused: true, pausedReason: 'rate_limit', resetsAt: result.resetsAt },
-          create: { id: 'global', pipelinePaused: true, pausedReason: 'rate_limit', resetsAt: result.resetsAt },
-        });
+        // The usage gate treats a rate-limit error as `rejected` and has paused the pipeline (6.7); the stage is re-queued, not counted as an
+        // attempt. If the gate was not running (tests, or it failed), make sure the pause is in place.
+        const current = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
+        if (!current?.pipelinePaused) {
+          await this.prisma.globalSettings.upsert({
+            where: { id: 'global' },
+            update: { pipelinePaused: true, pausedReason: 'Claude rejected the request: the usage limit is reached', resetsAt: result.resetsAt },
+            create: { id: 'global', pipelinePaused: true, pausedReason: 'Claude rejected the request: the usage limit is reached', resetsAt: result.resetsAt },
+          });
+        }
         await this.prisma.event.create({ data: { ticketId, type: 'usage', message: `The ${stage} stage was rate limited: the pipeline is paused` } });
         return { kind: 'stay' };
     }

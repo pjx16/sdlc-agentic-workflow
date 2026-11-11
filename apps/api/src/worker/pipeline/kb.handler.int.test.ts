@@ -144,7 +144,7 @@ describe('NEW and KB step handlers', () => {
       const t = await ticket();
       const resetsAt = new Date('2026-12-01T00:00:00Z');
       expect(await outcomes().forResult(t.id, 'plan', { kind: 'rate_limited', resetsAt, stageRunId: 'x', attempts: 1 })).toEqual({ kind: 'stay' });
-      expect(await prisma.globalSettings.findUniqueOrThrow({ where: { id: 'global' } })).toMatchObject({ pipelinePaused: true, pausedReason: 'rate_limit', resetsAt });
+      expect(await prisma.globalSettings.findUniqueOrThrow({ where: { id: 'global' } })).toMatchObject({ pipelinePaused: true, pausedReason: expect.stringContaining('usage limit'), resetsAt });
     });
   });
 });

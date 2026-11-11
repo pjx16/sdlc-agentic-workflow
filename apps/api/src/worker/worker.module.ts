@@ -8,6 +8,7 @@ import { ApprovalPoller } from '../jira/approval-poller';
 import { StateMachine } from '../state/state-machine.service';
 import { SubtasksService } from '../subtasks/subtasks.service';
 import { StateModule } from '../state/state.module';
+import { USAGE_GATE, UsageGate } from './usage/usage-gate';
 import { AgentRunner } from './agent-runner/agent-runner';
 import { FileLogSink } from './agent-runner/file-log-sink';
 import { LOG_SINK } from './agent-runner/log-sink';
@@ -55,6 +56,7 @@ import { WorkerRunner } from './worker-runner';
     ContainerRunner,
     { provide: STAGE_RUN_STORE, useClass: PrismaStageRunStore },
     { provide: LOG_SINK, useClass: FileLogSink },
+    { provide: USAGE_GATE, useFactory: (prisma: PrismaService) => new UsageGate(prisma), inject: [PrismaService] },
     AgentRunner,
     VerifyService,
     { provide: IntakePoller, useFactory: (prisma: PrismaService, clients: JiraClients) => new IntakePoller(prisma, clients), inject: [PrismaService, JiraClients] },
