@@ -134,8 +134,10 @@ export class AgentRunner {
         DISABLE_AUTOUPDATER: '1',
         DISABLE_TELEMETRY: '1',
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+        ...this.config.agentExtraEnv,
         ...(req.jira?.env ?? {}),
       },
+      extraBinds: this.config.agentExtraBinds,
       workspace:
         access === 'none'
           ? undefined

@@ -1,0 +1,10 @@
+# Test overlay: `docker compose -f docker-compose.yml -f docker-compose.test.yml up`.
+# Agent containers are started by the worker, so the worker is told to mount fake-claude over
+# /usr/local/bin/claude in every one of them (AGENT_EXTRA_BINDS) and which scenario to play (AGENT_EXTRA_ENV).
+# Paths are absolute host paths: run from the repository root so ${PWD} is correct.
+services:
+  worker:
+    environment:
+      AGENT_EXTRA_BINDS: "${PWD}/test/fake-claude/claude:/usr/local/bin/claude:ro,${PWD}/test/fake-claude/scenarios:/fake-claude/scenarios:ro"
+      AGENT_EXTRA_ENV: "FAKE_SCENARIO=${FAKE_SCENARIO:-ok},FAKE_SCENARIOS_DIR=/fake-claude/scenarios"
+      CLAUDE_CODE_OAUTH_TOKEN: "fake-token-for-tests"

@@ -1,0 +1,1 @@
+[{"edits":[{"path":"src/feature.ts","content":"export const feature = 1;\n"}],"result":{"status":"done","summary":"Implemented","data":{"filesChanged":["src/feature.ts"]}}}]

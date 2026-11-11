@@ -20,6 +20,8 @@ export interface ContainerSpec {
     /** CLAUDE.md mode `ours`: bind an empty file over these files in /workspace so Claude Code cannot see them. */
     hide?: { emptyFile: string; names: string[] };
   };
+  /** Extra `host:container[:mode]` bind mounts (tests mount fake-claude over the claude binary). */
+  extraBinds?: string[];
   /** Mounted read-only at /context. */
   contextDir?: string;
   /** Like "4g". */
@@ -46,6 +48,7 @@ export function buildCreateOptions(spec: ContainerSpec): Docker.ContainerCreateO
   }
   if (spec.contextDir) binds.push(`${spec.contextDir}:/context:ro`);
   binds.push(`${NPM_CACHE_VOLUME}:/npm-cache:rw`);
+  binds.push(...(spec.extraBinds ?? []));
 
   return {
     name: spec.name,
