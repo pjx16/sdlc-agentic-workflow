@@ -251,10 +251,40 @@ export class SubtaskStepsService {
     return this.completeSubtask(ticket, subtask);
   }
 
-  /** What happens when verify-green fails. (Fix rounds are added in 7.5.) */
-  protected async greenFailed(_ticket: Ticket, subtask: Subtask, output: string, _maxRounds: number): Promise<StepOutcome> {
-    await this.prisma.subtask.update({ where: { id: subtask.id }, data: { lastFailure: output.split('\n').slice(-60).join('\n') } });
-    return { kind: 'hold', reason: 'needs_help', note: `Verify-green failed for subtask ${subtask.seq}:\n${output.split('\n').slice(-5).join('\n')}`.slice(0, 500) };
+  /**
+   * What happens when verify-green fails (F9): up to `maxTestFixRounds` times the subtask goes to FIXING with the last 60 lines of
+   * the failure output; after that the ticket is held (`needs_help`).
+   */
+  protected async greenFailed(ticket: Ticket, subtask: Subtask, output: string, maxRounds: number): Promise<StepOutcome> {
+    const tail = output.split('\n').slice(-60).join('\n');
+    if (subtask.fixRounds >= maxRounds) {
+      await this.prisma.subtask.update({ where: { id: subtask.id }, data: { lastFailure: tail } });
+      return { kind: 'hold', reason: 'needs_help', note: `Subtask ${subtask.seq} still fails after ${subtask.fixRounds} fix round(s):\n${tail.split('\n').slice(-5).join('\n')}`.slice(0, 500) };
+    }
+    await this.setStatus(subtask.id, 'FIXING', { lastFailure: tail });
+    await this.warn(ticket, `Verify-green failed for subtask ${subtask.seq}; fix round ${subtask.fixRounds + 1} of ${maxRounds}`);
+    return { kind: 'continue' };
+  }
+
+  // ------------------------------------------------------------------ fix
+
+  /**
+   * `fix` stage (read-write workspace): given the failure output of verify-green (the last 60 lines) and the subtask, repairs the
+   * implementation. The run is recorded with reason `tests`. Then verify-green runs again (F9).
+   */
+  async fix(ticket: Ticket, subtask: Subtask): Promise<StepOutcome> {
+    const ws = this.launcher.workspaceOf(ticket);
+    await makeWritableForAgent(ws);
+    const round = subtask.fixRounds + 1;
+    const result = await this.launcher.launch(
+      ticket,
+      'fix',
+      { failureOutput: subtask.lastFailure ?? '', subtask: toSubtaskInfo(subtask) },
+      { workspacePath: ws, subtaskId: subtask.id, round, reason: 'tests' },
+    );
+    if (result.kind !== 'done') return this.outcomes.forResult(ticket.id, 'fix', result);
+    await this.setStatus(subtask.id, 'VERIFY_GREEN', { fixRounds: round });
+    return { kind: 'continue' };
   }
 
   /** The subtask passed verification. (The feat commit and push are added in 7.7.) */
