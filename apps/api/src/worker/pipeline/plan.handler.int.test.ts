@@ -141,12 +141,12 @@ describe('plan stage (F7)', () => {
       expect(jira.calls).toEqual([`comment ${t.externalKey}`]);
     });
 
-    it('does not post when comments are off, the ticket was pasted, or the project is not in REST mode', async () => {
+    it('does not post when comments are off, the ticket was pasted, or Jira is off for the project', async () => {
       await setProject({ jiraMode: 'rest', settings: { jiraWriteBack: { comments: false } } });
       await handler.run(await jiraTicket());
       await setProject({ jiraMode: 'rest', settings: {} });
       await handler.run(await ticket());
-      await setProject({ jiraMode: 'mcp' });
+      await setProject({ jiraMode: 'off' });
       await handler.run(await jiraTicket());
       expect(jira.calls).toEqual([]);
     });

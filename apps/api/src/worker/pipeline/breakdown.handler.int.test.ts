@@ -183,12 +183,12 @@ describe('breakdown stage (F8)', () => {
       expect((await prisma.subtask.findMany({ where: { ticketId: t.id }, orderBy: { seq: 'asc' } })).map((s) => s.externalKey)).toEqual([`${t.externalKey}-S`, `${t.externalKey}-S`]);
     });
 
-    it('does nothing for pasted tickets, other Jira modes, or write-back turned off', async () => {
+    it('does nothing for pasted tickets, Jira off, or write-back turned off', async () => {
       await setSettings({ gates: { breakdown: false } }, { jiraMode: 'rest' });
       await handler.run(await ticket());
       await setSettings({ gates: { breakdown: false }, jiraWriteBack: { createSubtasks: false } }, { jiraMode: 'rest' });
       await handler.run(await jiraTicket());
-      await setSettings({ gates: { breakdown: false } }, { jiraMode: 'mcp' });
+      await setSettings({ gates: { breakdown: false } }, { jiraMode: 'off' });
       await handler.run(await jiraTicket());
       expect(jira.calls.filter((c) => c.startsWith('subtask'))).toEqual([]);
     });
