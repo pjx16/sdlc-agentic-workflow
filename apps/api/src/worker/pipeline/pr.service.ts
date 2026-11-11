@@ -77,7 +77,7 @@ export class PrService {
   /** Open medium and low findings of the last review round, for the "Review notes" section. */
   private async remainingFindings(ticketId: string, round: number): Promise<{ medium: number; low: number }> {
     if (round === 0) return { medium: 0, low: 0 };
-    const rows = await this.prisma.reviewFinding.groupBy({ by: ['severity'], where: { ticketId, round, status: 'open' }, _count: true });
+    const rows = await this.prisma.reviewFinding.groupBy({ by: ['severity'], where: { ticketId, status: 'open' }, _count: true });
     const n = (sev: string) => rows.find((r) => r.severity === sev)?._count ?? 0;
     return { medium: n('medium'), low: n('low') };
   }
@@ -101,7 +101,7 @@ export class PrService {
     };
     await attempt('mark ready', () => this.github.markReady(repo, number));
     await attempt('rewrite the description', async () => this.github.editBody(repo, number, await this.describe(ticketId)));
-    const open = await this.prisma.reviewFinding.groupBy({ by: ['severity'], where: { ticketId, round: ticket.reviewRound, status: 'open' }, _count: true });
+    const open = await this.prisma.reviewFinding.groupBy({ by: ['severity'], where: { ticketId, status: 'open' }, _count: true });
     const fixed = await this.prisma.reviewFinding.count({ where: { ticketId, status: 'fixed' } });
     const count = (sev: string) => open.find((r) => r.severity === sev)?._count ?? 0;
     const summary = renderReviewSummary({ rounds: ticket.reviewRound, fixed, open: { critical: count('critical'), high: count('high'), medium: count('medium'), low: count('low') } });

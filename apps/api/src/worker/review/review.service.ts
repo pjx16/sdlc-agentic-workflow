@@ -58,7 +58,7 @@ export class ReviewService {
 
     const subtasks = await this.prisma.subtask.findMany({ where: { ticketId: ticket.id }, orderBy: { seq: 'asc' } });
     const acceptanceCriteria = subtasks.flatMap((s) => (Array.isArray(s.acceptanceCriteria) ? s.acceptanceCriteria.map((c) => `${s.title}: ${String(c)}`) : []));
-    const previous = round === 1 ? [] : await this.prisma.reviewFinding.findMany({ where: { ticketId: ticket.id, round: round - 1, status: 'open' }, orderBy: { id: 'asc' } });
+    const previous = round === 1 ? [] : await this.prisma.reviewFinding.findMany({ where: { ticketId: ticket.id, round: { lt: round }, status: 'open' }, orderBy: { id: 'asc' } });
 
     const result = await this.launcher.launch(
       ticket,
@@ -102,8 +102,8 @@ export class ReviewService {
     return null;
   }
 
-  /** The findings of the latest completed round that are still open. */
-  openFindings(ticketId: string, round: number): Promise<ReviewFinding[]> {
-    return this.prisma.reviewFinding.findMany({ where: { ticketId, round, status: 'open' }, orderBy: [{ id: 'asc' }] });
+  /** Every finding still open, from any round: a finding stays open until a later round reports it fixed. */
+  openFindings(ticketId: string): Promise<ReviewFinding[]> {
+    return this.prisma.reviewFinding.findMany({ where: { ticketId, status: 'open' }, orderBy: [{ round: 'asc' }, { id: 'asc' }] });
   }
 }

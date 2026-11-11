@@ -45,7 +45,7 @@ export class ReviewHandler implements StepHandler {
     // HEAD has not been reviewed yet (the first round, or commits since the last one): review it.
     if (ticket.reviewRound === 0 || ticket.lastReviewedSha !== head) return this.reviewRound(ticket);
 
-    const open = await this.reviews.openFindings(ticket.id, ticket.reviewRound);
+    const open = await this.reviews.openFindings(ticket.id);
     const blocking = open.filter((f) => blocksReview(f.severity));
     const next = nextAfterReview({ roundsRun: ticket.reviewRound, maxReviewRounds: settings.limits.maxReviewRounds, openBlocking: blocking.length });
     if (next === 'fix' && !(await this.fixAlreadyRan(ticket))) return this.fixRound(ticket, ws, blocking);

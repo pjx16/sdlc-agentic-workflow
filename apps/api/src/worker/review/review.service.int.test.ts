@@ -166,13 +166,14 @@ describe('review stage and findings storage (F10)', () => {
     expect((await h.reloadTicket(t.id)).reviewRound).toBe(0);
   });
 
-  it('openFindings returns only the open ones of a round', async () => {
+  it('openFindings returns the open ones from every round', async () => {
     const t = await withWork();
     h.agent.scripts.review = () => review([finding(), finding({ issue: 'b' })]);
     await service.runRound(t);
     const [first] = await rows(t.id, 1);
     await h.prisma.reviewFinding.update({ where: { id: first?.id as string }, data: { status: 'fixed' } });
-    expect(await service.openFindings(t.id, 1)).toHaveLength(1);
-    expect(await service.openFindings(t.id, 2)).toEqual([]);
+    expect(await service.openFindings(t.id)).toHaveLength(1);
+    await h.prisma.reviewFinding.updateMany({ where: { ticketId: t.id }, data: { status: 'fixed' } });
+    expect(await service.openFindings(t.id)).toEqual([]);
   });
 });
