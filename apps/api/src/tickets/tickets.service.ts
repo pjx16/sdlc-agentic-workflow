@@ -1,11 +1,13 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ErrorCodes, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, type TicketStatus } from '@sdlc/shared';
+import { ErrorCodes, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, validateBreakdown, type SubtaskDraft, type TicketStatus } from '@sdlc/shared';
 import { ApiException } from '../common/api-exception';
 import { parseBody } from '../common/parse-body';
 import { z } from 'zod';
 import { JiraClients } from '../jira/jira-clients';
 import { PrismaService } from '../prisma/prisma.service';
 import { StateMachine } from '../state/state-machine.service';
+import { SubtasksService } from '../subtasks/subtasks.service';
+import type { Prisma } from '../generated/prisma/client';
 import { type TicketDto, toTicketDto } from './ticket.dto';
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
@@ -38,6 +40,7 @@ export interface TimelineBar {
 }
 
 const ApproveBody = z.object({ planMarkdown: z.string().trim().min(1, 'must not be empty').max(100_000, 'must be at most 100000 characters').optional() });
+const BreakdownApproveBody = z.object({ subtasks: z.array(z.unknown()).optional() });
 const RejectBody = z.object({ note: z.string({ error: 'required' }).trim().min(1, 'required').max(2000, 'must be at most 2000 characters') });
 
 const fieldError = (field: string, message: string) => new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Validation failed', { [field]: message });
@@ -48,6 +51,7 @@ export class TicketsService {
     private readonly prisma: PrismaService,
     private readonly states: StateMachine,
     private readonly jira: JiraClients,
+    private readonly subtasks: SubtasksService,
   ) {}
 
   /** GET /tickets, newest activity first. Filters: `projectId`, `status`. */
@@ -73,7 +77,7 @@ export class TicketsService {
     const t = await this.prisma.ticket.findUniqueOrThrow({
       where: { id },
       include: {
-        project: { select: { name: true } },
+        project: { select: { name: true, settings: true } },
         subtasks: { orderBy: { seq: 'asc' } },
         stageRuns: { orderBy: [{ startedAt: 'asc' }, { id: 'asc' }] },
         findings: { orderBy: [{ round: 'asc' }, { id: 'asc' }] },
@@ -84,7 +88,9 @@ export class TicketsService {
     return {
       ...toTicketDto(ticket),
       projectName: project.name,
+      maxSubtasks: ProjectSettingsSchema.parse(project.settings).limits.maxSubtasks,
       planMarkdown: ticket.planMarkdown,
+      breakdownDraft: ticket.breakdownDraft,
       subtasks: subtasks.map((s) => ({ id: s.id, seq: s.seq, title: s.title, description: s.description, status: s.status, fixRounds: s.fixRounds, acceptanceCriteria: s.acceptanceCriteria, files: s.files, dependsOn: s.dependsOn })),
       stageRuns: stageRuns.map((r) => ({
         id: r.id, stage: r.stage, model: r.model, attempt: r.attempt, round: r.round, status: r.status, startedAt: iso(r.startedAt), endedAt: iso(r.endedAt),
@@ -181,5 +187,48 @@ export class TicketsService {
     } catch (err) {
       await this.prisma.event.create({ data: { ticketId, type: 'jira', message: `${key}: could not re-read the Jira issue: ${err instanceof Error ? err.message : String(err)}`.slice(0, 500) } });
     }
+  }
+
+  private async awaitingBreakdown(id: string) {
+    const ticket = await this.prisma.ticket.findUnique({ where: { id }, include: { project: true } });
+    if (!ticket) throw new ApiException(HttpStatus.NOT_FOUND, ErrorCodes.notFound, 'Ticket not found');
+    if (ticket.status !== 'AWAITING_BREAKDOWN_APPROVAL') {
+      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `The ticket is not awaiting breakdown approval (it is ${ticket.status})`);
+    }
+    return ticket;
+  }
+
+  /**
+   * POST /tickets/:id/breakdown/approve: the edited list (or, without one, the proposed list) is validated with the same
+   * rules as the stage output (400 with field-level errors if invalid), stored, turned into ordered Subtask rows, and the
+   * ticket moves to IN_PROGRESS (row 9).
+   */
+  async approveBreakdown(id: string, body: unknown): Promise<TicketDto> {
+    const { subtasks: edited } = parseBody(BreakdownApproveBody, body ?? {});
+    const ticket = await this.awaitingBreakdown(id);
+    const maxSubtasks = ProjectSettingsSchema.parse(ticket.project.settings).limits.maxSubtasks;
+
+    const verdict = validateBreakdown(edited ?? ticket.breakdownDraft, { maxSubtasks });
+    if (!verdict.ok) {
+      const fields: Record<string, string> = {};
+      for (const issue of verdict.issues) if (!(issue.field in fields)) fields[issue.field] = issue.message;
+      throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'The breakdown is not valid', fields);
+    }
+    const changed = edited !== undefined && JSON.stringify(verdict.subtasks) !== JSON.stringify(ticket.breakdownDraft);
+    if (changed) {
+      const { count } = await this.prisma.ticket.updateMany({ where: { id, status: 'AWAITING_BREAKDOWN_APPROVAL' }, data: { breakdownDraft: verdict.subtasks as unknown as Prisma.InputJsonValue } });
+      if (count === 0) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'The ticket changed while it was being updated');
+    }
+    await this.subtasks.create(id, verdict.subtasks as SubtaskDraft[]);
+    const { ticket: updated } = await this.states.transition(id, 'IN_PROGRESS', 'user', changed ? 'Breakdown approved with edits' : 'Breakdown approved');
+    return toTicketDto(updated);
+  }
+
+  /** POST /tickets/:id/breakdown/reject: the note goes back to the breakdown stage with the previous list (row 10). */
+  async rejectBreakdown(id: string, body: unknown): Promise<TicketDto> {
+    const { note } = parseBody(RejectBody, body ?? {});
+    await this.awaitingBreakdown(id);
+    const { ticket } = await this.states.transition(id, 'BREAKDOWN', 'user', note);
+    return toTicketDto(ticket);
   }
 }

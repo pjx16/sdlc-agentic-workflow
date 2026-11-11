@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ProjectSettingsSchema, approvalTarget, type TicketStatus } from '@sdlc/shared';
+import { ProjectSettingsSchema, approvalTarget, validateBreakdown, type SubtaskDraft, type TicketStatus } from '@sdlc/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { StateMachine } from '../state/state-machine.service';
+import { SubtasksService } from '../subtasks/subtasks.service';
 import { JiraNotConfiguredError, JiraClients } from './jira-clients';
 import { JiraUnavailableError } from './jira-client';
 
@@ -17,6 +18,7 @@ export class ApprovalPoller {
     private readonly prisma: PrismaService,
     private readonly clients: JiraClients,
     private readonly states: StateMachine,
+    private readonly subtasks: SubtasksService,
   ) {}
 
   /** Returns how many tickets were approved. Throws JiraUnavailableError if Jira is down (the loop pauses intake). */
@@ -37,6 +39,15 @@ export class ApprovalPoller {
         if (!next) continue;
         // Plan approval: developer edits to the title and description made in Jira reach the breakdown stage (F7).
         if (next === 'BREAKDOWN') await this.prisma.ticket.update({ where: { id: ticket.id }, data: { title: issue.summary || undefined, body: issue.description } });
+        // Breakdown approval: the proposed subtasks become Subtask rows, exactly as a dashboard approval does (F8).
+        if (next === 'IN_PROGRESS') {
+          const verdict = validateBreakdown(ticket.breakdownDraft, { maxSubtasks: ProjectSettingsSchema.parse(ticket.project.settings).limits.maxSubtasks });
+          if (!verdict.ok) {
+            this.logger.warn(`Breakdown of ${ticket.key} cannot be approved from Jira: its proposed list is not valid`);
+            continue;
+          }
+          await this.subtasks.create(ticket.id, verdict.subtasks as SubtaskDraft[]);
+        }
         await this.states.transition(ticket.id, next, 'jira', `approved in Jira (status "${status}")`);
         approved++;
       } catch (err) {

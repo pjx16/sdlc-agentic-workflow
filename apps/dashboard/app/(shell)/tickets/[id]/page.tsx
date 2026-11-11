@@ -1,17 +1,19 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { BreakdownPanel } from '@/components/breakdown-panel';
 import { PlanPanel } from '@/components/plan-panel';
 import { RunsTable } from '@/components/runs-table';
 import { StateBadge } from '@/components/state-badge';
 import { TransitionHistory } from '@/components/transition-history';
 import { apiGet } from '@/lib/server-api';
 import { formatDateTime, humanizeStatus } from '@/lib/ticket-status';
-import type { TicketWithPlan, TransitionView } from '@/lib/types';
+import type { TicketFull, TransitionView } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
 const TABS = [
   { id: 'plan', label: 'Plan' },
+  { id: 'breakdown', label: 'Breakdown' },
   { id: 'history', label: 'History' },
   { id: 'runs', label: 'Runs' },
 ] as const;
@@ -19,10 +21,10 @@ const TABS = [
 export default async function TicketPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const { id } = await params;
   const { tab } = await searchParams;
-  const ticket = await apiGet<TicketWithPlan>(`/tickets/${encodeURIComponent(id)}`);
+  const ticket = await apiGet<TicketFull>(`/tickets/${encodeURIComponent(id)}`);
   if (!ticket) notFound();
-  // A ticket waiting at the plan gate opens on the plan; otherwise on its history.
-  const active = tab === 'runs' || tab === 'plan' || tab === 'history' ? tab : ticket.status === 'AWAITING_PLAN_APPROVAL' ? 'plan' : 'history';
+  // A ticket waiting at a gate opens on that gate; otherwise on its history.
+  const active = tab === 'runs' || tab === 'plan' || tab === 'breakdown' || tab === 'history' ? tab : ticket.status === 'AWAITING_PLAN_APPROVAL' ? 'plan' : ticket.status === 'AWAITING_BREAKDOWN_APPROVAL' ? 'breakdown' : 'history';
   const transitions = active === 'history' ? ((await apiGet<TransitionView[]>(`/tickets/${encodeURIComponent(id)}/transitions`)) ?? []) : [];
 
   return (
@@ -57,6 +59,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
       </nav>
       <div className="mt-6">
         {active === 'plan' && <PlanPanel ticketId={ticket.id} status={ticket.status} planMarkdown={ticket.planMarkdown} />}
+        {active === 'breakdown' && <BreakdownPanel key={ticket.updatedAt} ticketId={ticket.id} status={ticket.status} draft={ticket.breakdownDraft} subtasks={ticket.subtasks} maxSubtasks={ticket.maxSubtasks} />}
         {active === 'history' && <TransitionHistory transitions={transitions} />}
         {active === 'runs' && <RunsTable runs={ticket.stageRuns} />}
       </div>
