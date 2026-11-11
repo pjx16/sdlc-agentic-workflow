@@ -111,7 +111,16 @@ What was verified with `curl` (no Claude calls):
 - Through the proxy: `initialize` returns `200` on port 3129 and is blocked on 3128, as designed.
 - **Tool calls failed with the token used**: `getAccessibleAtlassianResources` → 401 "session token is missing the scope claim required"; `searchJiraIssuesUsingJql` → "Cloud id … isn't explicitly granted by the user". The token was a plain (unscoped) API token. The docs say the server needs a token created with `agent-interface` scopes (for Jira: `read:jira:agent-interface`, `write:jira:agent-interface`, `search:jira:agent-interface`, …).
 
-**Result: headless auth is possible in principle; the end-to-end read/write call is not yet proven.** Open step: create a scoped token and repeat `getAccessibleAtlassianResources` and `searchJiraIssuesUsingJql`. If scoped tokens cannot be created for this account, Milestone 11 is skipped and the README states that MCP mode is unavailable.
+**Retest with a scoped token** (app "Atlassian MCP V2"; scopes `read|write:jira`, `read|write:jsm`, `read|write:projects`, `read|write:confluence`, `search:jira`, `search:confluence`, all `:agent-interface`; expires after 5 days):
+
+- `getAccessibleAtlassianResources` → 403 `Insufficient scopes ... Required: [read:me, read:account]`.
+- `atlassianUserInfo` → 403 `Required: [read:me]`.
+- `searchJiraIssuesUsingJql` (cloudId from `/_edge/tenant_info`, or the site hostname) → 401 `Failed to fetch accessible products: 401`.
+- `discover` needs a `query` argument (not tried further).
+
+So the scopes are now recognized, but Jira calls still fail while resolving the accessible products. This likely needs `read:me` / `read:account`, which the token creation screen did not offer for this app. Not resolved in the spike. API tokens also expire (max 1 year) and are never refreshed, so a runbook note is needed.
+
+**Result: headless auth works at the connection level (initialize, tools/list); an end-to-end Jira read/write call is NOT proven.** Open step: create a scoped token and repeat `getAccessibleAtlassianResources` and `searchJiraIssuesUsingJql`. If scoped tokens cannot be created for this account, Milestone 11 is skipped and the README states that MCP mode is unavailable.
 
 Proposed defaults for `jiraMcp` (names as returned by `tools/list`; confirm after the scoped-token retest):
 
