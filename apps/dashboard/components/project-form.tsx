@@ -8,7 +8,7 @@ import {
 } from '@sdlc/shared';
 import { Check, FormProvider, Num, Section, Select, Text, TextArea, Warnings } from './form';
 import { MirrorStatus } from './mirror-status';
-import { getIn, setIn, type FormValues } from '@/lib/form';
+import { collapseListErrors, getIn, setIn, type FormValues } from '@/lib/form';
 import { applyStackChange, initialValues, toPayload } from '@/lib/project-form';
 import type { ProjectView } from '@/lib/types';
 
@@ -74,7 +74,7 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
         return;
       }
       if (res.status === 400 && body.fields) {
-        setErrors(body.fields);
+        setErrors(collapseListErrors(body.fields, ['settings.verify.redInvalidPatterns']));
         setMessage({ kind: 'error', text: 'Some fields need attention.' });
       } else {
         setMessage({ kind: 'error', text: body.message ?? 'Could not save the project.' });

@@ -97,6 +97,13 @@ describe('ProjectForm', () => {
     expect(screen.queryByText('required')).not.toBeInTheDocument(); // an error clears when the field is edited
   });
 
+  it('shows per-line errors on the red-pattern list', async () => {
+    fetchMock.mockResolvedValue(ok({ error: 'validation_error', message: 'Validation failed', fields: { 'settings.verify.redInvalidPatterns.1': 'must be a valid regular expression' } }, 400));
+    render(<ProjectForm />);
+    await userEvent.click(screen.getByRole('button', { name: 'Create project' }));
+    expect(await screen.findByText('line 2: must be a valid regular expression')).toBeInTheDocument();
+  });
+
   it('edits a project with PATCH and confirms the save', async () => {
     fetchMock.mockResolvedValue(ok({ ...existing }));
     render(<ProjectForm project={existing} />);

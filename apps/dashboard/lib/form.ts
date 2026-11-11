@@ -36,3 +36,22 @@ export function toNumber(text: unknown): number | null {
 export function splitLines(text: string): string[] {
   return text.split('\n').map((l) => l.trim()).filter(Boolean);
 }
+
+/**
+ * List fields are edited as one textarea, but the API reports errors per item (`path.2`).
+ * This folds them onto the textarea's path as "line 3: message".
+ */
+export function collapseListErrors(errors: Record<string, string>, listPaths: readonly string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, message] of Object.entries(errors)) {
+    const match = /^(.*)\.(\d+)$/.exec(key);
+    if (match && listPaths.includes(match[1] as string)) {
+      const target = match[1] as string;
+      const line = `line ${Number(match[2]) + 1}: ${message}`;
+      out[target] = out[target] ? `${out[target]}; ${line}` : line;
+    } else {
+      out[key] = message;
+    }
+  }
+  return out;
+}
