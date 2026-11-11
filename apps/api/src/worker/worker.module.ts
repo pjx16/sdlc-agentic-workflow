@@ -13,7 +13,9 @@ import { LOG_SINK } from './agent-runner/log-sink';
 import { PrismaStageRunStore, STAGE_RUN_STORE } from './agent-runner/stage-run-store';
 import { CONTAINER_ENGINE, DockerodeEngine } from './agent-runner/container-engine';
 import { ContainerRunner } from './agent-runner/container-runner';
+import { GitRunner } from './git/git-runner';
 import { MirrorService } from './git/mirror.service';
+import { WorkspaceService } from './git/workspace.service';
 import { VerifyService } from './verify/verify.service';
 import { IntakePoller } from './intake/intake-poller';
 import { RestartRecovery } from './loop/restart-recovery';
@@ -24,7 +26,10 @@ import { WorkerRunner } from './worker-runner';
 /** The worker shares the database but has no HTTP surface and needs no dashboard credentials. */
 @Module({
   imports: [LoggingModule, PrismaModule, StateModule, JiraModule],
-  providers: [{ provide: WorkerConfig, useFactory: () => new WorkerConfig() }, MirrorService,
+  providers: [{ provide: WorkerConfig, useFactory: () => new WorkerConfig() },
+    MirrorService,
+    { provide: GitRunner, useFactory: (c: WorkerConfig) => new GitRunner({ githubToken: c.githubToken }), inject: [WorkerConfig] },
+    WorkspaceService,
     { provide: CONTAINER_ENGINE, useFactory: () => new DockerodeEngine() },
     ContainerRunner,
     { provide: STAGE_RUN_STORE, useClass: PrismaStageRunStore },
