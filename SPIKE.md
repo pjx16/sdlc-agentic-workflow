@@ -120,7 +120,14 @@ What was verified with `curl` (no Claude calls):
 
 So the scopes are now recognized, but Jira calls still fail while resolving the accessible products. This likely needs `read:me` / `read:account`, which the token creation screen did not offer for this app. Not resolved in the spike. API tokens also expire (max 1 year) and are never refreshed, so a runbook note is needed.
 
-**Result: headless auth works at the connection level (initialize, tools/list); an end-to-end Jira read/write call is NOT proven.** Open step: create a scoped token and repeat `getAccessibleAtlassianResources` and `searchJiraIssuesUsingJql`. If scoped tokens cannot be created for this account, Milestone 11 is skipped and the README states that MCP mode is unavailable.
+**Retest through the real agent path** (`claude -p --model haiku --mcp-config mcp.json --strict-mcp-config`, container on `sdlc_spike_net`, `HTTPS_PROXY=http://proxy:3129`, `Authorization: Basic ${JIRA_BASIC}` expanded from an env var in `mcp.json`):
+
+- `init`: `mcp_servers: [{"name":"atlassian","status":"connected"}]`, 26 MCP tools loaded.
+- `getAccessibleAtlassianResources` → `{"data":{"resources":[{"cloudId":"95bde24e-ab31-4504-86ee-63e31bd1d470","url":"https://piyushjaiswal1610.atlassian.net","products":[{"id":"jira","access":"read-write"}]}]}}` (a plain `curl` call with the same token returned an empty list).
+- `searchJiraIssuesUsingJql` → `{"error":true,"message":"You don't have permission to connect via API token. Please ask your organization admin for access."}`. This is an org-level setting; an admin has to allow API-token access for the Rovo MCP server.
+- Usage of this 4-turn run: input 8, cache creation 8,935, cache read 58,485, output 775 tokens. All 26 tool schemas were loaded although `--allowedTools` listed only 2, so `--allowedTools` does not shrink the context; budget about 50–70k tokens per Jira stage.
+
+**Result: headless auth works through Claude Code (connected, site visible with read-write access). A Jira read/write call is still blocked by an org setting (API-token access); end-to-end is NOT proven until an admin enables it.** Open step: create a scoped token and repeat `getAccessibleAtlassianResources` and `searchJiraIssuesUsingJql`. If scoped tokens cannot be created for this account, Milestone 11 is skipped and the README states that MCP mode is unavailable.
 
 Proposed defaults for `jiraMcp` (names as returned by `tools/list`; confirm after the scoped-token retest):
 
