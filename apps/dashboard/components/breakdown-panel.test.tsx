@@ -138,3 +138,12 @@ describe('BreakdownPanel (F8)', () => {
     expect(await screen.findByText('Cannot reach the server.')).toBeInTheDocument();
   });
 });
+
+describe('BreakdownPanel: a draft read back from a JSON column', () => {
+  it('is not "edited" just because the keys came back in another order', () => {
+    const scrambled = [{ title: 'Add the counter', seq: 1, files: ['src/a.ts'], dependsOn: [], description: 'd', acceptanceCriteria: ['c'] }] as never;
+    render(<BreakdownPanel ticketId="t1" status="AWAITING_BREAKDOWN_APPROVAL" draft={scrambled} subtasks={[]} maxSubtasks={8} />);
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Approve with edits' })).not.toBeInTheDocument();
+  });
+});

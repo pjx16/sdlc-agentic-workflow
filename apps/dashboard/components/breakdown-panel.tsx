@@ -33,7 +33,11 @@ function FieldError({ message }: { message?: string }) {
 export function BreakdownPanel({ ticketId, status, draft, subtasks, maxSubtasks }: Props) {
   const router = useRouter();
   const awaiting = status === 'AWAITING_BREAKDOWN_APPROVAL';
-  const original = useMemo(() => draft ?? [], [draft]);
+  // The stored draft comes back from a JSON column, which does not keep key order: compare it in the same normal form as the edited list.
+  const original = useMemo(() => {
+    const normal = validateBreakdown(draft ?? [], { maxSubtasks });
+    return normal.ok ? normal.subtasks : (draft ?? []);
+  }, [draft, maxSubtasks]);
   const [items, setItems] = useState<EditItem[]>(() => toEditItems(original));
   const [rejecting, setRejecting] = useState(false);
   const [note, setNote] = useState('');

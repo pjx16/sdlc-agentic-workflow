@@ -18,7 +18,7 @@
     "typecheck": "turbo run typecheck",
     "test:int": "turbo run test:int",
     "test:live": "turbo run test:live",
-    "test:e2e": "npm run build && npm run test:e2e -w @sdlc/e2e"
+    "test:e2e": "turbo run build --filter=@sdlc/api... && npm run test:e2e -w @sdlc/e2e"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

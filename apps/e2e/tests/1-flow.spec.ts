@@ -12,7 +12,7 @@ async function login(page: Page) {
   await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
 }
 
-const ticketLink = (page: Page, key: string) => page.getByRole('link', { name: new RegExp(key) }).first();
+const ticketLink = (page: Page, key: string) => page.getByRole('link', { name: new RegExp(`\\b${key}\\b`) }).first();
 
 test('pages need a session; a wrong password is refused; the right one logs in', async ({ page }) => {
   await page.goto('/tickets');
@@ -32,8 +32,8 @@ test('create a project', async ({ page }) => {
   await page.getByRole('button', { name: 'Create project' }).click();
   await page.waitForURL(/\/projects\/[0-9a-f-]+/);
   await page.goto('/projects');
-  await expect(page.getByText('Shipping')).toBeVisible();
-  await expect(page.getByText(SEED.project)).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Shipping' }).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: SEED.project }).first()).toBeVisible();
 });
 
 test('paste a ticket into a ready project', async ({ page }) => {
@@ -63,7 +63,7 @@ test('approve a breakdown', async ({ page }) => {
   await login(page);
   await page.goto('/tickets');
   await ticketLink(page, SEED.breakdown.key).click();
-  await expect(page.getByText('Add the counter')).toBeVisible();
+  await expect(page.locator('input[value="Add the counter"], textarea').first()).toBeVisible();
   await page.getByRole('button', { name: 'Approve', exact: true }).click();
   await expect(page.getByRole('status')).toContainText(/approved/i);
 });
@@ -77,7 +77,8 @@ test('answer a support query, which resumes the ticket', async ({ page }) => {
   await expect(page.getByText('Answer: EUR')).toBeVisible();
   await page.goto('/tickets');
   await ticketLink(page, 'BIL-4').click();
-  await expect(page.getByText(/On hold/)).toHaveCount(0);
+  await expect(page.getByText('Planning').first()).toBeVisible();
+  await expect(page.getByText(/On hold:/)).toHaveCount(0);
 });
 
 test('pause banner: shows why, Ignore clears it', async ({ page }) => {
@@ -88,7 +89,7 @@ test('pause banner: shows why, Ignore clears it', async ({ page }) => {
   await expect(page.getByText('Paused', { exact: true })).toBeVisible();
   await banner.getByRole('button', { name: 'Ignore usage for this window' }).click();
   await expect(banner).toHaveCount(0);
-  await expect(page.getByText('Idle')).toBeVisible();
+  await expect(page.getByText('Idle', { exact: true })).toBeVisible();
   expect((await withDb((c) => c.query(`SELECT "usageIgnoredUntil" FROM "GlobalSettings"`))).rows[0].usageIgnoredUntil).not.toBeNull();
 });
 
