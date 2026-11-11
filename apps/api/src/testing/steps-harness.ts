@@ -26,7 +26,7 @@ export interface CmdRule {
   exitCode?: number;
   lines?: string[];
   /** Decides the result when the command runs (so it can look at the workspace at that moment). */
-  compute?: () => { exitCode: number; lines?: string[] };
+  compute?: (cmd: string) => { exitCode: number; lines?: string[] };
 }
 
 /** A container engine that answers `run-cmd` containers from rules keyed on the command, and records every command. */
@@ -40,7 +40,7 @@ export class ScriptedEngine implements ContainerEngine {
     const cmd = (options.Env ?? []).find((e) => e.startsWith('CMD='))?.slice(4) ?? '';
     this.commands.push(cmd);
     const rule = this.rules.find((r) => r.match.test(cmd));
-    const r = rule?.compute ? rule.compute() : rule ? { exitCode: rule.exitCode ?? 0, lines: rule.lines } : this.defaultResult;
+    const r = rule?.compute ? rule.compute(cmd) : rule ? { exitCode: rule.exitCode ?? 0, lines: rule.lines } : this.defaultResult;
     return new FakeHandle(`scripted-${this.commands.length}`, { exitCode: r.exitCode, lines: r.lines ?? [] });
   }
   async removeByLabel(): Promise<number> {

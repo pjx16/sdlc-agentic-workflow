@@ -7,7 +7,8 @@ import type { Prisma, Subtask, Ticket } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { SubtaskInfo } from '../agent-runner/context-builder';
 import { changedFilesSync } from '../git/changes';
-import { describeViolations, squashAgentCommits, workspaceViolationsSync } from '../git/commit-guard';
+import { CommitGuardError, describeViolations, squashAgentCommits, workspaceViolationsSync } from '../git/commit-guard';
+import { PushRejectedError } from '../git/commit';
 import { GitRunner } from '../git/git-runner';
 import { makeWritableForAgent } from '../git/workspace';
 import { WorkspaceService, installedHash, manifestHash, recordInstalled } from '../git/workspace.service';
@@ -310,9 +311,28 @@ export class SubtaskStepsService {
     return { kind: 'continue' };
   }
 
-  /** The subtask passed verification. (The feat commit and push are added in 7.7.) */
-  protected async completeSubtask(_ticket: Ticket, subtask: Subtask): Promise<StepOutcome> {
-    await this.setStatus(subtask.id, 'DONE', { lastFailure: null });
+  /**
+   * The subtask passed verification: commit `feat(<KEY>): <title>`, record `featCommit`, push (never forced; a rejected push holds
+   * the ticket with needs_help), and mark the subtask DONE (F9). A push that was rejected is simply tried again after Resume: the
+   * verification repeats, there is nothing new to commit, and the existing commit is pushed.
+   */
+  protected async completeSubtask(ticket: Ticket, subtask: Subtask): Promise<StepOutcome> {
+    const ws = this.launcher.workspaceOf(ticket);
+    let featCommit: string;
+    try {
+      const commit = await this.workspaces.commit(ticket.id, `feat(${ticket.key}): ${this.oneLine(subtask.title)}`);
+      featCommit = commit.committed ? commit.sha : await this.head(ws);
+    } catch (err) {
+      if (err instanceof CommitGuardError) return { kind: 'hold', reason: 'needs_help', note: err.message.slice(0, 500) };
+      throw err;
+    }
+    try {
+      await this.workspaces.push(ticket.id);
+    } catch (err) {
+      if (err instanceof PushRejectedError) return { kind: 'hold', reason: 'needs_help', note: err.message.slice(0, 500) };
+      throw err;
+    }
+    await this.setStatus(subtask.id, 'DONE', { featCommit, lastFailure: null });
     return { kind: 'continue' };
   }
 
