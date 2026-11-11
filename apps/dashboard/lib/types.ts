@@ -88,3 +88,7 @@ export interface TicketDetail extends TicketListItem {
   createdAt: string;
   stageRuns: RunView[];
 }
+
+export interface TicketWithPlan extends TicketDetail {
+  planMarkdown: string | null;
+}

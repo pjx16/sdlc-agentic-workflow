@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
 import type { TicketDto } from './ticket.dto';
 import { TicketsService } from './tickets.service';
 
@@ -24,6 +24,18 @@ export class TicketsController {
   @Get(':id/timeline')
   timeline(@Param('id') id: string) {
     return this.tickets.timeline(id);
+  }
+
+  @Post(':id/plan/approve')
+  @HttpCode(HttpStatus.OK)
+  approvePlan(@Param('id') id: string, @Body() body: unknown) {
+    return this.tickets.approvePlan(id, body);
+  }
+
+  @Post(':id/plan/reject')
+  @HttpCode(HttpStatus.OK)
+  rejectPlan(@Param('id') id: string, @Body() body: unknown) {
+    return this.tickets.rejectPlan(id, body);
   }
 
   @Post()

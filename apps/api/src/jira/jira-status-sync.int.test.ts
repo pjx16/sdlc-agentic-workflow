@@ -123,6 +123,16 @@ describe('Jira status mapping (F15)', () => {
       expect(await lastTransition(t.id)).toMatchObject({ fromStatus: 'AWAITING_PLAN_APPROVAL', toStatus: 'BREAKDOWN', actor: 'jira' });
     });
 
+    it('on plan approval, re-reads the issue so edits made in Jira reach the breakdown', async () => {
+      const t = await ticket((await project()).id, { status: 'AWAITING_PLAN_APPROVAL', title: 'old title', body: 'old body' });
+      jira.statuses[t.externalKey!] = 'Plan Approved';
+      const original = jira.readStatus.bind(jira);
+      jira.readStatus = async (key: string) => ({ ...(await original(key)), summary: 'Edited in Jira', description: 'New description from Jira' });
+      expect(await poller.check()).toBe(1);
+      expect(await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } })).toMatchObject({ status: 'BREAKDOWN', title: 'Edited in Jira', body: 'New description from Jira' });
+      jira.readStatus = original;
+    });
+
     it('approves a breakdown, and ignores any other Jira status', async () => {
       const p = await project();
       const a = await ticket(p.id, { status: 'AWAITING_BREAKDOWN_APPROVAL' });

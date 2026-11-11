@@ -1,15 +1,17 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { PlanPanel } from '@/components/plan-panel';
 import { RunsTable } from '@/components/runs-table';
 import { StateBadge } from '@/components/state-badge';
 import { TransitionHistory } from '@/components/transition-history';
 import { apiGet } from '@/lib/server-api';
 import { formatDateTime, humanizeStatus } from '@/lib/ticket-status';
-import type { TicketDetail, TransitionView } from '@/lib/types';
+import type { TicketWithPlan, TransitionView } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
 const TABS = [
+  { id: 'plan', label: 'Plan' },
   { id: 'history', label: 'History' },
   { id: 'runs', label: 'Runs' },
 ] as const;
@@ -17,9 +19,10 @@ const TABS = [
 export default async function TicketPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const { id } = await params;
   const { tab } = await searchParams;
-  const active = tab === 'runs' ? 'runs' : 'history';
-  const ticket = await apiGet<TicketDetail>(`/tickets/${encodeURIComponent(id)}`);
+  const ticket = await apiGet<TicketWithPlan>(`/tickets/${encodeURIComponent(id)}`);
   if (!ticket) notFound();
+  // A ticket waiting at the plan gate opens on the plan; otherwise on its history.
+  const active = tab === 'runs' || tab === 'plan' || tab === 'history' ? tab : ticket.status === 'AWAITING_PLAN_APPROVAL' ? 'plan' : 'history';
   const transitions = active === 'history' ? ((await apiGet<TransitionView[]>(`/tickets/${encodeURIComponent(id)}/transitions`)) ?? []) : [];
 
   return (
@@ -52,7 +55,11 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
           </Link>
         ))}
       </nav>
-      <div className="mt-6">{active === 'history' ? <TransitionHistory transitions={transitions} /> : <RunsTable runs={ticket.stageRuns} />}</div>
+      <div className="mt-6">
+        {active === 'plan' && <PlanPanel ticketId={ticket.id} status={ticket.status} planMarkdown={ticket.planMarkdown} />}
+        {active === 'history' && <TransitionHistory transitions={transitions} />}
+        {active === 'runs' && <RunsTable runs={ticket.stageRuns} />}
+      </div>
     </section>
   );
 }
