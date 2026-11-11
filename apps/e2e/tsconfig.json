@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "noEmit": true, "module": "esnext", "moduleResolution": "bundler", "types": ["node"], "allowImportingTsExtensions": true },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules"]
+}

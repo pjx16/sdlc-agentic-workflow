@@ -147,7 +147,7 @@ Open **Projects → New** and enter:
 - **Name**, **repository URL** (HTTPS, for example `https://github.com/acme/billing`) and **base branch** (default `dev`).
 - **Stack** (TypeScript/Node, NestJS or Next.js). Choosing it pre-fills the install, typecheck and targeted-test commands; all are editable. The test command must contain `{files}`.
 - **Knowledge-base directory**, relative to the repository root (default `docs/kb`).
-- **CLAUDE.md mode**: `ours` (our defaults, the repository's own `CLAUDE.md` is hidden from Claude), `repo` (only the repository's), or `both`.
+- **CLAUDE.md mode**: `ours` (our defaults, the repository's own `CLAUDE.md` is hidden from Claude), `theirs` (only the repository's), or `both`.
 - **Jira** mode (REST, MCP or off), Jira project key and JQL.
 
 Save. The worker clones a bare mirror in the background and checks that the base branch exists. The project shows *Cloning*, then *Ready*, or *Failed* with the error (fix the URL or token and press Retry). A project accepts tickets only when it is *Ready*.
