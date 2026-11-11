@@ -175,6 +175,10 @@ All commands and JSON shapes match §6.3. Notes:
 4. **Squid:** no allowlist change was needed (`api.anthropic.com` only). Remove or avoid `cache_log /dev/stderr`-style settings; read logs from `/var/log/squid`.
 5. **Jira MCP:** use `/v2/mcp`, Basic auth with a scoped API token, and pass `cloudId` on every call. The plan should store the cloud ID (or fetch it from `/_edge/tenant_info`). Unresolved until a scoped token is tested (see 0.7).
 6. **GitHub checks:** de-duplicate or tolerate repeated check names and a not-yet-complete first response.
+7. **Jira stages (proposal, agreed in review discussion):**
+   - Fixed Jira operations (fetch, comment, transition) stay in the worker's REST client (§6.3) with no LLM and no Claude tokens.
+   - A Haiku jira-agent is used only for steps that need judgment. Its skills and scripts live in the repo and are copied into each agent instance. Bash is limited to those scripts with `--allowedTools "Bash(./skills/<name>.sh:*)"`. Because that is prefix matching, each script must validate its own arguments, and real isolation still comes from the container, the Squid allowlist and not passing it other secrets.
+   - MCP stays the optional path for orgs that block API tokens (Milestone 11). The measured cost is about 50–70k tokens per Jira stage, mostly fixed context (all 26 tool schemas load even with `--allowedTools`), so token savings come from fewer turns and not loading MCP schemas, not from shorter generated commands.
 
 ## Cleanup done
 
