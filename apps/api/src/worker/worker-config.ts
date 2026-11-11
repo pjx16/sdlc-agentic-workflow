@@ -10,6 +10,7 @@ export class WorkerConfig {
   readonly agentMemory: string;
   readonly agentCpus: number;
   readonly claudeToken: string;
+  readonly guidelinesDir: string;
 
   constructor(env: NodeJS.ProcessEnv = process.env) {
     const missing = ['DATA_DIR', 'DATABASE_URL'].filter((k) => !env[k]);
@@ -24,6 +25,7 @@ export class WorkerConfig {
     this.agentMemory = env.AGENT_MEMORY || '4g';
     this.agentCpus = Number(env.AGENT_CPUS || 2);
     this.claudeToken = env.CLAUDE_CODE_OAUTH_TOKEN ?? '';
+    this.guidelinesDir = env.GUIDELINES_DIR || path.resolve(__dirname, '../../../../guidelines');
   }
 
   runDir(stageRunId: string): string {

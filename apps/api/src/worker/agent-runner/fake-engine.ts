@@ -15,11 +15,13 @@ export class FakeEngine implements ContainerEngine {
   readonly created: Docker.ContainerCreateOptions[] = [];
   readonly handles: FakeHandle[] = [];
 
-  constructor(private readonly behaviour: FakeBehaviour = {}) {}
+  /** One behaviour for every container, or a list: container n uses entry n and the last one repeats. */
+  constructor(private readonly behaviour: FakeBehaviour | FakeBehaviour[] = {}) {}
 
   async create(options: Docker.ContainerCreateOptions): Promise<ContainerHandle> {
     this.created.push(options);
-    const handle = new FakeHandle(`fake-${this.handles.length + 1}`, this.behaviour);
+    const list = Array.isArray(this.behaviour) ? this.behaviour : [this.behaviour];
+    const handle = new FakeHandle(`fake-${this.handles.length + 1}`, list[Math.min(this.handles.length, list.length - 1)] ?? {});
     this.handles.push(handle);
     return handle;
   }
