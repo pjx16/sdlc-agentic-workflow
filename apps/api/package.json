@@ -7,11 +7,12 @@
     "dev": "tsc-watch -p tsconfig.build.json --onSuccess \"node dist/main.js\"",
     "typecheck": "prisma generate && tsc -p tsconfig.json --noEmit",
     "lint": "eslint src",
-    "test": "prisma generate && vitest run",
+    "test": "prisma generate && vitest run --project unit",
     "dev:worker": "tsc-watch -p tsconfig.build.json --onSuccess \"node dist/worker.js\"",
     "start": "node dist/main.js",
     "start:worker": "node dist/worker.js",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:int": "prisma generate && vitest run --project int"
   },
   "dependencies": {
     "@nestjs/common": "^12.4.2",
