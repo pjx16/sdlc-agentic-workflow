@@ -14,5 +14,6 @@ export const ErrorCodes = {
   validation: 'validation_error',
   notFound: 'not_found',
   conflict: 'conflict',
+  invalidTransition: 'invalid_transition',
   internal: 'internal_error',
 } as const;
