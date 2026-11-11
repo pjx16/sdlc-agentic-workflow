@@ -40,6 +40,9 @@ export interface StageInputs {
   plan?: string;
   /** For a re-run of `plan` after a rejection (F7). */
   previousPlan?: string;
+  /** For breakdown: the limit, and on a re-run the previous list (as JSON) and the rejection note. */
+  maxSubtasks?: number;
+  previousBreakdown?: string;
   rejectionNote?: string;
   subtask?: SubtaskInfo;
   testFiles?: string[];
@@ -183,6 +186,9 @@ function planSections(stage: StageName, i: StageInputs): Plan {
       break;
     case 'breakdown':
       sections.push(ticketFull(), { heading: 'Approved plan', body: i.plan ?? '_No plan._' }, kb());
+      if (i.maxSubtasks) sections.push({ heading: 'Limits', body: `At most ${i.maxSubtasks} subtasks.` });
+      if (i.previousBreakdown) sections.push({ heading: 'Previous breakdown', body: fenced(i.previousBreakdown) });
+      if (i.rejectionNote) sections.push({ heading: 'Rejection note', body: `The developer rejected the previous breakdown with this note. Address every point.\n\n${i.rejectionNote}` });
       break;
     case 'tests':
       sections.push(ticketSummary(), { heading: 'Approved plan', body: i.plan ?? '_No plan._' }, { heading: 'Subtask', body: i.subtask ? subtaskText(i.subtask) : '_No subtask._' }, kb(), {

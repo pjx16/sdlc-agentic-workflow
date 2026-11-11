@@ -18,6 +18,7 @@ import { MirrorService } from './git/mirror.service';
 import { WorkspaceService } from './git/workspace.service';
 import { VerifyService } from './verify/verify.service';
 import { IntakePoller } from './intake/intake-poller';
+import { BreakdownHandler } from './pipeline/breakdown.handler';
 import { PlanHandler } from './pipeline/plan.handler';
 import { KB_BUILDER, KbHandler } from './pipeline/kb.handler';
 import { KbBuildService } from './pipeline/kb-build.service';
@@ -49,10 +50,11 @@ import { WorkerRunner } from './worker-runner';
     StageLauncher,
     KbBuildService,
     PlanHandler,
+    BreakdownHandler,
     { provide: KB_BUILDER, useExisting: KbBuildService },
     NewTicketHandler,
     KbHandler,
-    { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler] },
+    { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler] },
     RestartRecovery,
     {
       provide: WorkerLoop,
