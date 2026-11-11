@@ -83,10 +83,9 @@ describe('implement and verify-green (F9)', () => {
     it('fails when the tests fail, recording the tail of the output', async () => {
       const { t, s } = await atImplement();
       h.engine.rules = [{ match: /vitest/, exitCode: 1, lines: ['FAIL src/f1.test.ts', 'expected 0 to be 1'] }];
-      const out = await steps.verifyGreen(t, await h.reload(s.id));
-      expect(out).toMatchObject({ kind: 'hold', reason: 'needs_help' });
+      expect(await steps.verifyGreen(t, await h.reload(s.id))).toEqual({ kind: 'continue' }); // fix rounds follow (7.5)
       expect((await h.reload(s.id)).lastFailure).toBe('FAIL src/f1.test.ts\nexpected 0 to be 1');
-      expect((await h.reload(s.id)).status).not.toBe('DONE');
+      expect((await h.reload(s.id)).status).toBe('FIXING');
     });
 
     it('fails on a typecheck error without running the tests', async () => {
@@ -105,7 +104,8 @@ describe('implement and verify-green (F9)', () => {
       h.engine.rules = [{ match: /vitest/, compute: () => (readFileSync(path.join(ws, 'src/f1.test.ts'), 'utf8') === ORIGINAL ? { exitCode: 1, lines: ['original test failed: f1() returned undefined'] } : { exitCode: 0, lines: ['1 passed'] }) }];
       const out = await steps.verifyGreen(t, s);
       expect(readFileSync(path.join(ws, 'src/f1.test.ts'), 'utf8')).toBe(ORIGINAL);
-      expect(out).toMatchObject({ kind: 'hold' }); // the original test decided, and it fails
+      expect(out).toEqual({ kind: 'continue' }); // the original test decided, and it fails: on to a fix round
+      expect((await h.reload(s.id)).status).toBe('FIXING');
       expect((await h.reload(s.id)).lastFailure).toContain('original test failed');
       expect((await h.prisma.event.findMany({ where: { ticketId: t.id, type: 'git' } })).some((e) => e.message.includes('restored test file(s) modified by the implementation: src/f1.test.ts'))).toBe(true);
       expect(sh(ws, 'status', '--porcelain')).toBe('');

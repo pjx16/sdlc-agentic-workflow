@@ -7,6 +7,7 @@ import type { Prisma, Subtask, Ticket } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { SubtaskInfo } from '../agent-runner/context-builder';
 import { changedFilesSync } from '../git/changes';
+import { describeViolations, squashAgentCommits, workspaceViolationsSync } from '../git/commit-guard';
 import { GitRunner } from '../git/git-runner';
 import { makeWritableForAgent } from '../git/workspace';
 import { WorkspaceService, installedHash, manifestHash, recordInstalled } from '../git/workspace.service';
@@ -48,6 +49,22 @@ export class SubtaskStepsService {
     return { project, settings: ProjectSettingsSchema.parse(project.settings) };
   }
 
+  /** The commit guard as part of a stage's output validation: a violation fails the attempt (F9, BUILD_PLAN 6.8). */
+  protected guardMessage(ws: string): string | null {
+    const violations = workspaceViolationsSync(ws);
+    return violations.length > 0 ? describeViolations(violations) : null;
+  }
+
+  protected head(ws: string): Promise<string> {
+    return this.git.out(['rev-parse', 'HEAD'], { cwd: ws });
+  }
+
+  /** If the agent committed on its own, put those commits back so the orchestrator commits (F9). */
+  protected async squashAgentCommitsAfterStage(ticket: Ticket, ws: string, preStageHead: string): Promise<void> {
+    const n = await squashAgentCommits(this.git, ws, preStageHead);
+    if (n > 0) await this.warn(ticket, `Warning: the agent made ${n} commit(s) of its own; they were squashed back and will be committed by the orchestrator`);
+  }
+
   /** The KB doc of the ticket's feature, if there is one. */
   protected async kbDoc(ticket: Ticket, ws: string, kbDir: string): Promise<string | undefined> {
     return (await lookup(ws, kbDir, featureKeyOf(ticket))).match?.content;
@@ -68,6 +85,7 @@ export class SubtaskStepsService {
     if (subtask.status === 'PENDING') await this.setStatus(subtask.id, 'TESTS');
     await makeWritableForAgent(ws);
 
+    const preHead = await this.head(ws);
     const tracked = execFileSync('git', ['ls-files'], { cwd: ws, encoding: 'utf8' }).split('\n').filter(Boolean);
     const info = toSubtaskInfo(subtask);
     const result = await this.launcher.launch(
@@ -81,9 +99,10 @@ export class SubtaskStepsService {
         exampleTestFile: pickExampleTestFile(tracked, info.files[0]),
         ...(subtask.status === 'TESTS' && subtask.lastFailure ? { previousAttempt: subtask.lastFailure } : {}),
       },
-      { workspacePath: ws, subtaskId: subtask.id, round: await this.testsRoundsDone(subtask.id), validate: (envelope) => this.validateTests(envelope, ws) },
+      { workspacePath: ws, subtaskId: subtask.id, round: await this.testsRoundsDone(subtask.id), validate: (envelope) => this.validateTests(envelope, ws) ?? (envelope.status === 'done' ? this.guardMessage(ws) : null) },
     );
     if (result.kind !== 'done') return this.outcomes.forResult(ticket.id, 'tests', result);
+    await this.squashAgentCommitsAfterStage(ticket, ws, preHead);
 
     const testFiles = ((result.envelope.data as { testFiles: string[] }).testFiles).map((f) => f.replace(/^\.\//, ''));
     await this.setStatus(subtask.id, 'VERIFY_RED', { testFiles: testFiles as Prisma.InputJsonValue, lastFailure: null });
@@ -180,6 +199,7 @@ export class SubtaskStepsService {
     const testsOn = settings.stages.tests.enabled;
     if (subtask.status === 'PENDING') await this.setStatus(subtask.id, 'IMPLEMENT');
     await makeWritableForAgent(ws);
+    const preHead = await this.head(ws);
 
     const result = await this.launcher.launch(
       ticket,
@@ -192,9 +212,10 @@ export class SubtaskStepsService {
         testFiles: asStrings(subtask.testFiles),
         writeTests: !testsOn,
       },
-      { workspacePath: ws, subtaskId: subtask.id },
+      { workspacePath: ws, subtaskId: subtask.id, validate: (envelope) => (envelope.status === 'done' ? this.guardMessage(ws) : null) },
     );
     if (result.kind !== 'done') return this.outcomes.forResult(ticket.id, 'implement', result);
+    await this.squashAgentCommitsAfterStage(ticket, ws, preHead);
 
     const extra: Prisma.SubtaskUpdateInput = { lastFailure: null };
     if (!testsOn) {
@@ -276,13 +297,15 @@ export class SubtaskStepsService {
     const ws = this.launcher.workspaceOf(ticket);
     await makeWritableForAgent(ws);
     const round = subtask.fixRounds + 1;
+    const preHead = await this.head(ws);
     const result = await this.launcher.launch(
       ticket,
       'fix',
       { failureOutput: subtask.lastFailure ?? '', subtask: toSubtaskInfo(subtask) },
-      { workspacePath: ws, subtaskId: subtask.id, round, reason: 'tests' },
+      { workspacePath: ws, subtaskId: subtask.id, round, reason: 'tests', validate: (envelope) => (envelope.status === 'done' ? this.guardMessage(ws) : null) },
     );
     if (result.kind !== 'done') return this.outcomes.forResult(ticket.id, 'fix', result);
+    await this.squashAgentCommitsAfterStage(ticket, ws, preHead);
     await this.setStatus(subtask.id, 'VERIFY_GREEN', { fixRounds: round });
     return { kind: 'continue' };
   }
