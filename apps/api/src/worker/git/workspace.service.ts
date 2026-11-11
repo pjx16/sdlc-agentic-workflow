@@ -6,6 +6,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { type CmdResult, VerifyService } from '../verify/verify.service';
 import { WorkerConfig } from '../worker-config';
 import { assertSafeKey, branchName } from './branch';
+import { type CommitResult, commitAll, pushBranch } from './commit';
 import { GitRunner } from './git-runner';
 import { makeWritableForAgent, prepareWorkspace } from './workspace';
 
@@ -65,5 +66,21 @@ export class WorkspaceService {
     if (!result.install.ok) this.logger.warn(`Install failed for ${ticket.key}: ${result.install.tail.split('\n').slice(-3).join(' | ')}`);
     await makeWritableForAgent(prepared.path); // the install created files as the agent user
     return result;
+  }
+
+  /** `Git.commit(ticket, message)`: commits the workspace as the configured identity; hooks never run. */
+  async commit(ticketId: string, message: string): Promise<CommitResult> {
+    const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+    const result = await commitAll(this.git, this.config.workspacePath(ticket.projectId, ticket.key), message, { name: this.config.authorName, email: this.config.authorEmail });
+    if (result.committed) await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Committed ${result.sha.slice(0, 8)}: ${message.split('\n')[0]}`.slice(0, 500) } });
+    return result;
+  }
+
+  /** `Git.push(ticket)`: never forced. Throws PushRejectedError, which puts the ticket on hold (`needs_help`). */
+  async push(ticketId: string): Promise<void> {
+    const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+    if (!ticket.branch) throw new Error(`${ticket.key} has no branch yet`);
+    await pushBranch(this.git, this.config.workspacePath(ticket.projectId, ticket.key), ticket.branch);
+    await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Pushed ${ticket.branch}` } });
   }
 }
