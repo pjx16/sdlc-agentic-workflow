@@ -14,6 +14,9 @@ export interface FakeBehaviour {
 export class FakeEngine implements ContainerEngine {
   readonly created: Docker.ContainerCreateOptions[] = [];
   readonly handles: FakeHandle[] = [];
+  /** Labels passed to removeByLabel, and what it reports having removed (or an error to throw). */
+  readonly removedLabels: string[] = [];
+  removeResult: number | Error = 0;
 
   /** One behaviour for every container, or a list: container n uses entry n and the last one repeats. */
   constructor(private readonly behaviour: FakeBehaviour | FakeBehaviour[] = {}) {}
@@ -26,8 +29,10 @@ export class FakeEngine implements ContainerEngine {
     return handle;
   }
 
-  async removeByLabel(): Promise<number> {
-    return 0;
+  async removeByLabel(label: string): Promise<number> {
+    this.removedLabels.push(label);
+    if (this.removeResult instanceof Error) throw this.removeResult;
+    return this.removeResult;
   }
 }
 
