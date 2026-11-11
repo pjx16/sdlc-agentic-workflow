@@ -10,6 +10,14 @@ import { IntakePoller } from '../intake/intake-poller';
 import { STEP_HANDLERS, type StepHandler, type StepOutcome } from '../pipeline/step-handler';
 import { Schedule } from './schedule';
 
+/** A recurring part of housekeeping, run when its interval has passed (CI checks, PR state; BUILD_PLAN 6.6 step 1). */
+export interface Housekeeper {
+  readonly name: string;
+  readonly intervalMs: number | ((pollIntervalSec: number) => number);
+  check(): Promise<void>;
+}
+export const HOUSEKEEPERS = Symbol('HOUSEKEEPERS');
+
 /** Sleep between iterations when there is nothing to do or the pipeline is paused (BUILD_PLAN 6.6). */
 export const IDLE_MS = 5000;
 
@@ -39,6 +47,7 @@ export class WorkerLoop {
     private readonly states: StateMachine,
     @Optional() @Inject(STEP_HANDLERS) private readonly handlers: StepHandler[] = [],
     private readonly now: () => number = () => Date.now(),
+    @Optional() @Inject(HOUSEKEEPERS) private readonly housekeepers: Housekeeper[] = [],
   ) {
     this.schedule = new Schedule(now);
   }
@@ -122,7 +131,12 @@ export class WorkerLoop {
   /** Each part runs only when due (BUILD_PLAN 6.6 step 1). CI checks, PR state and cleanup are added with their milestones. */
   private async housekeeping(): Promise<void> {
     const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
-    const intervalMs = (settings?.pollIntervalSec ?? 120) * 1000;
+    const pollSec = settings?.pollIntervalSec ?? 120;
+    const intervalMs = pollSec * 1000;
+    for (const h of this.housekeepers) {
+      if (!this.schedule.due(h.name, typeof h.intervalMs === 'function' ? h.intervalMs(pollSec) * 1000 : h.intervalMs)) continue;
+      await h.check().catch((err: unknown) => this.logger.error(`${h.name} check failed: ${String(err)}`));
+    }
     if (!this.schedule.due('jira', intervalMs)) return;
 
     // The intake poller applies the intake-pause switch and its own Jira backoff.
