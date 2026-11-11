@@ -105,6 +105,7 @@ export class WorkerLoop {
       case 'hold':
         await this.states.hold(ticket.id, outcome.reason, 'system', outcome.note, outcome.stageRunId);
         break;
+      case 'continue':
       case 'stay':
         break;
     }
