@@ -1,0 +1,17 @@
+import { z } from 'zod';
+
+/** Error body used by every API endpoint (BUILD_PLAN §8). */
+export const ErrorBodySchema = z.object({
+  error: z.string(),
+  message: z.string(),
+  fields: z.record(z.string(), z.string()).optional(),
+});
+export type ErrorBody = z.infer<typeof ErrorBodySchema>;
+
+export const ErrorCodes = {
+  unauthorized: 'unauthorized',
+  tooManyRequests: 'too_many_requests',
+  validation: 'validation_error',
+  notFound: 'not_found',
+  internal: 'internal_error',
+} as const;

@@ -1,0 +1,13 @@
+{
+  "name": "@sdlc/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "echo 'api dev: added in 1.3'",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "dependencies": { "@sdlc/shared": "*" }
+}

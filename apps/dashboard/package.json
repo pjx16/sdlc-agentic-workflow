@@ -1,0 +1,13 @@
+{
+  "name": "@sdlc/dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "echo 'dashboard build: added in 1.5'",
+    "dev": "echo 'dashboard dev: added in 1.5'",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": { "@sdlc/shared": "*" }
+}
