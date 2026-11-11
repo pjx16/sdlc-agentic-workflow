@@ -7,6 +7,8 @@ export class WorkerConfig {
   readonly githubToken: string;
   /** Identity for every commit (GIT_AUTHOR_NAME / GIT_AUTHOR_EMAIL). */
   readonly authorName: string;
+  /** For linking Jira issues in PR descriptions. */
+  readonly jiraBaseUrl: string;
   readonly authorEmail: string;
   readonly mirrorPollMs: number;
   readonly agentImage: string;
@@ -29,6 +31,7 @@ export class WorkerConfig {
     this.databaseUrl = env.DATABASE_URL as string;
     this.githubToken = env.GITHUB_TOKEN ?? '';
     this.authorName = env.GIT_AUTHOR_NAME ?? '';
+    this.jiraBaseUrl = env.JIRA_BASE_URL ?? '';
     this.authorEmail = env.GIT_AUTHOR_EMAIL ?? '';
     this.mirrorPollMs = Number(env.MIRROR_POLL_MS ?? 5000);
     this.agentImage = env.AGENT_IMAGE || 'sdlc-agent/agent:latest';

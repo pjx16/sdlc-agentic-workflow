@@ -20,7 +20,7 @@ describe('commit guard and agent-made commits in the subtask stages (F9)', () =>
 
   beforeAll(async () => {
     h = await StepsHarness.create();
-    steps = new SubtaskStepsService(h.prisma, h.launcher, h.outcomes, h.workspaces, h.git, h.verify, h.config);
+    steps = new SubtaskStepsService(h.prisma, h.launcher, h.outcomes, h.workspaces, h.git, h.verify, h.config, h.pr);
   }, 180_000);
   afterAll(async () => h?.close());
   beforeEach(() => {

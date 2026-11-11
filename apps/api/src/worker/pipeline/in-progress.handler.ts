@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ProjectSettingsSchema, nextSubtask, stepFor, type SubtaskStep } from '@sdlc/shared';
 import type { Subtask, Ticket } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -27,7 +27,7 @@ export class InProgressHandler implements StepHandler {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly steps: SubtaskSteps,
+    @Inject(SUBTASK_STEPS) private readonly steps: SubtaskSteps,
   ) {}
 
   async run(ticket: Ticket): Promise<StepOutcome> {

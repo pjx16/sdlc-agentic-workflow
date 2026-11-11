@@ -13,7 +13,9 @@ import { FakeHandle } from '../worker/agent-runner/fake-engine';
 import { GitRunner } from '../worker/git/git-runner';
 import { MirrorService } from '../worker/git/mirror.service';
 import { WorkspaceService } from '../worker/git/workspace.service';
+import { PrService } from '../worker/pipeline/pr.service';
 import { StageLauncher } from '../worker/pipeline/stage-launcher';
+import { FakeGitHub } from './fake-github';
 import { StageOutcomes } from '../worker/pipeline/stage-outcomes';
 import { VerifyService } from '../worker/verify/verify.service';
 import { WorkerConfig } from '../worker/worker-config';
@@ -108,6 +110,8 @@ export class StepsHarness {
   verify!: VerifyService;
   launcher!: StageLauncher;
   outcomes!: StageOutcomes;
+  github = new FakeGitHub();
+  pr!: PrService;
   private n = 0;
 
   static async create(opts: { project?: Record<string, unknown> } = {}): Promise<StepsHarness> {
@@ -134,7 +138,8 @@ export class StepsHarness {
     h.config = new WorkerConfig({ DATA_DIR: path.join(h.tmp, 'data'), DATABASE_URL: h.db.url, GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com', GUIDELINES_DIR: path.join(h.tmp, 'guidelines') } as NodeJS.ProcessEnv);
     const project = await h.prisma.project.create({
       data: {
-        name: 'target', repoUrl: `file://${h.bare}`, baseBranch: 'dev', stack: 'ts_node', installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx vitest run {files}',
+        name: 'target', repoUrl: `file://${h.bare}`, // a local bare repo; PR tests set a github.com URL (the fake GitHub never contacts it)
+         baseBranch: 'dev', stack: 'ts_node', installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx vitest run {files}',
         localKeyPrefix: 'TGT', mirrorStatus: 'pending', ...(opts.project ?? {}),
       },
     });
@@ -146,6 +151,7 @@ export class StepsHarness {
     h.agent = new StubAgent(h.prisma);
     h.launcher = new StageLauncher(h.prisma, h.config, h.agent as never);
     h.outcomes = new StageOutcomes(h.prisma);
+    h.pr = new PrService(h.prisma, h.config, h.github);
     return h;
   }
 

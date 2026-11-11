@@ -51,7 +51,7 @@ describe('the subtask loop end to end: tests, red, implement, green, feat commit
 
   beforeAll(async () => {
     h = await StepsHarness.create();
-    const steps = new SubtaskStepsService(h.prisma, h.launcher, h.outcomes, h.workspaces, h.git, h.verify, h.config);
+    const steps = new SubtaskStepsService(h.prisma, h.launcher, h.outcomes, h.workspaces, h.git, h.verify, h.config, h.pr);
     handler = new InProgressHandler(h.prisma, steps as never);
   }, 180_000);
   afterAll(async () => h?.close());

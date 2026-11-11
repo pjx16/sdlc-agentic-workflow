@@ -16,6 +16,8 @@ import { featureKeyOf, lookup } from '../kb/kb-index';
 import { decideGreen, decideRed } from '../verify/verify-decisions';
 import { type CmdResult, VerifyService } from '../verify/verify.service';
 import { WorkerConfig } from '../worker-config';
+import { PrService } from './pr.service';
+import type { SubtaskSteps } from './in-progress.handler';
 import { StageLauncher } from './stage-launcher';
 import { StageOutcomes } from './stage-outcomes';
 import type { StepOutcome } from './step-handler';
@@ -30,7 +32,7 @@ export function toSubtaskInfo(s: Subtask): SubtaskInfo {
 
 /** The per-step logic of the subtask loop (BUILD_PLAN F9). One method per step; each runs at most one AI stage. */
 @Injectable()
-export class SubtaskStepsService {
+export class SubtaskStepsService implements SubtaskSteps {
   constructor(
     private readonly prisma: PrismaService,
     private readonly launcher: StageLauncher,
@@ -39,6 +41,7 @@ export class SubtaskStepsService {
     private readonly git: GitRunner,
     private readonly verify: VerifyService,
     private readonly config: WorkerConfig,
+    private readonly pr: PrService,
   ) {}
 
   protected setStatus(id: string, status: SubtaskStatus, extra: Prisma.SubtaskUpdateInput = {}) {
@@ -333,7 +336,14 @@ export class SubtaskStepsService {
       throw err;
     }
     await this.setStatus(subtask.id, 'DONE', { featCommit, lastFailure: null });
+    // After the first subtask a draft PR is opened against the base branch (`pr.earlyDraft`); otherwise it opens after the last one.
+    if (PrService.shouldOpenEarly((await this.project(ticket)).project.settings)) await this.pr.ensureDraftPr(ticket.id);
     return { kind: 'continue' };
+  }
+
+  /** Called once every subtask is DONE: with `pr.earlyDraft` off the draft PR opens now. */
+  async allDone(ticket: Ticket): Promise<void> {
+    await this.pr.ensureDraftPr(ticket.id); // idempotent: nothing happens if the early draft already exists
   }
 
   /** Orchestrator validation of the `tests` output. A message fails the attempt (BUILD_PLAN 6.8). */

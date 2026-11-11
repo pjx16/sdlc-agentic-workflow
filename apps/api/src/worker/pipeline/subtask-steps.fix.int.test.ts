@@ -24,7 +24,7 @@ describe('fix rounds (F9)', () => {
 
   beforeAll(async () => {
     h = await StepsHarness.create();
-    steps = new SubtaskStepsService(h.prisma, h.launcher, h.outcomes, h.workspaces, h.git, h.verify, h.config);
+    steps = new SubtaskStepsService(h.prisma, h.launcher, h.outcomes, h.workspaces, h.git, h.verify, h.config, h.pr);
     handler = new InProgressHandler(h.prisma, steps as never);
   }, 180_000);
   afterAll(async () => h?.close());
