@@ -164,7 +164,8 @@ describe('plan stage (F7)', () => {
     failWith = { kind: 'failed', reason: 'invalid output', stageRunId: 'r', attempts: 2 };
     expect(await handler.run(await ticket())).toMatchObject({ kind: 'hold', reason: 'needs_help' });
     const t = await ticket();
-    failWith = { kind: 'needs_input', question: 'Which delimiter?', stageRunId: 'r2', attempts: 1 };
+    const asked = await prisma.stageRun.create({ data: { projectId, ticketId: t.id, stage: 'plan', model: 'opus', status: 'needs_input' } });
+    failWith = { kind: 'needs_input', question: 'Which delimiter?', stageRunId: asked.id, attempts: 1 };
     expect(await handler.run(t)).toMatchObject({ kind: 'hold', reason: 'awaiting_answer' });
     expect(await prisma.supportQuery.count({ where: { ticketId: t.id } })).toBe(1);
   });
