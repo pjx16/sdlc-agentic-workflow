@@ -11,13 +11,13 @@ import { GitRunner } from '../git/git-runner';
 import { makeWritableForAgent } from '../git/workspace';
 import { WorkspaceService, installedHash, manifestHash, recordInstalled } from '../git/workspace.service';
 import { featureKeyOf, lookup } from '../kb/kb-index';
-import { decideRed } from '../verify/verify-decisions';
+import { decideGreen, decideRed } from '../verify/verify-decisions';
 import { type CmdResult, VerifyService } from '../verify/verify.service';
 import { WorkerConfig } from '../worker-config';
 import { StageLauncher } from './stage-launcher';
 import { StageOutcomes } from './stage-outcomes';
 import type { StepOutcome } from './step-handler';
-import { checkTestFiles, isSafeRelativePath, pickExampleTestFile } from './test-patterns';
+import { checkTestFiles, isSafeRelativePath, isTestFile, pickExampleTestFile } from './test-patterns';
 
 const asStrings = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : []);
 const asNumbers = (v: unknown): number[] => (Array.isArray(v) ? v.map(Number) : []);
@@ -165,6 +165,101 @@ export class SubtaskStepsService {
     const commit = await this.workspaces.commit(ticket.id, `test(${ticket.key}): ${this.oneLine(subtask.title)}`);
     const testCommit = commit.committed ? commit.sha : await this.git.out(['rev-parse', 'HEAD'], { cwd: ws });
     await this.setStatus(subtask.id, 'IMPLEMENT', { testCommit, lastFailure: null });
+    return { kind: 'continue' };
+  }
+
+  // ------------------------------------------------------------------ implement
+
+  /**
+   * `implement` stage (read-write workspace): makes the given tests pass by editing files only. With the tests stage off it is also
+   * told to write tests, and the test files it changed become the subtask's targeted tests (F2, F9).
+   */
+  async implement(ticket: Ticket, subtask: Subtask): Promise<StepOutcome> {
+    const { project, settings } = await this.project(ticket);
+    const ws = this.launcher.workspaceOf(ticket);
+    const testsOn = settings.stages.tests.enabled;
+    if (subtask.status === 'PENDING') await this.setStatus(subtask.id, 'IMPLEMENT');
+    await makeWritableForAgent(ws);
+
+    const result = await this.launcher.launch(
+      ticket,
+      'implement',
+      {
+        ticket: { key: ticket.key, title: ticket.title, body: ticket.body },
+        plan: ticket.planMarkdown ?? undefined,
+        subtask: toSubtaskInfo(subtask),
+        kbDoc: await this.kbDoc(ticket, ws, project.kbDir),
+        testFiles: asStrings(subtask.testFiles),
+        writeTests: !testsOn,
+      },
+      { workspacePath: ws, subtaskId: subtask.id },
+    );
+    if (result.kind !== 'done') return this.outcomes.forResult(ticket.id, 'implement', result);
+
+    const extra: Prisma.SubtaskUpdateInput = { lastFailure: null };
+    if (!testsOn) {
+      const changedTests = changedFilesSync(ws).filter((c) => !c.status.includes('D') && isTestFile(c.path)).map((c) => c.path);
+      extra.testFiles = changedTests as Prisma.InputJsonValue;
+    }
+    await this.setStatus(subtask.id, 'VERIFY_GREEN', extra);
+    return { kind: 'continue' };
+  }
+
+  // ------------------------------------------------------------------ verify-green
+
+  /**
+   * Test files modified since `testCommit` are restored (`git checkout <testCommit> -- <files>`), so the original tests decide
+   * and an implementation cannot pass by editing them (F9). Returns the restored paths.
+   */
+  protected async restoreTestFiles(ticket: Ticket, ws: string, testCommit: string, files: readonly string[]): Promise<string[]> {
+    if (files.length === 0) return [];
+    const changed = (await this.git.out(['diff', '--name-only', testCommit, '--', ...files], { cwd: ws })).split('\n').filter(Boolean);
+    if (changed.length === 0) return [];
+    await this.git.run(['checkout', testCommit, '--', ...changed], { cwd: ws });
+    await this.warn(ticket, `Warning: restored test file(s) modified by the implementation: ${changed.join(', ')}`);
+    return changed;
+  }
+
+  /** The files the targeted tests run on: the subtask's test files, or (tests stage off) the changed test files, if any. */
+  protected targetedFiles(subtask: Subtask, testsEnabled: boolean, ws: string): string[] {
+    if (testsEnabled) return asStrings(subtask.testFiles);
+    const recorded = asStrings(subtask.testFiles);
+    if (recorded.length > 0) return recorded;
+    return changedFilesSync(ws).filter((c) => !c.status.includes('D') && isTestFile(c.path)).map((c) => c.path);
+  }
+
+  /**
+   * Verify-green (F9): restore tampered test files, install again if package.json or a lockfile changed, typecheck must pass, and
+   * the targeted tests must pass. With the tests stage off and no changed test files, only the typecheck runs.
+   */
+  async verifyGreen(ticket: Ticket, subtask: Subtask): Promise<StepOutcome> {
+    const { project, settings } = await this.project(ticket);
+    const ws = this.launcher.workspaceOf(ticket);
+    const testsOn = settings.stages.tests.enabled;
+
+    if (testsOn && subtask.testCommit) await this.restoreTestFiles(ticket, ws, subtask.testCommit, asStrings(subtask.testFiles));
+
+    const install = await this.installIfChanged(ticket, ws, project.installCmd);
+    if (install && !install.ok) return { kind: 'hold', reason: 'needs_help', note: `The dependency install failed:\n${install.tail.split('\n').slice(-5).join('\n')}`.slice(0, 500) };
+
+    const typecheck = await this.runTypecheck(ticket, ws, project.typecheckCmd, `green${subtask.seq}`);
+    const files = this.targetedFiles(subtask, testsOn, ws);
+    const tests = typecheck && !typecheck.ok ? null : files.length > 0 ? await this.runTargeted(ticket, ws, project.testCmdTemplate, files, `green${subtask.seq}`) : null;
+    const decision = decideGreen({ typecheck, tests });
+
+    if (!decision.ok) return this.greenFailed(ticket, subtask, decision.output, settings.limits.maxTestFixRounds);
+    return this.completeSubtask(ticket, subtask);
+  }
+
+  /** What happens when verify-green fails. (Fix rounds are added in 7.5.) */
+  protected async greenFailed(_ticket: Ticket, subtask: Subtask, output: string, _maxRounds: number): Promise<StepOutcome> {
+    await this.prisma.subtask.update({ where: { id: subtask.id }, data: { lastFailure: output.split('\n').slice(-60).join('\n') } });
+    return { kind: 'hold', reason: 'needs_help', note: `Verify-green failed for subtask ${subtask.seq}:\n${output.split('\n').slice(-5).join('\n')}`.slice(0, 500) };
+  }
+
+  /** The subtask passed verification. (The feat commit and push are added in 7.7.) */
+  protected async completeSubtask(_ticket: Ticket, subtask: Subtask): Promise<StepOutcome> {
+    await this.setStatus(subtask.id, 'DONE', { lastFailure: null });
     return { kind: 'continue' };
   }
 

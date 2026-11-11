@@ -11,7 +11,7 @@ const read = (rel: string) => readFileSync(path.join(GUIDELINES, rel), 'utf8');
 
 describe('shipped guideline files (BUILD_PLAN 6.9)', () => {
   it('has every file this milestone owns', () => {
-    for (const f of ['default-CLAUDE.md', 'kb-doc-template.md', 'stacks/ts-node.md', 'stacks/nestjs.md', 'stacks/nextjs.md', 'stages/kb-build.md', 'stages/plan.md', 'stages/breakdown.md']) expect(existsSync(path.join(GUIDELINES, f)), f).toBe(true);
+    for (const f of ['default-CLAUDE.md', 'kb-doc-template.md', 'stacks/ts-node.md', 'stacks/nestjs.md', 'stacks/nextjs.md', 'stages/kb-build.md', 'stages/plan.md', 'stages/breakdown.md', 'stages/tests.md', 'stages/implement.md']) expect(existsSync(path.join(GUIDELINES, f)), f).toBe(true);
   });
 
   it('default-CLAUDE.md carries the required rules', () => {
@@ -27,7 +27,7 @@ describe('shipped guideline files (BUILD_PLAN 6.9)', () => {
   });
 
   it('every stage file states purpose, inputs, steps, constraints, the data shape and when to use needs_input', () => {
-    for (const f of ['stages/kb-build.md', 'stages/plan.md', 'stages/breakdown.md']) {
+    for (const f of ['stages/kb-build.md', 'stages/plan.md', 'stages/breakdown.md', 'stages/tests.md', 'stages/implement.md']) {
       const t = read(f);
       for (const needle of ['**Purpose.**', '**Inputs**', '**Steps**', '**Constraints**', '**Output `data`**', '`needs_input`']) expect(t, `${f} ${needle}`).toContain(needle);
     }
