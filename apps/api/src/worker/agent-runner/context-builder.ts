@@ -55,6 +55,10 @@ export interface StageInputs {
   failureOutput?: string;
   acceptanceCriteria?: string[];
   diff?: string;
+  /** For a diff above reviewMaxDiffLines: the stat and the range, so the stage reads it file by file instead. */
+  diffStat?: string;
+  diffRange?: string;
+  diffLines?: number;
   reviewChecklist?: string;
   previousFindings?: FindingInfo[];
   existingDoc?: string;
@@ -172,6 +176,13 @@ function planSections(stage: StageName, i: StageInputs): Plan {
     return { heading: 'KB doc', body: i.kbDoc ? 'The knowledge-base document is in /context/kb.md.' : NO_KB };
   };
   const diff = (): Section => {
+    if (i.diffStat !== undefined) {
+      // Too large to hand over whole: give the stat and let the stage read it file by file.
+      return {
+        heading: 'Diff',
+        body: `The diff is large (${i.diffLines ?? 'many'} lines), so it is not included. Read it file by file with \`git diff ${i.diffRange ?? 'HEAD~1'} -- <file>\`, starting with the files that matter most.\n\n${fenced(i.diffStat)}`,
+      };
+    }
     files.push({ name: 'diff.patch', content: i.diff ?? '' });
     return { heading: 'Diff', body: 'The change under review is in /context/diff.patch.' };
   };
