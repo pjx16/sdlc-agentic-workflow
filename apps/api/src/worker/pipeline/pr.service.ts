@@ -53,4 +53,22 @@ export class PrService {
   static shouldOpenEarly(settingsJson: unknown): boolean {
     return ProjectSettingsSchema.parse(settingsJson).pr.earlyDraft;
   }
+
+  /**
+   * Posts a comment on the ticket's PR (opening the draft first if there is none yet). A GitHub problem is a recorded warning and
+   * never blocks the pipeline. Returns whether the comment was posted.
+   */
+  async postComment(ticketId: string, body: string): Promise<boolean> {
+    const number = await this.ensureDraftPr(ticketId);
+    if (!number) return false;
+    const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { project: true } });
+    try {
+      await this.github.comment(parseRepo(ticket.project.repoUrl), number, body);
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Warning: could not post the comment on PR #${number}: ${message}`.slice(0, 500) } });
+      return false;
+    }
+  }
 }
