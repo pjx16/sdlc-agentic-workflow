@@ -35,3 +35,56 @@ export interface GlobalSettingsView {
 export interface SystemView {
   settings: GlobalSettingsView;
 }
+
+export interface TicketListItem {
+  id: string;
+  projectId: string;
+  projectName: string;
+  key: string;
+  source: 'jira' | 'paste';
+  type: 'story' | 'bug' | 'tech';
+  title: string;
+  status: string;
+  holdReason: string | null;
+  holdFromStatus: string | null;
+  updatedAt: string;
+}
+
+export interface TransitionView {
+  id: string;
+  at: string;
+  fromStatus: string;
+  toStatus: string;
+  actor: string;
+  reason: string | null;
+  stageRunId: string | null;
+  jiraStatusApplied: string | null;
+  jiraSyncResult: 'none' | 'applied' | 'failed';
+  jiraSyncError: string | null;
+}
+
+export interface RunView {
+  id: string;
+  stage: string;
+  model: string;
+  attempt: number;
+  round: number;
+  status: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  numTurns: number;
+  error: string | null;
+}
+
+export interface TicketDetail extends TicketListItem {
+  body: string;
+  featureKey: string | null;
+  externalKey: string | null;
+  branch: string | null;
+  prUrl: string | null;
+  createdAt: string;
+  stageRuns: RunView[];
+}
