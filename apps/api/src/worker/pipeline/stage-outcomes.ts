@@ -3,6 +3,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 import type { StageResult } from '../agent-runner/agent-runner';
 import type { StepOutcome } from './step-handler';
 
+/** F13: the 4th question of a stage holds the ticket for help instead. */
+export const MAX_QUESTIONS_PER_STAGE = 3;
+
 export type NonDoneResult = Exclude<StageResult, { kind: 'done' }>;
 
 /**
@@ -16,7 +19,10 @@ export class StageOutcomes {
   async forResult(ticketId: string, stage: string, result: NonDoneResult): Promise<StepOutcome> {
     switch (result.kind) {
       case 'needs_input':
-        // The stage asks the developer something: store the question and wait for the answer (milestone 9 adds the answer flow).
+        // The stage asks the developer something: store the question and wait for the answer. A stage may ask at most 3 questions per ticket (F13).
+        if ((await this.prisma.supportQuery.count({ where: { ticketId, stage } })) >= MAX_QUESTIONS_PER_STAGE) {
+          return { kind: 'hold', reason: 'needs_help', note: `The ${stage} stage asked more than ${MAX_QUESTIONS_PER_STAGE} questions: ${result.question}`.slice(0, 500), stageRunId: result.stageRunId };
+        }
         await this.prisma.supportQuery.create({ data: { ticketId, stageRunId: result.stageRunId, stage, question: result.question } });
         return { kind: 'hold', reason: 'awaiting_answer', note: result.question.slice(0, 200), stageRunId: result.stageRunId };
       case 'failed':
