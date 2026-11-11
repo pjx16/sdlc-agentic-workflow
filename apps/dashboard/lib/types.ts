@@ -148,3 +148,46 @@ export interface SupportQueryView {
   createdAt: string;
   answeredAt: string | null;
 }
+
+export type MetricsRange = '24h' | '7d' | '30d';
+
+export interface MetricsSummary {
+  range: MetricsRange;
+  ticketsDone: number;
+  firstPassRate: number | null;
+  tokensInWindow: number;
+  queueLength: number;
+}
+
+export interface MetricsUsage {
+  range: MetricsRange;
+  thresholdPct: number;
+  thresholdWeeklyPct: number;
+  series: { at: string; fiveHourPct: number | null; sevenDayPct: number | null; status: string | null }[];
+  pauses: { at: string; message: string }[];
+}
+
+export interface MetricsTokens {
+  range: MetricsRange;
+  groupBy: 'stage' | 'model';
+  keys: string[];
+  days: { day: string; total: number; groups: Record<string, number> }[];
+}
+
+export interface MetricsQuality {
+  range: MetricsRange;
+  firstPassRate: number | null;
+  avgFixRounds: number | null;
+  avgReviewRounds: number | null;
+  findingsBySeverity: { severity: string; count: number }[];
+}
+
+export interface MetricsDurations {
+  range: MetricsRange;
+  stages: { stage: string; runs: number; medianSeconds: number }[];
+}
+
+export interface StateCount {
+  status: string;
+  count: number;
+}
