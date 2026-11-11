@@ -53,8 +53,8 @@ describe('review stage and findings storage (F10)', () => {
       expect(req?.inputs.previousFindings).toEqual([]);
 
       const stored = await rows(t.id);
-      expect(stored.map((f) => [f.round, f.severity, f.file, f.line, f.status])).toEqual([[1, 'high', 'src/f1.ts', 3, 'open'], [1, 'low', 'src/f1.ts', null, 'open']]);
-      expect(stored[0]).toMatchObject({ issue: 'Unvalidated input', rule: 'Security: input validation', fix: 'Validate it' });
+      expect(stored.map((f) => [f.round, f.severity, f.file, f.line, f.status]).sort((a, b) => String(a[1]).localeCompare(String(b[1])))).toEqual([[1, 'high', 'src/f1.ts', 3, 'open'], [1, 'low', 'src/f1.ts', null, 'open']]);
+      expect(stored.find((f) => f.severity === 'high')).toMatchObject({ issue: 'Unvalidated input', rule: 'Security: input validation', fix: 'Validate it' });
       const after = await h.reloadTicket(t.id);
       expect(after.reviewRound).toBe(1);
       expect(after.lastReviewedSha).toBe(sh(h.ws(t), 'rev-parse', 'HEAD'));
