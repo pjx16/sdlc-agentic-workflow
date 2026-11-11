@@ -8,31 +8,7 @@ import { AgentRunner, type StageRequest } from './agent-runner';
 import { ContainerRunner } from './container-runner';
 import { FakeEngine, type FakeBehaviour } from './fake-engine';
 import { NullLogSink } from './log-sink';
-import type { RateLimit } from './result-parser';
-import type { FinishStageRun, NewStageRun, StageRunStore } from './stage-run-store';
-
-class MemoryStore implements StageRunStore {
-  runs = new Map<string, NewStageRun & { status: string; containerId?: string; finished?: FinishStageRun }>();
-  rateLimits: RateLimit[] = [];
-  killRequested = new Set<string>();
-  async create(run: NewStageRun) {
-    const id = `run-${this.runs.size + 1}`;
-    this.runs.set(id, { ...run, status: 'queued' });
-    return id;
-  }
-  async markRunning(id: string, containerId: string) {
-    Object.assign(this.runs.get(id) as object, { status: 'running', containerId });
-  }
-  async isKillRequested(id: string) {
-    return this.killRequested.has(id);
-  }
-  async finish(id: string, r: FinishStageRun) {
-    Object.assign(this.runs.get(id) as object, { status: r.status, finished: r });
-  }
-  async saveRateLimit(l: RateLimit) {
-    this.rateLimits.push(l);
-  }
-}
+import { MemoryStore } from '../../testing/memory-stage-run-store';
 
 const planData = { planMarkdown: '# Plan', risks: [], openQuestions: [] };
 const stream = (structured: unknown, extra: Record<string, unknown> = {}, rate?: unknown): string[] =>

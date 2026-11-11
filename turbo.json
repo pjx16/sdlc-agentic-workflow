@@ -39,6 +39,17 @@
       ],
       "outputs": [],
       "cache": false
+    },
+    "test:live": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [],
+      "cache": false,
+      "env": [
+        "LIVE_CLAUDE",
+        "CLAUDE_CODE_OAUTH_TOKEN"
+      ]
     }
   }
 }

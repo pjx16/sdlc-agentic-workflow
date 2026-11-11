@@ -9,7 +9,8 @@ import { buildCreateOptions } from './container-options';
 import { isRateLimited, parseStream } from './result-parser';
 
 const ROOT = path.resolve(__dirname, '../../../../..');
-const FAKE = path.join(ROOT, 'test/fake-claude/claude');
+const FAKE = path.join(ROOT, 'test/fake-claude/fake-claude.js');
+const WRAPPER = path.join(ROOT, 'test/fake-claude/claude');
 const SCENARIOS = path.join(ROOT, 'test/fake-claude/scenarios');
 
 let tmp: string;
@@ -60,6 +61,17 @@ describe('fake-claude (BUILD_PLAN 11)', () => {
     expect(r.status).toBe(0);
     expect(readFileSync(path.join(r.ws, 'src/feature.ts'), 'utf8')).toBe('export const feature = 1;\n');
     expect(parseStream(r.lines, 'implement').envelope?.data).toEqual({ filesChanged: ['src/feature.ts'] });
+  });
+
+  it('the sh wrapper that is mounted over the claude binary runs the stub', () => {
+    const ws = path.join(tmp, 'ws-wrapper');
+    mkdirSync(ws);
+    const res = spawnSync('sh', [WRAPPER, '-p', '--model', 'x'], {
+      cwd: ws, input: '<!-- stage: plan -->\n', encoding: 'utf8',
+      env: { ...process.env, FAKE_CLAUDE_JS: FAKE, FAKE_SCENARIO: 'ok', FAKE_SCENARIOS_DIR: SCENARIOS, FAKE_ATTEMPT: '1' },
+    });
+    expect(res.status).toBe(0);
+    expect(parseStream(res.stdout.split('\n').filter(Boolean), 'plan').kind).toBe('ok');
   });
 
   it('applies deletes', () => {
@@ -164,6 +176,7 @@ describe('test overlay wiring', () => {
   it('the compose overlay mounts the stub over the claude binary', () => {
     const overlay = readFileSync(path.join(ROOT, 'docker-compose.test.yml'), 'utf8');
     expect(overlay).toContain('test/fake-claude/claude:/usr/local/bin/claude:ro');
+    expect(overlay).toContain('test/fake-claude:/fake-claude:ro');
     expect(overlay).toContain('AGENT_EXTRA_BINDS');
   });
 });

@@ -12,7 +12,9 @@
     "start": "node dist/main.js",
     "start:worker": "node dist/worker.js",
     "postinstall": "prisma generate",
-    "test:int": "prisma generate && vitest run --project int"
+    "test:int": "prisma generate && vitest run --project int",
+    "pretest:int": "docker build -q -t sdlc-agent/agent:latest ../../docker/agent && docker build -q -t sdlc-agent/proxy:test ../../docker/proxy",
+    "test:live": "vitest run --project live"
   },
   "dependencies": {
     "@nestjs/common": "^12.4.2",

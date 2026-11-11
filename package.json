@@ -16,7 +16,8 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "test:int": "turbo run test:int"
+    "test:int": "turbo run test:int",
+    "test:live": "turbo run test:live"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

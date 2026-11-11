@@ -5,6 +5,6 @@
 services:
   worker:
     environment:
-      AGENT_EXTRA_BINDS: "${PWD}/test/fake-claude/claude:/usr/local/bin/claude:ro,${PWD}/test/fake-claude/scenarios:/fake-claude/scenarios:ro"
+      AGENT_EXTRA_BINDS: "${PWD}/test/fake-claude/claude:/usr/local/bin/claude:ro,${PWD}/test/fake-claude:/fake-claude:ro"
       AGENT_EXTRA_ENV: "FAKE_SCENARIO=${FAKE_SCENARIO:-ok},FAKE_SCENARIOS_DIR=/fake-claude/scenarios"
       CLAUDE_CODE_OAUTH_TOKEN: "fake-token-for-tests"
