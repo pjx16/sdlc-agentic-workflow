@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { ProjectSettingsSchema, describeIssues, validateBreakdown, type StageEnvelope, type SubtaskDraft } from '@sdlc/shared';
+import { ProjectSettingsSchema, describeIssues, singleSubtask, validateBreakdown, type StageEnvelope, type SubtaskDraft } from '@sdlc/shared';
+import { SubtasksService } from '../../subtasks/subtasks.service';
 import type { Ticket } from '../../generated/prisma/client';
 import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -20,12 +21,19 @@ export class BreakdownHandler implements StepHandler {
     private readonly prisma: PrismaService,
     private readonly launcher: StageLauncher,
     private readonly outcomes: StageOutcomes,
+    private readonly subtasks: SubtasksService,
   ) {}
 
   async run(ticket: Ticket): Promise<StepOutcome> {
     const project = await this.prisma.project.findUniqueOrThrow({ where: { id: ticket.projectId } });
     const settings = ProjectSettingsSchema.parse(project.settings);
     const maxSubtasks = settings.limits.maxSubtasks;
+
+    if (!settings.stages.breakdown.enabled) {
+      // "breakdown off: the ticket runs as one subtask whose description is the plan" (row 8).
+      const only = singleSubtask(ticket, ticket.planMarkdown ?? ticket.body);
+      return this.approve(ticket, [only], 'The breakdown stage is off: one subtask runs the whole plan');
+    }
 
     const ws = this.launcher.workspaceOf(ticket);
     const { match } = await lookup(ws, project.kbDir, featureKeyOf(ticket));
@@ -56,6 +64,8 @@ export class BreakdownHandler implements StepHandler {
     if (!verdict.ok) return { kind: 'hold', reason: 'needs_help', note: describeIssues(verdict.issues).slice(0, 500), stageRunId: result.stageRunId };
     await this.prisma.ticket.update({ where: { id: ticket.id }, data: { breakdownDraft: verdict.subtasks as unknown as Prisma.InputJsonValue } });
 
+    // With the gate off the subtasks are created at once (row 8); otherwise the ticket waits for approval (row 7).
+    if (!settings.gates.breakdown) return this.approve(ticket, verdict.subtasks, 'Breakdown stored; the breakdown gate is off', result.stageRunId);
     return { kind: 'transition', to: 'AWAITING_BREAKDOWN_APPROVAL', reason: `Breakdown ready for approval (${verdict.subtasks.length} subtasks)`, stageRunId: result.stageRunId };
   }
 
@@ -68,5 +78,13 @@ export class BreakdownHandler implements StepHandler {
     if (!ticket.breakdownDraft) return null;
     const last = await this.prisma.stateTransition.findFirst({ where: { ticketId: ticket.id, toStatus: 'BREAKDOWN' }, orderBy: [{ at: 'desc' }, { id: 'desc' }] });
     return last?.fromStatus === 'AWAITING_BREAKDOWN_APPROVAL' && last.reason ? last.reason : null;
+  }
+
+  /** Creates the Subtask rows (and Jira sub-tasks when write-back is on) and goes straight to IN_PROGRESS. */
+  private async approve(ticket: Ticket, drafts: SubtaskDraft[], reason: string, stageRunId?: string): Promise<StepOutcome> {
+    await this.prisma.ticket.update({ where: { id: ticket.id }, data: { breakdownDraft: drafts as unknown as Prisma.InputJsonValue } });
+    await this.subtasks.create(ticket.id, drafts);
+    await this.subtasks.publishToJira(ticket.id);
+    return { kind: 'transition', to: 'IN_PROGRESS', reason, stageRunId };
   }
 }
