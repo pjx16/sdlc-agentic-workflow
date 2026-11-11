@@ -35,7 +35,7 @@ export class IntakePoller {
     return Math.max(0, this.backoffUntil - this.now());
   }
 
-  async poll(): Promise<PollResult> {
+  async poll(mode: 'rest' | 'mcp' = 'rest', only?: (project: Project) => boolean): Promise<PollResult> {
     const result: PollResult = { projects: 0, created: 0, duplicates: 0, errors: [] };
 
     // Pausing intake and pausing the pipeline are separate switches: only the intake switch stops polling.
@@ -44,11 +44,11 @@ export class IntakePoller {
     if (this.backoffRemainingMs() > 0) return { ...result, skipped: 'backoff' };
 
     // A project accepts tickets only when its mirror is ready (F2).
-    const projects = await this.prisma.project.findMany({ where: { enabled: true, jiraMode: 'rest', mirrorStatus: 'ok' }, orderBy: { createdAt: 'asc' } });
-    for (const project of projects) {
+    const projects = await this.prisma.project.findMany({ where: { enabled: true, jiraMode: mode, mirrorStatus: 'ok' }, orderBy: { createdAt: 'asc' } });
+    for (const project of projects.filter((p) => !only || only(p))) {
       result.projects++;
       try {
-        const tickets = await this.clients.forRest().searchTickets(project);
+        const tickets = await this.clients.forMode(mode).searchTickets(project);
         for (const jt of tickets) {
           const outcome = await this.store(project, jt);
           if (outcome === 'created') result.created++;

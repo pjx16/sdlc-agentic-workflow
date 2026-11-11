@@ -51,4 +51,7 @@ export class FakeJiraClients extends JiraClients {
   override forRest() {
     return this.jira;
   }
+  override forMode() {
+    return this.jira;
+  }
 }

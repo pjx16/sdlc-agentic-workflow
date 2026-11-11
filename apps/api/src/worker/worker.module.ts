@@ -40,6 +40,9 @@ import { RestartRecovery } from './loop/restart-recovery';
 import { HOUSEKEEPERS, type Housekeeper, WorkerLoop } from './loop/worker-loop';
 import { HoldNotifier } from './ci/hold-notifier';
 import { CiPoller } from './ci/ci-poller';
+import { JiraMcpClient } from '../jira/jira-mcp-client';
+import { JiraMcpStages } from './jira-mcp/jira-mcp-stages';
+import { McpIntake } from './intake/mcp-intake';
 import { MergePoller } from './ci/merge-poller';
 import { CiFixHandler } from './ci/ci-fix.handler';
 import { WorkerConfig } from './worker-config';
@@ -58,6 +61,9 @@ import { WorkerRunner } from './worker-runner';
     { provide: LOG_SINK, useClass: FileLogSink },
     { provide: USAGE_GATE, useFactory: (prisma: PrismaService) => new UsageGate(prisma), inject: [PrismaService] },
     AgentRunner,
+    { provide: JiraMcpStages, useFactory: (prisma: PrismaService, runner: AgentRunner, config: WorkerConfig) => new JiraMcpStages(prisma, runner, config), inject: [PrismaService, AgentRunner, WorkerConfig] },
+    // Registers the MCP client with the shared JiraClients, so MCP-mode projects use it for intake and write-back.
+    { provide: 'JIRA_MCP_REGISTRATION', useFactory: (clients: JiraClients, stages: JiraMcpStages) => clients.useMcp(new JiraMcpClient(stages)), inject: [JiraClients, JiraMcpStages] },
     VerifyService,
     { provide: IntakePoller, useFactory: (prisma: PrismaService, clients: JiraClients) => new IntakePoller(prisma, clients), inject: [PrismaService, JiraClients] },
     SubtasksService,
@@ -80,9 +86,10 @@ import { WorkerRunner } from './worker-runner';
     ReviewHandler,
     CiFixHandler,
     HoldNotifier,
+    { provide: McpIntake, useFactory: (p: PrismaService, i: IntakePoller) => new McpIntake(p, i), inject: [PrismaService, IntakePoller] },
     { provide: CiPoller, useFactory: (p: PrismaService, st: StateMachine, pr: PrService, gh: GitHubClient, hn: HoldNotifier) => new CiPoller(p, st, pr, gh, undefined, hn), inject: [PrismaService, StateMachine, PrService, GITHUB_CLIENT, HoldNotifier] },
     { provide: MergePoller, useFactory: (p: PrismaService, st: StateMachine, gh: GitHubClient) => new MergePoller(p, st, gh), inject: [PrismaService, StateMachine, GITHUB_CLIENT] },
-    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller): Housekeeper[] => [ci, merge], inject: [CiPoller, MergePoller] },
+    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, mcp: McpIntake): Housekeeper[] => [ci, merge, mcp], inject: [CiPoller, MergePoller, McpIntake] },
     NewTicketHandler,
     KbHandler,
     { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler, InProgressHandler, ReviewHandler, KbUpdateHandler, HumanReviewHandler, CiFixHandler] },
