@@ -32,6 +32,7 @@ import { WorkerRunner } from './worker-runner';
     AgentRunner,
     VerifyService,
     { provide: IntakePoller, useFactory: (prisma: PrismaService, clients: JiraClients) => new IntakePoller(prisma, clients), inject: [PrismaService, JiraClients] },
+    ApprovalPoller,
     RestartRecovery,
     {
       provide: WorkerLoop,

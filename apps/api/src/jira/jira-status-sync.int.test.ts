@@ -42,7 +42,11 @@ describe('Jira status mapping (F15)', () => {
     await prisma?.onModuleDestroy();
     await db?.drop();
   });
-  beforeEach(() => {
+  beforeEach(async () => {
+    await prisma.event.deleteMany();
+    await prisma.stateTransition.deleteMany();
+    await prisma.ticket.deleteMany();
+    await prisma.project.deleteMany();
     jira.calls = [];
     jira.failWith = null;
     jira.statuses = {};
