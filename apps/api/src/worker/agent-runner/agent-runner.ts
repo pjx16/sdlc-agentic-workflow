@@ -150,7 +150,7 @@ export class AgentRunner {
       timeoutMs: req.stageTimeoutMin * 60_000,
     };
 
-    const log = this.logs.open(stageRunId);
+    const log = this.logs.open(stageRunId, Object.values(req.jira?.env ?? {}));
     const lines: string[] = [];
     let container;
     try {

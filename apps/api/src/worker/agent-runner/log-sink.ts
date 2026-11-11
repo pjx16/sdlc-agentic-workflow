@@ -1,4 +1,4 @@
-/** Where a stage's output lines go. The file implementation with redaction is added in 3.6. */
+/** Where a stage's output lines go. `FileLogSink` writes the redacted file. */
 export interface StageLog {
   write(line: string): void;
   /** Flushes and closes; resolves with the log path (or undefined for sinks that keep no file). */
@@ -6,7 +6,8 @@ export interface StageLog {
 }
 
 export interface LogSink {
-  open(stageRunId: string): StageLog;
+  /** `extraSecrets` are per-run credentials (for example the Jira credential of an MCP stage) to redact as well. */
+  open(stageRunId: string, extraSecrets?: readonly string[]): StageLog;
 }
 
 export const LOG_SINK = Symbol('LOG_SINK');

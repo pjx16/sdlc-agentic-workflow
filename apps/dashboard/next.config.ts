@@ -6,6 +6,8 @@ const API_URL = process.env.API_URL ?? 'http://api:4000';
 
 const config: NextConfig = {
   output: 'standalone',
+  // Compression buffers server-sent events (the live run log), so the dashboard server does not compress.
+  compress: false,
   outputFileTracingRoot: path.join(__dirname, '../../'),
   async rewrites() {
     return [{ source: '/api/:path*', destination: `${API_URL}/:path*` }];
