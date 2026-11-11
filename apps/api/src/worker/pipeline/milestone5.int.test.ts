@@ -101,7 +101,7 @@ describe('milestone 5 end to end (real containers, fake-claude)', () => {
     const jira = new FakeJiraClients();
     const states = new StateMachine(prisma);
     loop = new WorkerLoop(
-      prisma, mirrors, new IntakePoller(prisma, jira), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma)), states,
+      prisma, mirrors, new IntakePoller(prisma, jira), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma, jira)), states,
       [new NewTicketHandler(workspaces), new KbHandler(prisma, workspaces, kbBuild), new PlanHandler(prisma, launcher, outcomes, jira)],
     );
     app = await createTestApp(db.url, [TicketsModule]);

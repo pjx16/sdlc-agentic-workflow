@@ -55,7 +55,7 @@ describe('worker skeleton', () => {
           useFactory: (p: PrismaService, m: MirrorService) => {
             const jira = new FakeJiraClients();
             const states = new StateMachine(p);
-            return new WorkerLoop(p, m, new IntakePoller(p, jira), new ApprovalPoller(p, jira, states, new SubtasksService(p)), states, []);
+            return new WorkerLoop(p, m, new IntakePoller(p, jira), new ApprovalPoller(p, jira, states, new SubtasksService(p, jira)), states, []);
           },
           inject: [PrismaService, MirrorService],
         },

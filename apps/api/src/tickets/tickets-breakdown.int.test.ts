@@ -126,6 +126,27 @@ describe('Breakdown gate API (F8, BUILD_PLAN 8)', () => {
     });
   });
 
+  it('on approval creates Jira sub-tasks when write-back is on, storing their keys', async () => {
+    await t.prisma.project.update({ where: { id: projectId }, data: { jiraMode: 'rest', settings: {} } });
+    t.jira.jira.calls = [];
+    const tk = await ticket({ source: 'jira', externalKey: 'ABC-50', key: 'ABC-50' });
+    await t.agent.post(`/tickets/${tk.id}/breakdown/approve`).send({}).expect(200);
+    expect(t.jira.jira.calls.filter((c) => c.startsWith('subtask'))).toHaveLength(3);
+    expect((await rows(tk.id)).every((r) => r.externalKey === 'ABC-50-S')).toBe(true);
+    await t.prisma.project.update({ where: { id: projectId }, data: { jiraMode: 'off' } });
+  });
+
+  it('a Jira failure during approval does not block it', async () => {
+    await t.prisma.project.update({ where: { id: projectId }, data: { jiraMode: 'rest', settings: {} } });
+    t.jira.jira.failWith = new Error('Jira 503');
+    const tk = await ticket({ source: 'jira', externalKey: 'ABC-51', key: 'ABC-51' });
+    await t.agent.post(`/tickets/${tk.id}/breakdown/approve`).send({}).expect(200);
+    t.jira.jira.failWith = null;
+    expect((await reload(tk.id)).status).toBe('IN_PROGRESS');
+    expect(await rows(tk.id)).toHaveLength(3);
+    await t.prisma.project.update({ where: { id: projectId }, data: { jiraMode: 'off' } });
+  });
+
   it('the ticket detail includes the proposed list and the created subtasks', async () => {
     const tk = await ticket();
     expect((await t.agent.get(`/tickets/${tk.id}`).expect(200)).body.breakdownDraft).toHaveLength(3);

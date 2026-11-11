@@ -220,6 +220,7 @@ export class TicketsService {
       if (count === 0) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'The ticket changed while it was being updated');
     }
     await this.subtasks.create(id, verdict.subtasks as SubtaskDraft[]);
+    await this.subtasks.publishToJira(id); // Jira sub-tasks when write-back is on; a Jira problem never blocks
     const { ticket: updated } = await this.states.transition(id, 'IN_PROGRESS', 'user', changed ? 'Breakdown approved with edits' : 'Breakdown approved');
     return toTicketDto(updated);
   }

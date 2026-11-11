@@ -37,7 +37,7 @@ describe('Jira status mapping (F15)', () => {
     const clients = new FakeJiraClients();
     jira = clients.jira;
     sm = new StateMachine(prisma, [new JiraStatusSync(prisma, clients)]);
-    poller = new ApprovalPoller(prisma, clients, sm, new SubtasksService(prisma));
+    poller = new ApprovalPoller(prisma, clients, sm, new SubtasksService(prisma, clients));
   }, 180_000);
   afterAll(async () => {
     await prisma?.onModuleDestroy();

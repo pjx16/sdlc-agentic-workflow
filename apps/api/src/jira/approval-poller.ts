@@ -47,6 +47,7 @@ export class ApprovalPoller {
             continue;
           }
           await this.subtasks.create(ticket.id, verdict.subtasks as SubtaskDraft[]);
+          await this.subtasks.publishToJira(ticket.id);
         }
         await this.states.transition(ticket.id, next, 'jira', `approved in Jira (status "${status}")`);
         approved++;
