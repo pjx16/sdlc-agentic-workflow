@@ -6,3 +6,4 @@ dist/
 *.log
 coverage/
 data/
+apps/api/src/generated/

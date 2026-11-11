@@ -1,17 +1,8 @@
 import { Module } from '@nestjs/common';
-import { LoggerModule } from 'nestjs-pino';
+import { AuthModule } from './auth/auth.module';
+import { LoggingModule } from './logging.module';
+import { PrismaModule } from './prisma/prisma.module';
 import { SystemModule } from './system/system.module';
 
-@Module({
-  imports: [
-    LoggerModule.forRoot({
-      pinoHttp: {
-        level: process.env.LOG_LEVEL ?? 'info',
-        autoLogging: { ignore: (req) => req.url === '/health' },
-        redact: ['req.headers.cookie', 'req.headers.authorization'],
-      },
-    }),
-    SystemModule,
-  ],
-})
+@Module({ imports: [LoggingModule, PrismaModule, AuthModule, SystemModule] })
 export class AppModule {}
