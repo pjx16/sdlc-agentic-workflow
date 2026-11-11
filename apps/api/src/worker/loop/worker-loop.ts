@@ -79,6 +79,8 @@ export class WorkerLoop {
         ...(statuses.length > 0 ? [{ status: { in: statuses as TicketStatus[] } }] : []),
         // A ticket waiting for CI is only picked when a CI fix is pending.
         ...(handled.has('AWAITING_CI') ? [{ status: 'AWAITING_CI' as const, ciFixPending: true }] : []),
+        // A ticket in human review is only picked when a KB-update re-run was requested.
+        ...(handled.has('IN_HUMAN_REVIEW') ? [{ status: 'IN_HUMAN_REVIEW' as const, kbUpdatePending: true }] : []),
       ],
     };
     if (where.OR.length === 0) return null;

@@ -50,6 +50,12 @@ export class TicketsController {
     return this.tickets.rejectBreakdown(id, body);
   }
 
+  @Post(':id/kb-update/rerun')
+  @HttpCode(HttpStatus.OK)
+  rerunKbUpdate(@Param('id') id: string) {
+    return this.tickets.rerunKbUpdate(id);
+  }
+
   @Post()
   paste(@Body() body: unknown): Promise<TicketDto> {
     return this.tickets.paste(body);

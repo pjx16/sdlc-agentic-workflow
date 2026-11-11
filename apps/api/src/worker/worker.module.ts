@@ -27,6 +27,10 @@ import { SubtaskStepsService } from './pipeline/subtask-steps.service';
 import { PlanHandler } from './pipeline/plan.handler';
 import { KB_BUILDER, KbHandler } from './pipeline/kb.handler';
 import { KbBuildService } from './pipeline/kb-build.service';
+import { KbUpdateService } from './pipeline/kb-update.service';
+import { HumanReviewHandler, KbUpdateHandler } from './pipeline/kb-update.handler';
+import { ReviewHandler } from './review/review.handler';
+import { ReviewService } from './review/review.service';
 import { StageLauncher } from './pipeline/stage-launcher';
 import { NewTicketHandler } from './pipeline/new-ticket.handler';
 import { STEP_HANDLERS, type StepHandler } from './pipeline/step-handler';
@@ -63,9 +67,14 @@ import { WorkerRunner } from './worker-runner';
     { provide: SUBTASK_STEPS, useExisting: SubtaskStepsService },
     InProgressHandler,
     { provide: KB_BUILDER, useExisting: KbBuildService },
+    KbUpdateService,
+    KbUpdateHandler,
+    HumanReviewHandler,
+    ReviewService,
+    ReviewHandler,
     NewTicketHandler,
     KbHandler,
-    { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler, InProgressHandler] },
+    { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler, InProgressHandler, ReviewHandler, KbUpdateHandler, HumanReviewHandler] },
     RestartRecovery,
     {
       provide: WorkerLoop,

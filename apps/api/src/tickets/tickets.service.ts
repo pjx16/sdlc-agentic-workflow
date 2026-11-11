@@ -189,6 +189,18 @@ export class TicketsService {
     }
   }
 
+  /** POST /tickets/:id/kb-update/rerun: queues one more kbUpdate on the current branch. Only in IN_HUMAN_REVIEW. */
+  async rerunKbUpdate(id: string): Promise<TicketDto> {
+    const ticket = await this.findOr404(id);
+    if (ticket.status !== 'IN_HUMAN_REVIEW') {
+      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `The KB update can only be re-run in IN_HUMAN_REVIEW (the ticket is ${ticket.status})`);
+    }
+    const { count } = await this.prisma.ticket.updateMany({ where: { id, status: 'IN_HUMAN_REVIEW' }, data: { kbUpdatePending: true } });
+    if (count === 0) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'The ticket is no longer in IN_HUMAN_REVIEW');
+    await this.prisma.event.create({ data: { ticketId: id, type: 'system', message: 'KB update re-run requested' } });
+    return toTicketDto(await this.prisma.ticket.findUniqueOrThrow({ where: { id } }));
+  }
+
   private async awaitingBreakdown(id: string) {
     const ticket = await this.prisma.ticket.findUnique({ where: { id }, include: { project: true } });
     if (!ticket) throw new ApiException(HttpStatus.NOT_FOUND, ErrorCodes.notFound, 'Ticket not found');
