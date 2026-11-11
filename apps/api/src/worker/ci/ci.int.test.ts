@@ -5,6 +5,7 @@ import { StateMachine } from '../../state/state-machine.service';
 import { StepsHarness, sh } from '../../testing/steps-harness';
 import { CiFixHandler } from './ci-fix.handler';
 import { CiPoller } from './ci-poller';
+import { MergePoller } from './merge-poller';
 
 describe('CI polling and the CI fix round (F12)', () => {
   let h: StepsHarness;
@@ -148,5 +149,38 @@ describe('CI polling and the CI fix round (F12)', () => {
     await poller.check();
     expect(await status(t.id)).toBe('IN_HUMAN_REVIEW');
     expect((await h.prisma.event.findMany({ where: { ticketId: t.id } })).some((e) => e.message.includes('mark ready: gh: boom'))).toBe(true);
+  });
+
+  describe('merge and close detection', () => {
+    let merge: MergePoller;
+    beforeAll(() => {
+      merge = new MergePoller(h.prisma, new StateMachine(h.prisma), h.github);
+    });
+    const inReview = async () => (await awaitingCi({ status: 'IN_HUMAN_REVIEW' }));
+
+    it('a merged PR moves the ticket to DONE', async () => {
+      const t = await inReview();
+      h.github.state = { state: 'MERGED', mergedAt: '2026-11-11T10:00:00Z' };
+      await merge.check();
+      expect(await status(t.id)).toBe('DONE');
+    });
+
+    it('a PR closed without a merge puts the ticket on hold (pr_closed)', async () => {
+      const t = await inReview();
+      h.github.state = { state: 'CLOSED', mergedAt: null };
+      await merge.check();
+      expect(await h.reloadTicket(t.id)).toMatchObject({ status: 'ON_HOLD', holdReason: 'pr_closed', holdFromStatus: 'IN_HUMAN_REVIEW' });
+    });
+
+    it('an open PR changes nothing, and a GitHub error is skipped', async () => {
+      const t = await inReview();
+      await merge.check();
+      expect(await status(t.id)).toBe('IN_HUMAN_REVIEW');
+      h.github.prState = async () => {
+        throw new Error('rate limited');
+      };
+      await expect(merge.check()).resolves.toBeUndefined();
+      expect(await status(t.id)).toBe('IN_HUMAN_REVIEW');
+    });
   });
 });

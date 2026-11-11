@@ -38,6 +38,7 @@ import { StageOutcomes } from './pipeline/stage-outcomes';
 import { RestartRecovery } from './loop/restart-recovery';
 import { HOUSEKEEPERS, type Housekeeper, WorkerLoop } from './loop/worker-loop';
 import { CiPoller } from './ci/ci-poller';
+import { MergePoller } from './ci/merge-poller';
 import { CiFixHandler } from './ci/ci-fix.handler';
 import { WorkerConfig } from './worker-config';
 import { WorkerRunner } from './worker-runner';
@@ -76,7 +77,8 @@ import { WorkerRunner } from './worker-runner';
     ReviewHandler,
     CiFixHandler,
     { provide: CiPoller, useFactory: (p: PrismaService, st: StateMachine, pr: PrService, gh: GitHubClient) => new CiPoller(p, st, pr, gh), inject: [PrismaService, StateMachine, PrService, GITHUB_CLIENT] },
-    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller): Housekeeper[] => [ci], inject: [CiPoller] },
+    { provide: MergePoller, useFactory: (p: PrismaService, st: StateMachine, gh: GitHubClient) => new MergePoller(p, st, gh), inject: [PrismaService, StateMachine, GITHUB_CLIENT] },
+    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller): Housekeeper[] => [ci, merge], inject: [CiPoller, MergePoller] },
     NewTicketHandler,
     KbHandler,
     { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler, InProgressHandler, ReviewHandler, KbUpdateHandler, HumanReviewHandler, CiFixHandler] },
