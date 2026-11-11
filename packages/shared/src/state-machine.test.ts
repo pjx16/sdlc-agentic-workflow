@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TICKET_STATUSES, type TicketStatus } from './enums';
-import { ACTIONABLE_STATUSES, HOLDABLE, checkTransition } from './state-machine';
+import { ACTIONABLE_STATUSES, HOLDABLE, approvalTarget, checkTransition } from './state-machine';
 
 /** BUILD_PLAN 6.6 rows 1 to 15, written out independently of the implementation. */
 const ROWS: [TicketStatus, TicketStatus][] = [
@@ -74,5 +74,25 @@ describe('state machine (BUILD_PLAN 6.6)', () => {
 
   it('the worker only picks up the actionable states', () => {
     expect([...ACTIONABLE_STATUSES]).toEqual(['NEW', 'KB', 'PLANNING', 'BREAKDOWN', 'IN_PROGRESS', 'REVIEW', 'KB_UPDATE']);
+  });
+});
+
+describe('approvalTarget (F15 inbound approval)', () => {
+  const approvals = { plan: 'Plan Approved', breakdown: 'Ready for Dev' };
+  it('approves a plan or a breakdown when the Jira status matches, case-insensitively', () => {
+    expect(approvalTarget('AWAITING_PLAN_APPROVAL', 'plan approved', approvals)).toBe('BREAKDOWN');
+    expect(approvalTarget('AWAITING_BREAKDOWN_APPROVAL', ' Ready for Dev ', approvals)).toBe('IN_PROGRESS');
+  });
+  it('ignores any other Jira status, and the wrong gate', () => {
+    expect(approvalTarget('AWAITING_PLAN_APPROVAL', 'In Progress', approvals)).toBeNull();
+    expect(approvalTarget('AWAITING_PLAN_APPROVAL', 'Ready for Dev', approvals)).toBeNull();
+    expect(approvalTarget('AWAITING_BREAKDOWN_APPROVAL', 'Plan Approved', approvals)).toBeNull();
+  });
+  it('ignores tickets that are not awaiting approval', () => {
+    for (const s of TICKET_STATUSES.filter((x) => !x.startsWith('AWAITING_P') && !x.startsWith('AWAITING_B'))) expect(approvalTarget(s, 'Plan Approved', approvals), s).toBeNull();
+  });
+  it('does nothing when no approval status is configured', () => {
+    expect(approvalTarget('AWAITING_PLAN_APPROVAL', 'Plan Approved', {})).toBeNull();
+    expect(approvalTarget('AWAITING_PLAN_APPROVAL', '', { plan: '' })).toBeNull();
   });
 });

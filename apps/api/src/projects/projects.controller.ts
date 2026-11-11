@@ -32,6 +32,11 @@ export class ProjectsController {
     return this.projects.disable(id);
   }
 
+  @Get(':id/jira/statuses')
+  jiraStatuses(@Param('id') id: string): Promise<string[]> {
+    return this.projects.jiraStatuses(id);
+  }
+
   @Post(':id/mirror/retry')
   @HttpCode(HttpStatus.OK)
   retryMirror(@Param('id') id: string): Promise<ProjectDto> {

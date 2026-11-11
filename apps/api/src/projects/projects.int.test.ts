@@ -123,6 +123,24 @@ describe('Projects API (F2)', () => {
     expect(res.body).toMatchObject({ mirrorStatus: 'pending', mirrorError: null });
   });
 
+  it('lists Jira statuses for the mapping dropdown, only in REST mode with a project key', async () => {
+    const rest = (await t.agent.post('/projects').send({ ...valid, name: 'Rest', jiraMode: 'rest', jiraProjectKey: 'ABC' }).expect(201)).body;
+    t.jira.jira.projectStatuses = ['To Do', 'In Progress', 'Done'];
+    expect((await t.agent.get(`/projects/${rest.id}/jira/statuses`).expect(200)).body).toEqual(['To Do', 'In Progress', 'Done']);
+    expect(t.jira.jira.calls.at(-1)).toBe('statuses ABC');
+
+    const off = (await t.agent.post('/projects').send({ ...valid, name: 'Off' }).expect(201)).body;
+    expect((await t.agent.get(`/projects/${off.id}/jira/statuses`).expect(409)).body.error).toBe('conflict');
+    const noKey = (await t.agent.post('/projects').send({ ...valid, name: 'NoKey', jiraMode: 'rest' }).expect(201)).body;
+    expect((await t.agent.get(`/projects/${noKey.id}/jira/statuses`).expect(409)).body.message).toContain('project key');
+
+    t.jira.jira.failWith = new Error('Jira 401: bad credentials');
+    const res = await t.agent.get(`/projects/${rest.id}/jira/statuses`).expect(502);
+    expect(res.body).toEqual({ error: 'jira_error', message: 'Jira 401: bad credentials' });
+    t.jira.jira.failWith = null;
+    await t.agent.get('/projects/nope/jira/statuses').expect(404);
+  });
+
   it('returns 404 for unknown projects', async () => {
     for (const call of [t.agent.get('/projects/nope'), t.agent.patch('/projects/nope').send({}), t.agent.delete('/projects/nope'), t.agent.post('/projects/nope/mirror/retry')]) {
       expect((await call.expect(404)).body.error).toBe('not_found');

@@ -1,4 +1,6 @@
 import type { INestApplication, Type } from '@nestjs/common';
+import { JiraClients } from '../jira/jira-clients';
+import { FakeJiraClients } from './fake-jira';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AuthModule } from '../auth/auth.module';
@@ -16,6 +18,8 @@ export interface TestApp {
   agent: ReturnType<typeof request.agent>;
   /** supertest agent with no session. */
   anonymous: ReturnType<typeof request.agent>;
+  /** The fake Jira every module under test talks to. */
+  jira: FakeJiraClients;
   close(): Promise<void>;
 }
 
@@ -27,7 +31,11 @@ export async function createTestApp(databaseUrl: string, modules: Type[]): Promi
     SESSION_SECRET: 'x'.repeat(32),
     COOKIE_SECURE: 'false',
   });
-  const moduleRef = await Test.createTestingModule({ imports: [PrismaModule, AuthModule, SystemModule, ...modules] }).compile();
+  const jira = new FakeJiraClients();
+  const moduleRef = await Test.createTestingModule({ imports: [PrismaModule, AuthModule, SystemModule, ...modules] })
+    .overrideProvider(JiraClients)
+    .useValue(jira)
+    .compile();
   const app = moduleRef.createNestApplication();
   configureApp(app);
   await app.init();
@@ -38,6 +46,7 @@ export async function createTestApp(databaseUrl: string, modules: Type[]): Promi
     prisma: app.get(PrismaService),
     agent,
     anonymous: request.agent(app.getHttpServer()),
+    jira,
     close: () => app.close(),
   };
 }

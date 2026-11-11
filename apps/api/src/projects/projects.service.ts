@@ -3,6 +3,7 @@ import { ErrorCodes, ProjectInputSchema, deepMerge, type ProjectInput } from '@s
 import { ApiException } from '../common/api-exception';
 import { parseBody } from '../common/parse-body';
 import { Prisma } from '../generated/prisma/client';
+import { JiraClients } from '../jira/jira-clients';
 import { PrismaService } from '../prisma/prisma.service';
 import { type ProjectDto, toDto, toInput } from './project.dto';
 
@@ -11,7 +12,10 @@ const nameTaken = () =>
 
 @Injectable()
 export class ProjectsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jira: JiraClients,
+  ) {}
 
   async list(): Promise<ProjectDto[]> {
     return (await this.prisma.project.findMany({ orderBy: { createdAt: 'asc' } })).map(toDto);
@@ -48,6 +52,22 @@ export class ProjectsService {
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') throw nameTaken();
       throw err;
+    }
+  }
+
+  /** GET /projects/:id/jira/statuses: Jira status names for the mapping dropdown (REST mode). */
+  async jiraStatuses(id: string): Promise<string[]> {
+    const project = await this.get(id);
+    if (project.jiraMode !== 'rest') {
+      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'Jira statuses can only be listed when the project is in REST mode');
+    }
+    if (!project.jiraProjectKey) {
+      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'Set the Jira project key first');
+    }
+    try {
+      return await this.jira.forRest().listStatuses(project.jiraProjectKey);
+    } catch (err) {
+      throw new ApiException(HttpStatus.BAD_GATEWAY, ErrorCodes.jiraError, err instanceof Error ? err.message : 'Jira request failed');
     }
   }
 

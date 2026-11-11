@@ -57,3 +57,19 @@ export function checkTransition(from: TicketStatus, to: TicketStatus, ctx: Trans
 
 /** States the worker can pick up (BUILD_PLAN 6.6 step 3). AWAITING_CI only with a pending CI fix. */
 export const ACTIONABLE_STATUSES: readonly TicketStatus[] = ['NEW', 'KB', 'PLANNING', 'BREAKDOWN', 'IN_PROGRESS', 'REVIEW', 'KB_UPDATE'];
+
+/**
+ * Inbound approval (F15, REST mode only): for a ticket awaiting plan or breakdown approval, a Jira status equal to
+ * `jiraApprovalStatuses.plan` or `.breakdown` counts as approval. Returns the state to move to, or null.
+ * Any other Jira status, and any other ticket state, is ignored.
+ */
+export function approvalTarget(
+  ticketStatus: TicketStatus,
+  jiraStatus: string,
+  approvals: { plan?: string | undefined; breakdown?: string | undefined },
+): TicketStatus | null {
+  const same = (a: string | undefined) => a !== undefined && a.trim() !== '' && a.trim().toLowerCase() === jiraStatus.trim().toLowerCase();
+  if (ticketStatus === 'AWAITING_PLAN_APPROVAL' && same(approvals.plan)) return 'BREAKDOWN';
+  if (ticketStatus === 'AWAITING_BREAKDOWN_APPROVAL' && same(approvals.breakdown)) return 'IN_PROGRESS';
+  return null;
+}
