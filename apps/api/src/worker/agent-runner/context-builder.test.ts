@@ -97,6 +97,13 @@ describe('prompt.md (BUILD_PLAN 6.4)', () => {
     expect(read(rerun.runDir, 'prompt.md')).toContain('Split the API from the UI');
   });
 
+  it('tells a retried tests stage why its previous tests were rejected', async () => {
+    expect(headings(read((await build('tests')).runDir, 'prompt.md'))).not.toContain('Previous attempt');
+    const retry = await build('tests', {}, { previousAttempt: 'the tests pass, but they must fail' });
+    expect(headings(read(retry.runDir, 'prompt.md'))).toEqual(['Ticket', 'Approved plan', 'Subtask', 'KB doc', 'Example test file', 'Previous attempt', 'Output']);
+    expect(read(retry.runDir, 'prompt.md')).toContain('the tests pass, but they must fail');
+  });
+
   it('omits the previous-findings section unless there are findings, and the subtask for fix when absent', async () => {
     const withFindings = await build('review', {}, { previousFindings: [{ id: 'f1', severity: 'high', file: 'a.ts', line: 3, issue: 'bad', rule: 'r', fix: 'fix it' }] });
     expect(headings(read(withFindings.runDir, 'prompt.md'))).toContain('Previous findings');

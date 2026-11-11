@@ -47,6 +47,8 @@ export interface StageInputs {
   subtask?: SubtaskInfo;
   testFiles?: string[];
   exampleTestFile?: string;
+  /** For a retry of `tests` after an invalid red: why the previous tests were rejected. */
+  previousAttempt?: string;
   /** Verify tail, open critical/high findings, or CI log tail, for `fix`. */
   failureOutput?: string;
   acceptanceCriteria?: string[];
@@ -195,6 +197,7 @@ function planSections(stage: StageName, i: StageInputs): Plan {
         heading: 'Example test file',
         body: i.exampleTestFile ?? '_No example test file found._',
       });
+      if (i.previousAttempt) sections.push({ heading: 'Previous attempt', body: `Your previous tests were rejected. Fix the cause and keep what was fine.\n\n${fenced(i.previousAttempt)}` });
       break;
     case 'implement':
       sections.push(ticketSummary(), { heading: 'Plan', body: i.plan ?? '_No plan._' }, { heading: 'Subtask', body: i.subtask ? subtaskText(i.subtask) : '_No subtask._' }, kb(), {

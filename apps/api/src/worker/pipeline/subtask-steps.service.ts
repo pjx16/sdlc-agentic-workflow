@@ -9,9 +9,10 @@ import type { SubtaskInfo } from '../agent-runner/context-builder';
 import { changedFilesSync } from '../git/changes';
 import { GitRunner } from '../git/git-runner';
 import { makeWritableForAgent } from '../git/workspace';
-import { WorkspaceService } from '../git/workspace.service';
+import { WorkspaceService, installedHash, manifestHash, recordInstalled } from '../git/workspace.service';
 import { featureKeyOf, lookup } from '../kb/kb-index';
-import { VerifyService } from '../verify/verify.service';
+import { decideRed } from '../verify/verify-decisions';
+import { type CmdResult, VerifyService } from '../verify/verify.service';
 import { WorkerConfig } from '../worker-config';
 import { StageLauncher } from './stage-launcher';
 import { StageOutcomes } from './stage-outcomes';
@@ -78,13 +79,92 @@ export class SubtaskStepsService {
         subtask: info,
         kbDoc: await this.kbDoc(ticket, ws, project.kbDir),
         exampleTestFile: pickExampleTestFile(tracked, info.files[0]),
+        ...(subtask.status === 'TESTS' && subtask.lastFailure ? { previousAttempt: subtask.lastFailure } : {}),
       },
       { workspacePath: ws, subtaskId: subtask.id, round: await this.testsRoundsDone(subtask.id), validate: (envelope) => this.validateTests(envelope, ws) },
     );
     if (result.kind !== 'done') return this.outcomes.forResult(ticket.id, 'tests', result);
 
     const testFiles = ((result.envelope.data as { testFiles: string[] }).testFiles).map((f) => f.replace(/^\.\//, ''));
-    await this.setStatus(subtask.id, 'VERIFY_RED', { testFiles: testFiles as Prisma.InputJsonValue });
+    await this.setStatus(subtask.id, 'VERIFY_RED', { testFiles: testFiles as Prisma.InputJsonValue, lastFailure: null });
+    return { kind: 'continue' };
+  }
+
+  // ------------------------------------------------------------------ verification helpers
+
+  private async verifyTimeoutSec(): Promise<number> {
+    return (await this.prisma.globalSettings.findUnique({ where: { id: 'global' } }))?.verifyTimeoutSec ?? 600;
+  }
+
+  private async warn(ticket: Ticket, message: string): Promise<void> {
+    await this.prisma.event.create({ data: { ticketId: ticket.id, type: 'git', message: message.slice(0, 500) } });
+  }
+
+  /** Runs the project's typecheck command, or skips it with a warning when it is empty (F2). */
+  protected async runTypecheck(ticket: Ticket, ws: string, typecheckCmd: string, label: string): Promise<CmdResult | null> {
+    if (typecheckCmd.trim() === '') {
+      await this.warn(ticket, 'Warning: the typecheck command is empty, so the typecheck was skipped');
+      return null;
+    }
+    return this.verify.runCmd({ name: `sdlc-typecheck-${ticket.key}-${label}-${Date.now()}`, workspace: ws, cmd: typecheckCmd, timeoutSec: await this.verifyTimeoutSec() });
+  }
+
+  /** Runs the targeted tests (`{files}` replaced by the given files). */
+  protected async runTargeted(ticket: Ticket, ws: string, testCmdTemplate: string, files: readonly string[], label: string): Promise<CmdResult> {
+    return this.verify.runCmd({ name: `sdlc-tests-${ticket.key}-${label}-${Date.now()}`, workspace: ws, cmd: testCmdTemplate, files, timeoutSec: await this.verifyTimeoutSec() });
+  }
+
+  /**
+   * Installs dependencies again if package.json or a lockfile changed since the last install (F9). Returns null when nothing was
+   * needed (or the install command is empty), otherwise the install result.
+   */
+  protected async installIfChanged(ticket: Ticket, ws: string, installCmd: string): Promise<CmdResult | null> {
+    if (installedHash(ws) === manifestHash(ws)) return null;
+    if (installCmd.trim() === '') {
+      await this.warn(ticket, 'Warning: package.json or a lockfile changed but the install command is empty');
+      return null;
+    }
+    const result = await this.verify.runCmd({ name: `sdlc-install-${ticket.key}-${Date.now()}`, workspace: ws, cmd: installCmd, timeoutSec: await this.verifyTimeoutSec() });
+    if (result.ok) recordInstalled(ws);
+    await makeWritableForAgent(ws);
+    return result;
+  }
+
+  /** A one-line, bounded subtitle for a commit message. */
+  protected oneLine(text: string): string {
+    return text.replace(/\s+/g, ' ').trim().slice(0, 100);
+  }
+
+  // ------------------------------------------------------------------ verify-red
+
+  /**
+   * Verify-red (F9): the typecheck passes AND the targeted tests fail AND their output matches none of `verify.redInvalidPatterns`.
+   * Valid: commit `test(<KEY>): <title>` and record `testCommit`. Invalid: run `tests` once more, then hold (`needs_help`).
+   */
+  async verifyRed(ticket: Ticket, subtask: Subtask): Promise<StepOutcome> {
+    const { project, settings } = await this.project(ticket);
+    const ws = this.launcher.workspaceOf(ticket);
+    const files = asStrings(subtask.testFiles);
+    if (files.length === 0) return { kind: 'hold', reason: 'needs_help', note: `Subtask ${subtask.seq} has no test files to verify` };
+
+    const install = await this.installIfChanged(ticket, ws, project.installCmd);
+    if (install && !install.ok) return { kind: 'hold', reason: 'needs_help', note: `The dependency install failed after the tests were written:\n${install.tail.split('\n').slice(-5).join('\n')}`.slice(0, 500) };
+
+    const typecheck = await this.runTypecheck(ticket, ws, project.typecheckCmd, `red${subtask.seq}`);
+    const tests = await this.runTargeted(ticket, ws, project.testCmdTemplate, files, `red${subtask.seq}`);
+    const decision = decideRed({ typecheck, tests, invalidPatterns: settings.verify.redInvalidPatterns });
+
+    if (!decision.valid) {
+      const rounds = await this.testsRoundsDone(subtask.id);
+      if (rounds >= 2) return { kind: 'hold', reason: 'needs_help', note: `Verify-red is still invalid after the retry: ${decision.reason}`.slice(0, 500) };
+      await this.setStatus(subtask.id, 'TESTS', { lastFailure: decision.reason.slice(0, 4000) });
+      await this.warn(ticket, `Verify-red invalid for subtask ${subtask.seq}: ${decision.reason.split('\n')[0]}; running the tests stage again`);
+      return { kind: 'continue' };
+    }
+
+    const commit = await this.workspaces.commit(ticket.id, `test(${ticket.key}): ${this.oneLine(subtask.title)}`);
+    const testCommit = commit.committed ? commit.sha : await this.git.out(['rev-parse', 'HEAD'], { cwd: ws });
+    await this.setStatus(subtask.id, 'IMPLEMENT', { testCommit, lastFailure: null });
     return { kind: 'continue' };
   }
 
