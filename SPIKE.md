@@ -127,7 +127,14 @@ So the scopes are now recognized, but Jira calls still fail while resolving the 
 - `searchJiraIssuesUsingJql` → `{"error":true,"message":"You don't have permission to connect via API token. Please ask your organization admin for access."}`. This is an org-level setting; an admin has to allow API-token access for the Rovo MCP server.
 - Usage of this 4-turn run: input 8, cache creation 8,935, cache read 58,485, output 775 tokens. All 26 tool schemas were loaded although `--allowedTools` listed only 2, so `--allowedTools` does not shrink the context; budget about 50–70k tokens per Jira stage.
 
-**Result: headless auth works through Claude Code (connected, site visible with read-write access). A Jira read/write call is still blocked by an org setting (API-token access); end-to-end is NOT proven until an admin enables it.** Open step: create a scoped token and repeat `getAccessibleAtlassianResources` and `searchJiraIssuesUsingJql`. If scoped tokens cannot be created for this account, Milestone 11 is skipped and the README states that MCP mode is unavailable.
+**After the org admin enabled API-token access** (same scoped token, same `claude -p` setup, Haiku, port 3129):
+
+- `searchJiraIssuesUsingJql` with `order by created DESC` → `400 {"errorMessages":["Unbounded JQL queries are not allowed here. Please add a search restriction to your query."]}`. **JQL must be bounded** (for example by project or a date range).
+- `searchJiraIssuesUsingJql` with `created >= -365d order by created DESC`, `maxResults 3` → 3 issues returned (`SAM1-10` "Finalize Documentation for the Project", In Review; `SAM1-9`, To Do; `SAM1-8`, To Do), plus `isLast: false` for paging. 3 turns, 362 output tokens, about 43k cache-read tokens.
+- Squid log for the run: only `CONNECT api.anthropic.com:443` and `CONNECT mcp.atlassian.com:443`. No other host was needed.
+- **Not tested:** the write tools (`createJiraIssue`, `editJiraIssue`, `transitionJiraIssue`, `addOrEditJiraIssueComment`), to avoid changing the developer's Jira without being asked. They share the same auth and scope mechanism, but each still needs a check before Milestone 11.
+
+**Result: Jira MCP works headlessly from the agent image (Basic auth with a scoped personal API token, no browser, no token refresh). Read tools are proven end to end; write tools are untested.** Open step: create a scoped token and repeat `getAccessibleAtlassianResources` and `searchJiraIssuesUsingJql`. If scoped tokens cannot be created for this account, Milestone 11 is skipped and the README states that MCP mode is unavailable.
 
 Proposed defaults for `jiraMcp` (names as returned by `tools/list`; confirm after the scoped-token retest):
 
@@ -173,7 +180,7 @@ All commands and JSON shapes match §6.3. Notes:
 2. **Turn limit exit code:** a stage that hits `--max-turns` exits with code 1 and a `result` line with `subtype: error_max_turns`, `result: null`, and no `structured_output`. §6.8 should treat both a non-zero exit and `subtype != success` as a failed attempt, and parse the `result` line even when the exit code is non-zero.
 3. **Rate-limit scale:** treat `utilization` as a 0–1 fraction (verified only at 0.01 and 0.08). Add a defensive rule in the usage gate (values above 1 are treated as percent), and re-verify when usage is higher.
 4. **Squid:** no allowlist change was needed (`api.anthropic.com` only). Remove or avoid `cache_log /dev/stderr`-style settings; read logs from `/var/log/squid`.
-5. **Jira MCP:** use `/v2/mcp`, Basic auth with a scoped API token, and pass `cloudId` on every call. The plan should store the cloud ID (or fetch it from `/_edge/tenant_info`). Unresolved until a scoped token is tested (see 0.7).
+5. **Jira MCP:** use `/v2/mcp`, Basic auth with a scoped API token, and pass `cloudId` on every call. The plan should store the cloud ID (or fetch it from `/_edge/tenant_info`). Read path proven with a scoped token once the org allows API-token access; JQL must be bounded; write tools still to be checked (see 0.7).
 6. **GitHub checks:** de-duplicate or tolerate repeated check names and a not-yet-complete first response.
 7. **Jira stages (proposal, agreed in review discussion):**
    - Fixed Jira operations (fetch, comment, transition) stay in the worker's REST client (§6.3) with no LLM and no Claude tokens.
