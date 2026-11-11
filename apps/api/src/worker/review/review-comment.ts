@@ -38,3 +38,19 @@ export function renderFindingsForFix(findings: readonly Pick<StoredFinding, 'sev
     .map((f, i) => `${i + 1}. [${f.severity}] ${f.file}${f.line === null ? '' : `:${f.line}`}\n   Issue: ${f.issue}\n   Rule: ${f.rule}\n   Suggested fix: ${f.fix}`)
     .join('\n\n');
 }
+
+export interface ReviewSummaryInput {
+  rounds: number;
+  /** Counts by status over every round. */
+  fixed: number;
+  /** Findings still open after the last round, by severity. */
+  open: Record<'critical' | 'high' | 'medium' | 'low', number>;
+}
+
+/** The comment posted when the PR is marked ready: how the review went, in a few lines. */
+export function renderReviewSummary(input: ReviewSummaryInput): string {
+  if (input.rounds === 0) return '## Review summary\n\nThe review stage was not run for this ticket.\n';
+  const open = (['critical', 'high', 'medium', 'low'] as const).filter((s) => input.open[s] > 0).map((s) => `${input.open[s]} ${s}`);
+  const left = open.length === 0 ? 'No findings remain open.' : `Still open: ${open.join(', ')}.`;
+  return `## Review summary\n\n${input.rounds} review round(s); ${input.fixed} finding(s) fixed. ${left}\n\nCI checks passed; this PR is ready for human review.\n`;
+}

@@ -3,6 +3,7 @@ import { ProjectSettingsSchema } from '@sdlc/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GITHUB_CLIENT, type GitHubClient, parseRepo } from '../github/github-client';
 import { buildPrDescription } from '../github/pr-description';
+import { renderReviewSummary } from '../review/review-comment';
 import { WorkerConfig } from '../worker-config';
 
 /** Opens (once) and describes the ticket's draft pull request (F9). */
@@ -23,6 +24,7 @@ export class PrService {
       ticket: { key: t.key, title: t.title, body: t.body, externalKey: t.externalKey },
       jiraBaseUrl: this.config.jiraBaseUrl || undefined,
       testCommand: t.project.testCmdTemplate,
+      remainingFindings: await this.remainingFindings(ticketId, t.reviewRound),
       subtasks: t.subtasks.map((s) => ({ seq: s.seq, title: s.title, featCommit: s.featCommit, acceptanceCriteria: Array.isArray(s.acceptanceCriteria) ? s.acceptanceCriteria.map(String) : [] })),
     });
   }
@@ -70,5 +72,41 @@ export class PrService {
       await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Warning: could not post the comment on PR #${number}: ${message}`.slice(0, 500) } });
       return false;
     }
+  }
+
+  /** Open medium and low findings of the last review round, for the "Review notes" section. */
+  private async remainingFindings(ticketId: string, round: number): Promise<{ medium: number; low: number }> {
+    if (round === 0) return { medium: 0, low: 0 };
+    const rows = await this.prisma.reviewFinding.groupBy({ by: ['severity'], where: { ticketId, round, status: 'open' }, _count: true });
+    const n = (sev: string) => rows.find((r) => r.severity === sev)?._count ?? 0;
+    return { medium: n('medium'), low: n('low') };
+  }
+
+  /**
+   * Passing checks (F12): marks the PR ready, rewrites its description, and posts the review summary. Each GitHub call is separate, so a problem
+   * with one is a recorded warning and the others still happen; the ticket moves on either way. Returns the warnings.
+   */
+  async finalize(ticketId: string): Promise<string[]> {
+    const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { project: true } });
+    const number = ticket.prNumber;
+    if (!number) return ['there is no pull request to mark ready'];
+    const repo = parseRepo(ticket.project.repoUrl);
+    const warnings: string[] = [];
+    const attempt = async (what: string, fn: () => Promise<void>) => {
+      try {
+        await fn();
+      } catch (err) {
+        warnings.push(`${what}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    };
+    await attempt('mark ready', () => this.github.markReady(repo, number));
+    await attempt('rewrite the description', async () => this.github.editBody(repo, number, await this.describe(ticketId)));
+    const open = await this.prisma.reviewFinding.groupBy({ by: ['severity'], where: { ticketId, round: ticket.reviewRound, status: 'open' }, _count: true });
+    const fixed = await this.prisma.reviewFinding.count({ where: { ticketId, status: 'fixed' } });
+    const count = (sev: string) => open.find((r) => r.severity === sev)?._count ?? 0;
+    const summary = renderReviewSummary({ rounds: ticket.reviewRound, fixed, open: { critical: count('critical'), high: count('high'), medium: count('medium'), low: count('low') } });
+    await attempt('post the summary', () => this.github.comment(repo, number, summary));
+    for (const w of warnings) await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Warning: could not ${w}`.slice(0, 500) } });
+    return warnings;
   }
 }

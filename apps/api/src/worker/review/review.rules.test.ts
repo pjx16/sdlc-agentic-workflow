@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderFindingsForFix, renderReviewComment } from './review-comment';
+import { renderFindingsForFix, renderReviewComment, renderReviewSummary } from './review-comment';
 import { blocksReview, bySeverity } from './review-findings';
 import { nextAfterReview } from './review-rules';
 
@@ -70,5 +70,13 @@ describe('renderFindingsForFix', () => {
 describe('bySeverity', () => {
   it('orders critical, high, medium, low', () => {
     expect(bySeverity([{ severity: 'low' }, { severity: 'critical' }, { severity: 'medium' }, { severity: 'high' }]).map((x) => x.severity)).toEqual(['critical', 'high', 'medium', 'low']);
+  });
+});
+
+describe('renderReviewSummary', () => {
+  it('lists what is still open, or says nothing is', () => {
+    expect(renderReviewSummary({ rounds: 2, fixed: 3, open: { critical: 0, high: 1, medium: 0, low: 4 } })).toContain('2 review round(s); 3 finding(s) fixed. Still open: 1 high, 4 low.');
+    expect(renderReviewSummary({ rounds: 1, fixed: 0, open: { critical: 0, high: 0, medium: 0, low: 0 } })).toContain('No findings remain open.');
+    expect(renderReviewSummary({ rounds: 0, fixed: 0, open: { critical: 0, high: 0, medium: 0, low: 0 } })).toContain('not run');
   });
 });

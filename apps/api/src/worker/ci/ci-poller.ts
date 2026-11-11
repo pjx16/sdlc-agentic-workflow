@@ -75,7 +75,9 @@ export class CiPoller implements Housekeeper {
   }
 
   protected async onPass(ticketId: string): Promise<void> {
-    await this.states.transition(ticketId, 'IN_HUMAN_REVIEW', 'system', 'Checks passed');
+    await this.pr.finalize(ticketId);
+    await this.prisma.ticket.update({ where: { id: ticketId }, data: { ciWaitStartedAt: null } });
+    await this.states.transition(ticketId, 'IN_HUMAN_REVIEW', 'system', 'Checks passed; the PR is ready for review');
   }
 
   private async holdIt(ticketId: string, note: string): Promise<void> {

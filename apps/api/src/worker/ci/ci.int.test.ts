@@ -125,4 +125,28 @@ describe('CI polling and the CI fix round (F12)', () => {
     expect(out.kind).toBe('hold');
     expect(await h.reloadTicket(t.id)).toMatchObject({ ciFixPending: false, ciFixDone: true });
   });
+
+  it('on pass: marks the PR ready, rewrites the description with the remaining findings, posts the summary, then IN_HUMAN_REVIEW', async () => {
+    const t = await awaitingCi({ reviewRound: 2 });
+    const f = (round: number, severity: string, status: string) => ({ ticketId: t.id, round, severity, file: 'a.ts', issue: 'i', rule: 'r', fix: 'f', status });
+    await h.prisma.reviewFinding.createMany({ data: [f(1, 'high', 'fixed'), f(2, 'medium', 'open'), f(2, 'low', 'open'), f(2, 'low', 'open')] as never });
+    h.github.setChecks('pass');
+    await poller.check();
+    expect(await status(t.id)).toBe('IN_HUMAN_REVIEW');
+    expect(h.github.calls.filter((c) => ['markReady', 'editBody', 'comment'].includes(c))).toEqual(['markReady', 'editBody', 'comment']);
+    expect(h.github.ready).toEqual([7]);
+    expect(h.github.edits[0]?.body).toContain('## Review notes\n1 medium and 2 low finding(s) remain open.');
+    expect(h.github.comments[0]?.body).toContain('2 review round(s); 1 finding(s) fixed. Still open: 1 medium, 2 low.');
+  });
+
+  it('a GitHub problem while finishing the PR is a warning; the ticket still moves on', async () => {
+    const t = await awaitingCi();
+    h.github.setChecks('pass');
+    h.github.markReady = async () => {
+      throw new Error('gh: boom');
+    };
+    await poller.check();
+    expect(await status(t.id)).toBe('IN_HUMAN_REVIEW');
+    expect((await h.prisma.event.findMany({ where: { ticketId: t.id } })).some((e) => e.message.includes('mark ready: gh: boom'))).toBe(true);
+  });
 });
