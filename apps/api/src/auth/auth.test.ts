@@ -1,13 +1,12 @@
 import 'reflect-metadata';
-import { execFileSync } from 'node:child_process';
 import { Controller, Get, type INestApplication, Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { configureApp } from '../setup';
+import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import { SystemModule } from '../system/system.module';
 import { AuthModule } from './auth.module';
 import { CLOCK } from './clock';
@@ -27,13 +26,13 @@ class ProtectedController {
 @Module({ controllers: [ProtectedController] })
 class ProtectedModule {}
 
-let container: StartedPostgreSqlContainer;
+let testDb: TestDatabase;
 let app: INestApplication;
 let prisma: PrismaService;
 let nowMs = Date.now();
 
 async function buildApp(env: Record<string, string>): Promise<INestApplication> {
-  Object.assign(process.env, { DATABASE_URL: container.getConnectionUri(), DASHBOARD_PASSWORD: PASSWORD, SESSION_SECRET: 'x'.repeat(32), ...env });
+  Object.assign(process.env, { DATABASE_URL: testDb.url, DASHBOARD_PASSWORD: PASSWORD, SESSION_SECRET: 'x'.repeat(32), ...env });
   const moduleRef = await Test.createTestingModule({ imports: [PrismaModule, AuthModule, SystemModule, ProtectedModule] })
     .overrideProvider(CLOCK)
     .useValue(() => nowMs)
@@ -54,19 +53,14 @@ function sessionCookie(res: request.Response): string {
 
 describe('F1 authentication', () => {
   beforeAll(async () => {
-    container = await new PostgreSqlContainer('postgres:17').start();
-    execFileSync('npx', ['prisma', 'migrate', 'deploy'], {
-      cwd: process.cwd(),
-      env: { ...process.env, DATABASE_URL: container.getConnectionUri() },
-      stdio: 'pipe',
-    });
+    testDb = await createTestDatabase();
     app = await buildApp({ COOKIE_SECURE: 'false' });
     prisma = app.get(PrismaService);
   }, 180_000);
 
   afterAll(async () => {
     await app?.close();
-    await container?.stop();
+    await testDb?.drop();
   });
 
   beforeEach(async () => {
