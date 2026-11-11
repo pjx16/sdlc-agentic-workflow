@@ -92,3 +92,10 @@ export interface TicketDetail extends TicketListItem {
 export interface TicketWithPlan extends TicketDetail {
   planMarkdown: string | null;
 }
+
+export interface GuidelineNode {
+  name: string;
+  path: string;
+  type: 'dir' | 'file';
+  children?: GuidelineNode[];
+}
