@@ -40,6 +40,7 @@ import { RestartRecovery } from './loop/restart-recovery';
 import { HOUSEKEEPERS, type Housekeeper, WorkerLoop } from './loop/worker-loop';
 import { HoldNotifier } from './ci/hold-notifier';
 import { CiPoller } from './ci/ci-poller';
+import { JiraStatusSync } from '../jira/jira-status-sync';
 import { JiraMcpClient } from '../jira/jira-mcp-client';
 import { JiraMcpStages } from './jira-mcp/jira-mcp-stages';
 import { McpIntake } from './intake/mcp-intake';
@@ -86,7 +87,7 @@ import { WorkerRunner } from './worker-runner';
     ReviewHandler,
     CiFixHandler,
     HoldNotifier,
-    { provide: McpIntake, useFactory: (p: PrismaService, i: IntakePoller) => new McpIntake(p, i), inject: [PrismaService, IntakePoller] },
+    { provide: McpIntake, useFactory: (p: PrismaService, i: IntakePoller, a: ApprovalPoller, st: SubtasksService, sync: JiraStatusSync) => new McpIntake(p, i, undefined, a, st, sync), inject: [PrismaService, IntakePoller, ApprovalPoller, SubtasksService, JiraStatusSync] },
     { provide: CiPoller, useFactory: (p: PrismaService, st: StateMachine, pr: PrService, gh: GitHubClient, hn: HoldNotifier) => new CiPoller(p, st, pr, gh, undefined, hn), inject: [PrismaService, StateMachine, PrService, GITHUB_CLIENT, HoldNotifier] },
     { provide: MergePoller, useFactory: (p: PrismaService, st: StateMachine, gh: GitHubClient) => new MergePoller(p, st, gh), inject: [PrismaService, StateMachine, GITHUB_CLIENT] },
     { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, mcp: McpIntake): Housekeeper[] => [ci, merge, mcp], inject: [CiPoller, MergePoller, McpIntake] },

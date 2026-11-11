@@ -51,6 +51,9 @@ export class FakeJiraClients extends JiraClients {
   override forRest() {
     return this.jira;
   }
+  override hasMcp() {
+    return true;
+  }
   override forMode() {
     return this.jira;
   }

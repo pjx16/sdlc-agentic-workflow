@@ -82,11 +82,11 @@ export class PlanHandler implements StepHandler {
     return last?.fromStatus === 'AWAITING_PLAN_APPROVAL' && last.reason ? last.reason : null;
   }
 
-  /** Posts the plan to the Jira issue (REST mode). A Jira problem never blocks the pipeline. */
+  /** Posts the plan to the Jira issue (REST directly, MCP through jiraSync). A Jira problem never blocks the pipeline. */
   private async commentOnJira(ticket: Ticket, jiraMode: string, enabled: boolean, plan: string): Promise<void> {
-    if (!enabled || jiraMode !== 'rest' || ticket.source !== 'jira' || !ticket.externalKey) return;
+    if (!enabled || (jiraMode !== 'rest' && jiraMode !== 'mcp') || ticket.source !== 'jira' || !ticket.externalKey) return;
     try {
-      await this.jira.forRest().comment(ticket.externalKey, `## Plan for ${ticket.key}\n\n${plan}`);
+      await this.jira.forMode(jiraMode).comment(ticket.externalKey, `## Plan for ${ticket.key}\n\n${plan}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Posting the plan to ${ticket.externalKey} failed: ${message}`);

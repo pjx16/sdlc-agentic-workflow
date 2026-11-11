@@ -19,6 +19,11 @@ export class JiraClients {
   /** MCP mode needs the worker (it runs agent containers); the worker registers its client here. */
   private mcp: JiraClient | null = null;
 
+  /** True in the worker: the API process cannot run the Jira stages. */
+  hasMcp(): boolean {
+    return this.mcp !== null;
+  }
+
   useMcp(client: JiraClient): void {
     this.mcp = client;
   }
