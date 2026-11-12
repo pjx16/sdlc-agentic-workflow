@@ -1,4 +1,4 @@
-FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS build
+FROM node:25-bookworm-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370 AS build
 WORKDIR /app
 COPY package.json package-lock.json turbo.json tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/
@@ -10,7 +10,7 @@ COPY apps/dashboard apps/dashboard
 ENV NEXT_TELEMETRY_DISABLED=1 API_URL=http://api:4000
 RUN npm run build -w @sdlc/shared && npm run build -w @sdlc/dashboard
 
-FROM node:24-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54
+FROM node:25-bookworm-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000 API_URL=http://api:4000
 COPY --from=build /app/apps/dashboard/.next/standalone ./
