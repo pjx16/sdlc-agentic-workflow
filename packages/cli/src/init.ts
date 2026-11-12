@@ -37,17 +37,18 @@ export async function init(opts: InitOptions): Promise<void> {
   }
 
   const dataDir = path.join(dir, 'data');
-  const doctor = await runDoctor({ dir, env: { bind: opts.bind, dataDir } });
-  if (!doctor.ok) throw new CliError('Fix the checks marked ✖ above, then run `sdlc-agent init` again.');
-
-  const assets = assetsDir();
+  // Create the folders first (private to the user): the doctor's Docker probe mounts the data folder, and Docker would create it as root.
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   chmodSync(dir, 0o700);
-  copyMissing(assets, dir);
   for (const sub of ['data', 'backups']) {
     mkdirSync(path.join(dir, sub), { recursive: true, mode: 0o700 });
     chmodSync(path.join(dir, sub), 0o700);
   }
+  const doctor = await runDoctor({ dir, env: { bind: opts.bind, dataDir } });
+  if (!doctor.ok) throw new CliError('Fix the checks marked ✖ above, then run `sdlc-agent init` again.');
+
+  const assets = assetsDir();
+  copyMissing(assets, dir);
 
   let setupCode: string;
   if (existsSync(envFile)) {
