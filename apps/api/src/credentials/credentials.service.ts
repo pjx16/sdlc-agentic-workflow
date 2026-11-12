@@ -126,12 +126,13 @@ export class CredentialsService implements OnModuleInit {
     const resolved = await this.resolve();
     const missing = CREDENTIAL_KEYS.filter((d) => d.required && !resolved[d.key]).map((d) => d.key);
     const adminCreated = Boolean(process.env.DASHBOARD_PASSWORD?.trim()) || (await this.prisma.adminAccount.count()) > 0;
-    let encryptionKeyOk = true;
-    try {
-      encryptionKeyOk = loadKey() !== null;
-    } catch {
-      encryptionKeyOk = false;
-    }
+    const encryptionKeyOk = (() => {
+      try {
+        return loadKey() !== null;
+      } catch {
+        return false;
+      }
+    })();
     return { adminCreated, ready: adminCreated && missing.length === 0, missing, encryptionKeyOk };
   }
 }

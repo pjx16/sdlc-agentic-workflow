@@ -6,7 +6,7 @@ import { SESSION_COOKIE } from './constants';
 import { SessionService } from './session.service';
 
 /** The only routes reachable without a session (F1). Anything else, including unknown routes, needs one. */
-export const PUBLIC_PATHS: ReadonlySet<string> = new Set(['/auth/login', '/health']);
+export const PUBLIC_PATHS: ReadonlySet<string> = new Set(['/auth/login', '/health', '/setup/status', '/setup/admin']);
 
 @Injectable()
 export class SessionMiddleware implements NestMiddleware {

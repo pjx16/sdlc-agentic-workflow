@@ -8,7 +8,8 @@ import { AppConfig } from '../config';
 import { AuthService } from './auth.service';
 import { SESSION_COOKIE } from './constants';
 import { LoginLimiter } from './login-limiter';
-import { SESSION_TTL_MS, SessionService } from './session.service';
+import { setSessionCookie } from './session-cookie';
+import { SessionService } from './session.service';
 
 
 
@@ -45,14 +46,7 @@ export class AuthController {
     }
 
     this.limiter.recordSuccess(ip);
-    const token = await this.sessions.create(ip);
-    res.cookie(SESSION_COOKIE, token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: this.config.cookieSecure,
-      maxAge: SESSION_TTL_MS,
-      path: '/',
-    });
+    setSessionCookie(res, await this.sessions.create(ip), this.config.cookieSecure);
     return { ok: true };
   }
 
