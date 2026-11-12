@@ -137,7 +137,15 @@ Requirements:
 - Access to Claude Code: a token from `claude setup-token`
 - A GitHub repository to ship into, and optionally a Jira Cloud project
 
-### Install a release
+### Install with the CLI
+
+```bash
+npx sdlc-agent init
+```
+
+`init` checks Docker, creates `~/.sdlc-agent` with generated secrets, starts the stack from the published images and opens the dashboard, where you enter the setup code it printed, create the admin password and add your tokens. Later: `sdlc-agent upgrade`, `down`, `up`, `logs`, `doctor`. See [`packages/cli`](./packages/cli/README.md).
+
+### Install a release (tarball)
 
 Releases are published on [GitHub Releases](https://github.com/pjx16/sdlc-agentic-workflow/releases). Nothing is built on your machine: the images come from GHCR.
 
