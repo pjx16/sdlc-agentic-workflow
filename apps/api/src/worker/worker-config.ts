@@ -19,6 +19,8 @@ export class WorkerConfig {
   readonly agentExtraBinds: string[];
   readonly agentExtraEnv: Record<string, string>;
   readonly guidelinesDir: string;
+  /** Test hook: extra repository URL prefixes the worker may push to (the default is github.com only). Used with local bare remotes. */
+  readonly pushUrlPrefixes: string[];
   /** Other secrets the worker holds, to redact from logs. */
   readonly extraSecrets: string[];
 
@@ -47,6 +49,7 @@ export class WorkerConfig {
         .map((pair) => [pair.slice(0, pair.indexOf('=')), pair.slice(pair.indexOf('=') + 1)]),
     );
     this.extraSecrets = [env.JIRA_API_TOKEN].filter((v): v is string => Boolean(v));
+    this.pushUrlPrefixes = ['https://github.com/', ...(env.TEST_PUSH_URL_PREFIXES ?? '').split(',').map((p) => p.trim()).filter(Boolean)];
     this.guidelinesDir = env.GUIDELINES_DIR || path.resolve(__dirname, '../../../../guidelines');
   }
 

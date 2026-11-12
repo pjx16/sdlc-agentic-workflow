@@ -61,11 +61,17 @@ export async function commitAll(git: GitRunner, workspace: string, message: stri
   return { committed: true, sha: await git.out(['rev-parse', 'HEAD'], { cwd: workspace }) };
 }
 
-/** Pushes the ticket branch to origin. Never forced: no `--force`, no `+` refspec. */
-export async function pushBranch(git: GitRunner, workspace: string, branch: string): Promise<void> {
+const PUSH_URL_PREFIX = 'https://github.com/';
+
+/**
+ * Pushes the ticket branch to the project's stored repository URL, never to the workspace's `origin` (an agent can edit
+ * the workspace git config). Never forced: no `--force`, no `+` refspec. `allowedUrlPrefixes` is only widened by tests.
+ */
+export async function pushBranch(git: GitRunner, workspace: string, branch: string, repoUrl: string, allowedUrlPrefixes: readonly string[] = [PUSH_URL_PREFIX]): Promise<void> {
   if (!branch || branch.startsWith('+') || branch.startsWith('-')) throw new Error(`Refusing to push "${branch}"`);
+  if (!allowedUrlPrefixes.some((prefix) => repoUrl.startsWith(prefix))) throw new Error('Refusing to push: the repository URL is not a github.com URL');
   try {
-    await git.run(['push', 'origin', `refs/heads/${branch}:refs/heads/${branch}`], { cwd: workspace });
+    await git.run(['push', repoUrl, `refs/heads/${branch}:refs/heads/${branch}`], { cwd: workspace });
   } catch (err) {
     if (err instanceof GitError) throw new PushRejectedError(`Push of ${branch} was rejected: ${err.message}`, branch);
     throw err;

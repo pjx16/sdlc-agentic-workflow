@@ -40,7 +40,7 @@ describe('WorkspaceService', () => {
     writeFileSync(path.join(source, 'package.json'), '{}');
     sh(source, 'add', '.');
     sh(source, 'commit', '-q', '-m', 'init');
-    config = new WorkerConfig({ DATA_DIR: path.join(tmp, 'data'), DATABASE_URL: db.url } as NodeJS.ProcessEnv);
+    config = new WorkerConfig({ DATA_DIR: path.join(tmp, 'data'), DATABASE_URL: db.url, TEST_PUSH_URL_PREFIXES: 'file://' } as NodeJS.ProcessEnv);
     const project = await prisma.project.create({ data: { name: 'p', repoUrl: `file://${source}`, baseBranch: 'dev', stack: 'ts_node', installCmd: 'npm ci', testCmdTemplate: 'x {files}', localKeyPrefix: 'P', mirrorStatus: 'pending' } });
     projectId = project.id;
     await new MirrorService(prisma, config).clone(project); // a real mirror of the local repository

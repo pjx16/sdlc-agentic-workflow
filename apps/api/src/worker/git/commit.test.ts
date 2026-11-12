@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CommitMessageError, PushRejectedError, assertCommitMessage, commitAll, pushBranch } from './commit';
-import { GitRunner } from './git-runner';
+import { GitRunner, HARDENING_FLAGS } from './git-runner';
 import { prepareWorkspace } from './workspace';
 
 const sh = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=other', '-c', 'user.email=o@o', ...args], { cwd, encoding: 'utf8' }).trim();
@@ -129,7 +129,7 @@ describe('pushBranch (BUILD_PLAN 6.2, 6.8)', () => {
     const { ws, branch } = await workspace(git);
     writeFileSync(path.join(ws, 'f.txt'), 'x');
     await commitAll(git, ws, 'feat: f', identity);
-    await pushBranch(git, ws, branch);
+    await pushBranch(git, ws, branch, bare, ['']);
     expect(sh(bare, 'rev-parse', branch)).toBe(sh(ws, 'rev-parse', 'HEAD'));
   });
 
@@ -142,9 +142,9 @@ describe('pushBranch (BUILD_PLAN 6.2, 6.8)', () => {
     writeFileSync(path.join(ws, 'g.txt'), 'x');
     await commitAll(spy, ws, 'feat: g', identity);
     spy.calls.length = 0;
-    await pushBranch(spy, ws, branch);
+    await pushBranch(spy, ws, branch, bare, ['']);
     const push = spy.calls.find((c) => c.includes('push')) as string[];
-    expect(push).toEqual(['push', 'origin', `refs/heads/${branch}:refs/heads/${branch}`]);
+    expect(push.slice(-3)).toEqual(['push', bare, `refs/heads/${branch}:refs/heads/${branch}`]);
     expect(push.some((a) => a.includes('force') || a.startsWith('+') || a === '-f')).toBe(false);
     expect(existsSync(marker)).toBe(false);
   });
@@ -154,7 +154,7 @@ describe('pushBranch (BUILD_PLAN 6.2, 6.8)', () => {
     const { ws, branch } = await workspace(git);
     writeFileSync(path.join(ws, 'h.txt'), 'mine');
     await commitAll(git, ws, 'feat: mine', identity);
-    await pushBranch(git, ws, branch);
+    await pushBranch(git, ws, branch, bare, ['']);
 
     // Someone else pushes to the same branch, so ours is no longer a fast-forward.
     const other = path.join(tmp, `other-${n}`);
@@ -168,7 +168,7 @@ describe('pushBranch (BUILD_PLAN 6.2, 6.8)', () => {
 
     writeFileSync(path.join(ws, 'i.txt'), 'more');
     await commitAll(git, ws, 'feat: more', identity);
-    const err = await pushBranch(git, ws, branch).catch((e) => e);
+    const err = await pushBranch(git, ws, branch, bare, ['']).catch((e) => e);
     expect(err).toBeInstanceOf(PushRejectedError);
     expect(err.branch).toBe(branch);
     expect(err.message).toContain('rejected');
@@ -178,8 +178,38 @@ describe('pushBranch (BUILD_PLAN 6.2, 6.8)', () => {
   it('fails as a rejection when the remote does not exist, and refuses suspicious branch names', async () => {
     const git = new GitRunner({ githubToken: '' });
     const { ws, branch } = await workspace(git);
-    sh(ws, 'remote', 'set-url', 'origin', path.join(tmp, 'gone.git'));
-    await expect(pushBranch(git, ws, branch)).rejects.toBeInstanceOf(PushRejectedError);
-    for (const bad of ['', '+main', '--force']) await expect(pushBranch(git, ws, bad)).rejects.toThrow('Refusing to push');
+    await expect(pushBranch(git, ws, branch, path.join(tmp, 'gone.git'), [''])).rejects.toBeInstanceOf(PushRejectedError);
+    for (const bad of ['', '+main', '--force']) await expect(pushBranch(git, ws, bad, bare, [''])).rejects.toThrow('Refusing to push');
+  });
+
+  it('pushes to the given URL and ignores a tampered origin; refuses non-github URLs by default', async () => {
+    const git = new GitRunner({ githubToken: '' });
+    const { ws, branch } = await workspace(git);
+    writeFileSync(path.join(ws, 'j.txt'), 'x');
+    await commitAll(git, ws, 'feat: j', identity);
+    sh(ws, 'remote', 'set-url', 'origin', 'https://evil.example/steal.git'); // what an agent could do to .git/config
+    await pushBranch(git, ws, branch, bare, ['']);
+    expect(sh(bare, 'rev-parse', branch)).toBe(sh(ws, 'rev-parse', 'HEAD'));
+    await expect(pushBranch(git, ws, branch, 'https://evil.example/steal.git')).rejects.toThrow('not a github.com URL');
+    await expect(pushBranch(git, ws, branch, 'https://github.com.evil.io/a/b')).rejects.toThrow('not a github.com URL');
+  });
+});
+
+describe('GitRunner hardening flags (S1)', () => {
+  it('runs git with hooks, fsmonitor, credential helpers and non-https/file protocols disabled', async () => {
+    const git = new GitRunner({ githubToken: '' });
+    const get = async (key: string) => (await git.run(['config', '--get-all', key], { cwd: tmp })).stdout.replace(/\n$/, '').split('\n').pop(); // the command-line value comes last
+    expect(await get('core.hooksPath')).toBe('/dev/null');
+    expect(await get('core.fsmonitor')).toBe('false');
+    expect(await get('credential.helper')).toBe('');
+    expect(await get('protocol.allow')).toBe('never');
+    expect(await get('protocol.https.allow')).toBe('always');
+    expect(await get('protocol.file.allow')).toBe('always');
+    expect(HARDENING_FLAGS).toHaveLength(12);
+  });
+
+  it('leaves the flags out when hooks are explicitly enabled', async () => {
+    const git = new GitRunner({ githubToken: '' });
+    await expect(git.out(['config', '--get', 'protocol.allow'], { cwd: tmp, hooks: true })).rejects.toThrow();
   });
 });

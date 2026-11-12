@@ -98,7 +98,8 @@ export class WorkspaceService {
   async push(ticketId: string): Promise<void> {
     const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
     if (!ticket.branch) throw new Error(`${ticket.key} has no branch yet`);
-    await pushBranch(this.git, this.config.workspacePath(ticket.projectId, ticket.key), ticket.branch);
+    const project = await this.prisma.project.findUniqueOrThrow({ where: { id: ticket.projectId } });
+    await pushBranch(this.git, this.config.workspacePath(ticket.projectId, ticket.key), ticket.branch, project.repoUrl, this.config.pushUrlPrefixes);
     await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Pushed ${ticket.branch}` } });
   }
 }

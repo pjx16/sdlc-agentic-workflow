@@ -64,7 +64,7 @@ describe('kbBuild stage (F6)', () => {
     writeFileSync(path.join(source, 'docs/kb/bookings.md'), '# Bookings\noriginal doc');
     sh(source, 'add', '.');
     sh(source, 'commit', '-q', '-m', 'init');
-    const config = new WorkerConfig({ DATA_DIR: path.join(tmp, 'data'), DATABASE_URL: db.url, GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com' } as NodeJS.ProcessEnv);
+    const config = new WorkerConfig({ DATA_DIR: path.join(tmp, 'data'), DATABASE_URL: db.url, TEST_PUSH_URL_PREFIXES: 'file://', GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com' } as NodeJS.ProcessEnv);
     const project = await prisma.project.create({ data: { name: 'p', repoUrl: `file://${source}`, baseBranch: 'dev', stack: 'ts_node', installCmd: '', testCmdTemplate: 'x {files}', localKeyPrefix: 'P', mirrorStatus: 'pending' } });
     projectId = project.id;
     await new MirrorService(prisma, config).clone(project);

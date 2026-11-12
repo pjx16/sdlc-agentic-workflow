@@ -1,28 +1,27 @@
-import { execFile } from 'node:child_process';
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import { Injectable, Logger } from '@nestjs/common';
 import type { Project } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WorkerConfig } from '../worker-config';
+import { GitRunner } from './git-runner';
 
-const run = promisify(execFile);
 const CLONE_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_ERROR_LENGTH = 500;
-
-/** Used when GIT_ASKPASS is not set (local development); the worker image sets it. */
-const DEFAULT_ASKPASS = path.resolve(__dirname, '../../../../../docker/worker/git-askpass-token');
 
 /** Bare mirrors of project repositories (BUILD_PLAN 6.2). */
 @Injectable()
 export class MirrorService {
   private readonly logger = new Logger(MirrorService.name);
 
+  private readonly runner: GitRunner;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: WorkerConfig,
-  ) {}
+  ) {
+    this.runner = new GitRunner({ githubToken: config.githubToken });
+  }
 
   /** Clones the mirror for a pending project, checks the base branch, and records ok or failed. */
   async clone(project: Project): Promise<void> {
@@ -56,17 +55,7 @@ export class MirrorService {
   }
 
   private git(args: string[]) {
-    return run('git', args, {
-      timeout: CLONE_TIMEOUT_MS,
-      maxBuffer: 10 * 1024 * 1024,
-      env: {
-        ...process.env,
-        // The token is only ever handed to git through the askpass helper, never in a URL or git config.
-        GIT_ASKPASS: process.env.GIT_ASKPASS ?? DEFAULT_ASKPASS,
-        GITHUB_TOKEN: this.config.githubToken,
-        GIT_TERMINAL_PROMPT: '0',
-      },
-    });
+    return this.runner.run(args, { timeoutMs: CLONE_TIMEOUT_MS });
   }
 
   private describe(err: unknown): string {

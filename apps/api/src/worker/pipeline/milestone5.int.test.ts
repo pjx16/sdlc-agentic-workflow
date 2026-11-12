@@ -80,7 +80,7 @@ describe('milestone 5 end to end (real containers, fake-claude)', () => {
 
     const config = new WorkerConfig({
       DATA_DIR: dataDir, DATABASE_URL: db.url, CLAUDE_CODE_OAUTH_TOKEN: 'fake-token', GUIDELINES_DIR: path.join(ROOT, 'guidelines'),
-      GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com',
+      TEST_PUSH_URL_PREFIXES: 'file://', GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com',
       AGENT_EXTRA_BINDS: `${ROOT}/test/fake-claude/claude:/usr/local/bin/claude:ro,${ROOT}/test/fake-claude:/fake-claude:ro`,
       AGENT_EXTRA_ENV: 'FAKE_SCENARIO=kb-new,FAKE_SCENARIOS_DIR=/fake-claude/scenarios',
     } as NodeJS.ProcessEnv);

@@ -135,7 +135,11 @@ export class StepsHarness {
     h.bare = path.join(h.tmp, 'remote.git');
     execFileSync('git', ['clone', '-q', '--bare', h.source, h.bare]);
 
-    h.config = new WorkerConfig({ DATA_DIR: path.join(h.tmp, 'data'), DATABASE_URL: h.db.url, GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com', GUIDELINES_DIR: path.join(h.tmp, 'guidelines') } as NodeJS.ProcessEnv);
+    // Tests that point the project at github.com (the fake GitHub never connects) still push to the local bare remote.
+    process.env.GIT_CONFIG_COUNT = '1';
+    process.env.GIT_CONFIG_KEY_0 = `url.file://${h.bare}.insteadOf`;
+    process.env.GIT_CONFIG_VALUE_0 = 'https://github.com/acme/billing';
+    h.config = new WorkerConfig({ DATA_DIR: path.join(h.tmp, 'data'), DATABASE_URL: h.db.url, TEST_PUSH_URL_PREFIXES: 'file://', GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com', GUIDELINES_DIR: path.join(h.tmp, 'guidelines') } as NodeJS.ProcessEnv);
     const project = await h.prisma.project.create({
       data: {
         name: 'target', repoUrl: `file://${h.bare}`, // a local bare repo; PR tests set a github.com URL (the fake GitHub never contacts it)
@@ -156,6 +160,7 @@ export class StepsHarness {
   }
 
   async close(): Promise<void> {
+    for (const k of ['GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0']) delete process.env[k];
     await this.prisma?.onModuleDestroy();
     await this.db?.drop();
     rmSync(this.tmp, { recursive: true, force: true });

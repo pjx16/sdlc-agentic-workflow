@@ -7,6 +7,20 @@ const exec = promisify(execFile);
 /** Used when GIT_ASKPASS is not set (local development); the worker image sets it. */
 export const DEFAULT_ASKPASS = path.resolve(__dirname, '../../../../../docker/worker/git-askpass-token');
 
+/**
+ * Prepended to every worker git call. The workspace is written by agents, so nothing in its git config is trusted:
+ * no hooks (including pre-commit, commit-msg and pre-push), no fsmonitor, no credential helpers, and only https
+ * (remote) and file (the mirror to workspace clone) transports.
+ */
+export const HARDENING_FLAGS: readonly string[] = [
+  '-c', 'core.hooksPath=/dev/null',
+  '-c', 'core.fsmonitor=false',
+  '-c', 'credential.helper=',
+  '-c', 'protocol.allow=never',
+  '-c', 'protocol.https.allow=always',
+  '-c', 'protocol.file.allow=always',
+];
+
 export class GitError extends Error {
   constructor(
     message: string,
@@ -40,8 +54,7 @@ export class GitRunner {
   constructor(private readonly config: GitRunnerConfig) {}
 
   async run(args: readonly string[], opts: GitRunOptions = {}): Promise<{ stdout: string; stderr: string }> {
-    // `core.hooksPath=/dev/null` disables every hook, including pre-commit, commit-msg and pre-push.
-    const full = opts.hooks ? [...args] : ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', ...args];
+    const full = opts.hooks ? [...args] : [...HARDENING_FLAGS, ...args];
     try {
       const { stdout, stderr } = await exec('git', full, {
         cwd: opts.cwd,
