@@ -1,4 +1,5 @@
 import { PassThrough } from 'node:stream';
+import { Logger } from '@nestjs/common';
 import Docker from 'dockerode';
 import { LineSplitter } from './line-splitter';
 
@@ -21,6 +22,8 @@ export interface ContainerEngine {
   create(options: Docker.ContainerCreateOptions): Promise<ContainerHandle>;
   /** Removes every container carrying `label` (for example `sdlc.agent=true`); returns how many. */
   removeByLabel(label: string): Promise<number>;
+  /** Pulls `name` when it is not present locally. Resolves with what happened. */
+  ensureImage(name: string): Promise<'present' | 'pulled'>;
 }
 
 export const CONTAINER_ENGINE = Symbol('CONTAINER_ENGINE');
@@ -72,10 +75,26 @@ class DockerodeHandle implements ContainerHandle {
 }
 
 export class DockerodeEngine implements ContainerEngine {
+  private readonly logger = new Logger(DockerodeEngine.name);
+
   constructor(private readonly docker: Docker = new Docker()) {}
 
   async create(options: Docker.ContainerCreateOptions): Promise<ContainerHandle> {
     return new DockerodeHandle(await this.docker.createContainer(options));
+  }
+
+  async ensureImage(name: string): Promise<'present' | 'pulled'> {
+    try {
+      await this.docker.getImage(name).inspect();
+      return 'present';
+    } catch (err) {
+      if ((err as { statusCode?: number }).statusCode !== 404) throw err;
+    }
+    this.logger.log(`Image ${name} is not present; pulling it`);
+    const stream = await this.docker.pull(name);
+    await new Promise<void>((resolve, reject) => this.docker.modem.followProgress(stream, (err: Error | null) => (err ? reject(err) : resolve())));
+    this.logger.log(`Pulled image ${name}`);
+    return 'pulled';
   }
 
   async removeByLabel(label: string): Promise<number> {

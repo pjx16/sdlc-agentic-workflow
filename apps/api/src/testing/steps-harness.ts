@@ -48,6 +48,9 @@ export class ScriptedEngine implements ContainerEngine {
   async removeByLabel(): Promise<number> {
     return 0;
   }
+  async ensureImage(): Promise<'present'> {
+    return 'present';
+  }
   /** Commands that ran, for assertions. */
   ran(pattern: RegExp): string[] {
     return this.commands.filter((c) => pattern.test(c));
