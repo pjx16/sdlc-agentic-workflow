@@ -1,0 +1,43 @@
+# Changelog
+
+All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+> Until `0.1.0`, any release may contain breaking changes (database migrations, configuration, API). Read this file before upgrading.
+
+## [Unreleased]
+
+## [0.0.0] - YYYY-MM-DD
+
+First public pre-release. Published so the author can use sdlc-agent on their own projects (including sdlc-agent itself) and find what breaks. Not production-ready and not supported for other users.
+
+### Added
+- Ticket pipeline: Jira (REST or MCP) or pasted tickets → AI plan → approval → AI breakdown → approval → test-first implementation per subtask → AI review (max 2 fix rounds) → knowledge-base update → CI wait (one fix round) → PR ready for human merge.
+- Isolated agent containers (no capabilities, no Docker socket, egress only through an allowlisting proxy) and an orchestrator that does every commit, push and PR itself.
+- Usage gate on the 5-hour and 7-day Claude windows, with Resume and Ignore actions.
+- Dashboard: single-user login, queue, approvals, support queries, live logs, settings, guideline editing, charts.
+- Per-repository knowledge base with a deterministic index.
+- CI (lint, typecheck, unit, integration, e2e, Docker builds, audit), security scanning (CodeQL, gitleaks, dependency review, Scorecard) and Dependabot.
+- Release pipeline: multi-arch images on GHCR with SBOM and provenance attestations, plus an install bundle on GitHub Releases.
+
+### Security
+- Agent containers mount the workspace `.git` read-only; worker git calls disable credential helpers and non-HTTPS protocols, and push to the stored repository URL only.
+- Repository URLs are restricted to `https://github.com/…`, and the GitHub token is only handed to github.com.
+- The worker no longer follows symlinks when reading or writing files in agent-written workspaces.
+- The session cookie is redacted from request logs.
+- The API container runs as a non-root user; all base images are pinned by digest.
+- Dashboard security headers (frame-ancestors, nosniff, referrer policy); cross-site state-changing requests are refused.
+- The egress proxy only allows HTTPS CONNECT.
+- `DASHBOARD_PASSWORD` must be at least 12 characters.
+
+### Removed
+- `SESSION_SECRET` is no longer required (it was never used for signing).
+
+### Known limits
+- Only TypeScript/JavaScript stacks (Node.js, NestJS, Next.js).
+- Single user, password login.
+- Agents run with full permissions inside their containers; the worker runs as root with the Docker socket.
+- The Claude usage pause is a guard, not a guarantee.
+- No `script-src` Content-Security-Policy on the dashboard yet.
+
+[Unreleased]: https://github.com/pjx16/sdlc-agentic-workflow/compare/v0.0.0...HEAD
+[0.0.0]: https://github.com/pjx16/sdlc-agentic-workflow/releases/tag/v0.0.0
