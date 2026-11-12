@@ -62,7 +62,7 @@ export class MirrorService {
 
   private describe(err: unknown): string {
     const e = err as { stderr?: string; message?: string; killed?: boolean };
-    let text = e.killed ? 'git clone timed out' : (e.stderr?.trim() || e.message || 'git clone failed');
+    const text = e.killed ? 'git clone timed out' : (e.stderr?.trim() || e.message || 'git clone failed');
     const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
     return (lines.find((l) => /^(fatal|error):/i.test(l)) ?? lines[0] ?? 'git clone failed').slice(0, MAX_ERROR_LENGTH);
   }
