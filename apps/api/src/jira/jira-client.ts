@@ -26,6 +26,8 @@ export interface JiraSubtaskInput {
 }
 
 export interface JiraProjectRef {
+  /** Our project id (MCP mode records its stage runs against it). */
+  id?: string;
   jiraProjectKey?: string | null;
   jiraJql?: string | null;
 }

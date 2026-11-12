@@ -54,10 +54,12 @@ export const JiraIntakeData = z.object({
       issuetype: z.string(),
       labels: textList,
       priority: z.string().nullable(),
+      /** The issue's current Jira status name (needed to read approvals in MCP mode). */
+      status: z.string().optional(),
     }),
   ),
 });
-export const JiraSyncData = z.object({ applied: z.boolean(), detail: z.string() });
+export const JiraSyncData = z.object({ applied: z.boolean(), detail: z.string(), /** For a created sub-task: its Jira key. */ createdKey: z.string().optional() });
 
 export const STAGE_DATA = {
   kbBuild: KbBuildData,
