@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getEnv } from './envfile';
 import { sha256, shippedGuidelineHashes } from './manifest';
+import { packageVersion } from './paths';
 import { addMissingKeys, compareSemver, mergeGuidelines, needsConfirmation, requiredKeys, sliceChangelog, upgrade } from './upgrade';
 
 const CHANGELOG = `# Changelog
@@ -114,7 +115,7 @@ describe('upgrade', () => {
       writeFileSync(path.join(base, '.env'), 'SDLC_VERSION=9.9.9\n');
       writeFileSync(path.join(base, '.sdlc-agent.json'), JSON.stringify({ version: '9.9.9', installedAt: 'x', guidelineHashes: {} }));
       await expect(upgrade({ dir: base, yes: true, skipBackup: true })).rejects.toThrow('Downgrades are not supported');
-      writeFileSync(path.join(base, '.sdlc-agent.json'), JSON.stringify({ version: '0.0.0', installedAt: 'x', guidelineHashes: {} }));
+      writeFileSync(path.join(base, '.sdlc-agent.json'), JSON.stringify({ version: packageVersion(), installedAt: 'x', guidelineHashes: {} })); // the same version as this CLI
       await upgrade({ dir: base, yes: true, skipBackup: true }); // the same version as this CLI: returns
     } finally {
       rmSync(base, { recursive: true, force: true });
