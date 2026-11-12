@@ -6,6 +6,10 @@ import { CredentialsService } from '../../credentials/credentials.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WorkerConfig } from '../worker-config';
 import { GitRunner } from './git-runner';
+import { checkRepoAccess } from './repo-access';
+
+/** A message already written for the user: shown as it is. */
+class RepoAccessError extends Error {}
 
 const CLONE_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_ERROR_LENGTH = 500;
@@ -20,7 +24,7 @@ export class MirrorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: WorkerConfig,
-    creds: CredentialsService,
+    private readonly creds: CredentialsService,
   ) {
     this.runner = new GitRunner({ token: async () => (await creds.resolve()).github_token });
   }
@@ -32,6 +36,9 @@ export class MirrorService {
     try {
       await rm(dir, { recursive: true, force: true });
       await mkdir(path.dirname(dir), { recursive: true });
+      // Ask GitHub first: a token without access to this repository would otherwise only produce a raw git 403.
+      const denied = await checkRepoAccess(project.repoUrl, (await this.creds.resolve()).github_token);
+      if (denied) throw new RepoAccessError(denied);
       await this.git(['clone', '--mirror', '--', project.repoUrl, dir]);
       const hasBase = await this.git(['--git-dir', dir, 'show-ref', '--verify', '--quiet', `refs/heads/${project.baseBranch}`]).then(
         () => true,
@@ -39,7 +46,7 @@ export class MirrorService {
       );
       if (!hasBase) error = `Base branch "${project.baseBranch}" was not found in the repository`;
     } catch (err) {
-      error = this.describe(err);
+      error = err instanceof RepoAccessError ? err.message : this.describe(err);
     }
     if (error) await rm(dir, { recursive: true, force: true });
 
