@@ -39,6 +39,24 @@ export interface TimelineBar {
   endedAt: string | null;
 }
 
+const RedoTestsBody = z.object({ note: z.string().trim().max(2000, 'must be at most 2000 characters').optional() });
+
+/** Everything the ticket page needs to explain a hold: what happened and what can be done about it. */
+export interface HoldInfo {
+  status: string;
+  holdReason: string | null;
+  holdFromStatus: string | null;
+  /** Why the ticket went on hold or failed (the reason of that transition), and when. */
+  note: string | null;
+  at: string | null;
+  /** The latest stage run of this ticket that failed. */
+  failedRun: { id: string; stage: string; attempt: number; round: number; error: string | null } | null;
+  /** The subtask being worked on (the first that is not done). */
+  subtask: { seq: number; title: string; status: string; fixRounds: number } | null;
+  /** True when this subtask's tests can be discarded and written again. */
+  canRedoTests: boolean;
+}
+
 const ApproveBody = z.object({ planMarkdown: z.string().trim().min(1, 'must not be empty').max(100_000, 'must be at most 100000 characters').optional() });
 const BreakdownApproveBody = z.object({ subtasks: z.array(z.unknown()).optional() });
 const RejectBody = z.object({ note: z.string({ error: 'required' }).trim().min(1, 'required').max(2000, 'must be at most 2000 characters') });
@@ -237,6 +255,52 @@ export class TicketsService {
       this.prisma.ticket.update({ where: { id }, data: { ciFixPending: false, ciFixDone: false, ciWaitStartedAt: null, kbUpdatePending: false } }),
     ]);
     await this.states.resume(id, 'user', 'Retried by the developer');
+    return toTicketDto(await this.prisma.ticket.findUniqueOrThrow({ where: { id } }));
+  }
+
+  /** GET /tickets/:id/hold: what happened to a held or failed ticket, and which recovery actions apply. */
+  async holdInfo(id: string): Promise<HoldInfo> {
+    const ticket = await this.findOr404(id);
+    const held = ticket.status === 'ON_HOLD' || ticket.status === 'FAILED';
+    const transition = held ? await this.prisma.stateTransition.findFirst({ where: { ticketId: id, toStatus: ticket.status }, orderBy: { at: 'desc' } }) : null;
+    const failedRun = held ? await this.prisma.stageRun.findFirst({ where: { ticketId: id, status: 'failed' }, orderBy: { startedAt: 'desc' } }) : null;
+    const subtask = await this.prisma.subtask.findFirst({ where: { ticketId: id, status: { not: 'DONE' } }, orderBy: { seq: 'asc' } });
+    return {
+      status: ticket.status,
+      holdReason: ticket.holdReason,
+      holdFromStatus: ticket.holdFromStatus,
+      note: transition?.reason ?? null,
+      at: iso(transition?.at ?? null),
+      failedRun: failedRun && { id: failedRun.id, stage: failedRun.stage, attempt: failedRun.attempt, round: failedRun.round, error: failedRun.error },
+      subtask: subtask && { seq: subtask.seq, title: subtask.title, status: subtask.status, fixRounds: subtask.fixRounds },
+      canRedoTests: held && Boolean(subtask?.testCommit) && (ticket.holdFromStatus === 'IN_PROGRESS' || ticket.status === 'FAILED'),
+    };
+  }
+
+  /**
+   * POST /tickets/:id/redo-tests: for a held or failed ticket whose current subtask has tests that cannot be satisfied (a test that is
+   * wrong, over-specific or contradicts the code). The subtask goes back to the tests stage with the failure and an optional developer
+   * note as context. The worker discards that subtask's tests and implementation first (the API cannot touch the workspace).
+   */
+  async redoTests(id: string, body: unknown): Promise<TicketDto> {
+    const { note } = parseBody(RedoTestsBody, body ?? {});
+    const ticket = await this.heldOrFailed(id, 'Redo tests');
+    const info = await this.holdInfo(id);
+    const subtask = await this.prisma.subtask.findFirst({ where: { ticketId: id, status: { not: 'DONE' } }, orderBy: { seq: 'asc' } });
+    if (!info.canRedoTests || !subtask) {
+      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'There are no tests of the current subtask to redo. Use Retry instead.');
+    }
+    const lastFailure = [
+      'The previous tests for this subtask could not be satisfied by the implementation, so they are being written again from scratch.',
+      info.note ? `What went wrong: ${info.note}` : null,
+      note ? `Developer note: ${note}` : null,
+      'Write tests that check the behaviour in the acceptance criteria. Do not require a particular code style (for example `export function` versus `export const`) unless a criterion says so.',
+    ].filter(Boolean).join('\n\n');
+    await this.prisma.$transaction([
+      this.prisma.subtask.update({ where: { id: subtask.id }, data: { status: 'TESTS', fixRounds: 0, lastFailure, retriedAt: new Date(), redoTests: true } }),
+      this.prisma.ticket.update({ where: { id: ticket.id }, data: { ciFixPending: false, ciFixDone: false, ciWaitStartedAt: null, kbUpdatePending: false } }),
+    ]);
+    await this.states.resume(id, 'user', note ? `Tests redone by the developer: ${note}`.slice(0, 500) : 'Tests redone by the developer');
     return toTicketDto(await this.prisma.ticket.findUniqueOrThrow({ where: { id } }));
   }
 

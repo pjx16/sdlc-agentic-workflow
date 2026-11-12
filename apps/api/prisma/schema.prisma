@@ -260,6 +260,8 @@ model Subtask {
   lastFailure        String?
   /// Set by Retry: only `tests` runs after this count towards the verify-red retry limit.
   retriedAt          DateTime?     @db.Timestamptz(6)
+  /// Set by "Redo tests": the worker discards this subtask's tests and implementation before the tests stage runs again.
+  redoTests          Boolean       @default(false)
 
   stageRuns StageRun[]
 
