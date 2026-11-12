@@ -86,7 +86,7 @@ export class PlanHandler implements StepHandler {
   private async commentOnJira(ticket: Ticket, jiraMode: string, enabled: boolean, plan: string): Promise<void> {
     if (!enabled || (jiraMode !== 'rest' && jiraMode !== 'mcp') || ticket.source !== 'jira' || !ticket.externalKey) return;
     try {
-      await this.jira.forMode(jiraMode).comment(ticket.externalKey, `## Plan for ${ticket.key}\n\n${plan}`);
+      await (await this.jira.forMode(jiraMode)).comment(ticket.externalKey, `## Plan for ${ticket.key}\n\n${plan}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Posting the plan to ${ticket.externalKey} failed: ${message}`);

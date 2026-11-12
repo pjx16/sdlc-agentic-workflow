@@ -7,7 +7,7 @@ import { GitRunner } from '../git/git-runner';
 import { DIFF_EXCLUDES, computeDiff } from './diff';
 
 const sh = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf8' }).trim();
-const git = new GitRunner({ githubToken: '' });
+const git = new GitRunner({ token: async () => '' });
 let ws: string;
 const write = (rel: string, content: string) => {
   mkdirSync(path.dirname(path.join(ws, rel)), { recursive: true });

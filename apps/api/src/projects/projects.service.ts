@@ -65,7 +65,7 @@ export class ProjectsService {
       throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'Set the Jira project key first');
     }
     try {
-      return await this.jira.forRest().listStatuses(project.jiraProjectKey);
+      return await (await this.jira.forRest()).listStatuses(project.jiraProjectKey);
     } catch (err) {
       throw new ApiException(HttpStatus.BAD_GATEWAY, ErrorCodes.jiraError, err instanceof Error ? err.message : 'Jira request failed');
     }

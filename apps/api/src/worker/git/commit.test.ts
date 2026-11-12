@@ -59,7 +59,7 @@ describe('commit message guard (F9)', () => {
 
 describe('commitAll (BUILD_PLAN 6.2)', () => {
   it('commits everything as the configured identity (author and committer)', async () => {
-    const git = new GitRunner({ githubToken: '' });
+    const git = new GitRunner({ token: async () => '' });
     const { ws } = await workspace(git);
     writeFileSync(path.join(ws, 'a.txt'), 'one');
     mkdirSync(path.join(ws, 'src'));
@@ -73,7 +73,7 @@ describe('commitAll (BUILD_PLAN 6.2)', () => {
   });
 
   it('does nothing when there is nothing to commit', async () => {
-    const git = new GitRunner({ githubToken: '' });
+    const git = new GitRunner({ token: async () => '' });
     const { ws } = await workspace(git);
     const before = sh(ws, 'rev-parse', 'HEAD');
     expect(await commitAll(git, ws, 'feat: nothing', identity)).toEqual({ committed: false });
@@ -81,7 +81,7 @@ describe('commitAll (BUILD_PLAN 6.2)', () => {
   });
 
   it('never runs repository hooks: a failing pre-commit hook does not block it and its side effect does not happen', async () => {
-    const git = new GitRunner({ githubToken: '' });
+    const git = new GitRunner({ token: async () => '' });
     const { ws } = await workspace(git);
     const marker = path.join(tmp, `hook-ran-${n}`);
     for (const hook of ['pre-commit', 'commit-msg']) {
@@ -94,7 +94,7 @@ describe('commitAll (BUILD_PLAN 6.2)', () => {
   });
 
   it('can limit what is staged to given paths, leaving other changes alone', async () => {
-    const git = new GitRunner({ githubToken: '' });
+    const git = new GitRunner({ token: async () => '' });
     const { ws } = await workspace(git);
     mkdirSync(path.join(ws, 'docs/kb'), { recursive: true });
     writeFileSync(path.join(ws, 'docs/kb/a.md'), 'doc');
@@ -106,7 +106,7 @@ describe('commitAll (BUILD_PLAN 6.2)', () => {
   });
 
   it('refuses a message with attribution, and a missing identity, before touching the index', async () => {
-    const git = new GitRunner({ githubToken: '' });
+    const git = new GitRunner({ token: async () => '' });
     const { ws } = await workspace(git);
     writeFileSync(path.join(ws, 'd.txt'), 'x');
     await expect(commitAll(git, ws, 'feat: x\n\nCo-Authored-By: A <a@b.c>', identity)).rejects.toThrow(CommitMessageError);
@@ -115,7 +115,7 @@ describe('commitAll (BUILD_PLAN 6.2)', () => {
   });
 
   it('passes the message as a single argument, so shell metacharacters stay text', async () => {
-    const git = new GitRunner({ githubToken: '' });
+    const git = new GitRunner({ token: async () => '' });
     const { ws } = await workspace(git);
     writeFileSync(path.join(ws, 'e.txt'), 'x');
     await commitAll(git, ws, 'fix: handle $(whoami) `id` ; rm -rf / "quotes"', identity);
@@ -125,7 +125,7 @@ describe('commitAll (BUILD_PLAN 6.2)', () => {
 
 describe('pushBranch (BUILD_PLAN 6.2, 6.8)', () => {
   it('pushes the ticket branch to origin', async () => {
-    const git = new GitRunner({ githubToken: '' });
+    const git = new GitRunner({ token: async () => '' });
     const { ws, branch } = await workspace(git);
     writeFileSync(path.join(ws, 'f.txt'), 'x');
     await commitAll(git, ws, 'feat: f', identity);
@@ -134,7 +134,7 @@ describe('pushBranch (BUILD_PLAN 6.2, 6.8)', () => {
   });
 
   it('never forces: no --force, no + refspec, and hooks are off for push too', async () => {
-    const spy = new SpyRunner({ githubToken: '' });
+    const spy = new SpyRunner({ token: async () => '' });
     const { ws, branch } = await workspace(spy);
     const marker = path.join(tmp, `prepush-${n}`);
     writeFileSync(path.join(ws, '.git', 'hooks', 'pre-push'), `#!/bin/sh\ntouch "${marker}"\nexit 1\n`);
@@ -150,7 +150,7 @@ describe('pushBranch (BUILD_PLAN 6.2, 6.8)', () => {
   });
 
   it('a rejected push (remote moved on) throws PushRejectedError and leaves the remote untouched', async () => {
-    const git = new GitRunner({ githubToken: '' });
+    const git = new GitRunner({ token: async () => '' });
     const { ws, branch } = await workspace(git);
     writeFileSync(path.join(ws, 'h.txt'), 'mine');
     await commitAll(git, ws, 'feat: mine', identity);
@@ -176,14 +176,14 @@ describe('pushBranch (BUILD_PLAN 6.2, 6.8)', () => {
   });
 
   it('fails as a rejection when the remote does not exist, and refuses suspicious branch names', async () => {
-    const git = new GitRunner({ githubToken: '' });
+    const git = new GitRunner({ token: async () => '' });
     const { ws, branch } = await workspace(git);
     await expect(pushBranch(git, ws, branch, path.join(tmp, 'gone.git'), [''])).rejects.toBeInstanceOf(PushRejectedError);
     for (const bad of ['', '+main', '--force']) await expect(pushBranch(git, ws, bad, bare, [''])).rejects.toThrow('Refusing to push');
   });
 
   it('pushes to the given URL and ignores a tampered origin; refuses non-github URLs by default', async () => {
-    const git = new GitRunner({ githubToken: '' });
+    const git = new GitRunner({ token: async () => '' });
     const { ws, branch } = await workspace(git);
     writeFileSync(path.join(ws, 'j.txt'), 'x');
     await commitAll(git, ws, 'feat: j', identity);
@@ -197,7 +197,7 @@ describe('pushBranch (BUILD_PLAN 6.2, 6.8)', () => {
 
 describe('GitRunner hardening flags (S1)', () => {
   it('runs git with hooks, fsmonitor, credential helpers and non-https/file protocols disabled', async () => {
-    const git = new GitRunner({ githubToken: '' });
+    const git = new GitRunner({ token: async () => '' });
     const get = async (key: string) => (await git.run(['config', '--get-all', key], { cwd: tmp })).stdout.replace(/\n$/, '').split('\n').pop(); // the command-line value comes last
     expect(await get('core.hooksPath')).toBe('/dev/null');
     expect(await get('core.fsmonitor')).toBe('false');
@@ -209,7 +209,7 @@ describe('GitRunner hardening flags (S1)', () => {
   });
 
   it('leaves the flags out when hooks are explicitly enabled', async () => {
-    const git = new GitRunner({ githubToken: '' });
+    const git = new GitRunner({ token: async () => '' });
     await expect(git.out(['config', '--get', 'protocol.allow'], { cwd: tmp, hooks: true })).rejects.toThrow();
   });
 });

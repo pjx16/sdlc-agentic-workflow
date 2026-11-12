@@ -1,3 +1,4 @@
+import { staticCredentials } from '../../testing/static-credentials';
 import 'reflect-metadata';
 import { execFileSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -81,16 +82,16 @@ describe('subtask TDD loop end to end (real containers, fake-claude)', () => {
     const project = await prisma.project.create({
       data: { name: `proj-${n}`, repoUrl: `file://${bare}`, baseBranch: 'dev', stack: 'ts_node', installCmd: 'echo installed', typecheckCmd: 'echo typecheck ok', testCmdTemplate: 'sh check.sh {files}', localKeyPrefix: 'TGT', mirrorStatus: 'pending', ...(opts.project ?? {}) },
     });
-    await new MirrorService(prisma, config).clone(project);
+    await new MirrorService(prisma, config, staticCredentials()).clone(project);
     const containers = new ContainerRunner(new DockerodeEngine(docker));
-    const git = new GitRunner({ githubToken: '' });
+    const git = new GitRunner({ token: async () => '' });
     const verify = new VerifyService(containers, config);
-    const workspaces = new WorkspaceService(prisma, config, git, verify);
-    const agent = new AgentRunner(containers, config, new PrismaStageRunStore(prisma), new FileLogSink(config));
+    const workspaces = new WorkspaceService(prisma, config, git, verify, staticCredentials());
+    const agent = new AgentRunner(containers, config, staticCredentials({ claude_token: 'fake-token' }), new PrismaStageRunStore(prisma), new FileLogSink(config, staticCredentials({ claude_token: 'fake-token' })));
     const launcher = new StageLauncher(prisma, config, agent);
     const outcomes = new StageOutcomes(prisma);
     const github = new FakeGitHub();
-    const steps = new SubtaskStepsService(prisma, launcher, outcomes, workspaces, git, verify, config, new PrService(prisma, config, github));
+    const steps = new SubtaskStepsService(prisma, launcher, outcomes, workspaces, git, verify, config, new PrService(prisma, config, staticCredentials(), github));
 
     const ticket = await prisma.ticket.create({ data: { projectId: project.id, key: `TGT-${n}`, source: 'paste', title: 'Export bookings', body: 'Add a CSV export.', status: 'IN_PROGRESS', planMarkdown: '# Plan' } });
     await workspaces.prepare(ticket.id);

@@ -1,3 +1,4 @@
+import { staticCredentials } from '../../testing/static-credentials';
 import 'reflect-metadata';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -27,7 +28,7 @@ describe.skipIf(!live)('live smoke test (LIVE_CLAUDE=1)', () => {
     const token = process.env.CLAUDE_CODE_OAUTH_TOKEN as string;
     const config = new WorkerConfig({ DATA_DIR: dataDir, DATABASE_URL: 'unused', CLAUDE_CODE_OAUTH_TOKEN: token, GUIDELINES_DIR: path.join(ROOT, 'guidelines') } as NodeJS.ProcessEnv);
     const store = new MemoryStore();
-    const runner = new AgentRunner(new ContainerRunner(new DockerodeEngine(docker)), config, store, new FileLogSink(config));
+    const runner = new AgentRunner(new ContainerRunner(new DockerodeEngine(docker)), config, staticCredentials({ claude_token: 'fake-token' }), store, new FileLogSink(config, staticCredentials({ claude_token: 'fake-token' })));
     const workspace = path.join(dataDir, 'ws');
     mkdirSync(workspace);
     chmodSync(workspace, 0o777);

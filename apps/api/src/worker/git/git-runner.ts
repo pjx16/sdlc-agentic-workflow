@@ -43,7 +43,8 @@ export interface GitRunOptions {
 }
 
 export interface GitRunnerConfig {
-  githubToken: string;
+  /** The GitHub token, looked up on every call so a token entered in the dashboard takes effect without a restart. */
+  token: () => Promise<string>;
 }
 
 /**
@@ -54,6 +55,7 @@ export class GitRunner {
   constructor(private readonly config: GitRunnerConfig) {}
 
   async run(args: readonly string[], opts: GitRunOptions = {}): Promise<{ stdout: string; stderr: string }> {
+    const token = await this.config.token();
     const full = opts.hooks ? [...args] : [...HARDENING_FLAGS, ...args];
     try {
       const { stdout, stderr } = await exec('git', full, {
@@ -63,7 +65,7 @@ export class GitRunner {
         env: {
           ...process.env,
           GIT_ASKPASS: process.env.GIT_ASKPASS ?? DEFAULT_ASKPASS,
-          GITHUB_TOKEN: this.config.githubToken,
+          GITHUB_TOKEN: token,
           GIT_TERMINAL_PROMPT: '0',
           ...opts.env,
         },
@@ -72,7 +74,7 @@ export class GitRunner {
     } catch (err) {
       const e = err as { stderr?: string; code?: number | string; killed?: boolean; message?: string };
       let stderr = (e.stderr ?? e.message ?? '').toString().trim();
-      if (this.config.githubToken) stderr = stderr.split(this.config.githubToken).join('***');
+      if (token) stderr = stderr.split(token).join('***');
       const first = stderr.split('\n').find((l) => /^(fatal|error|remote):/i.test(l.trim())) ?? stderr.split('\n')[0] ?? 'git failed';
       throw new GitError(e.killed ? 'git timed out' : first.slice(0, 500), args, stderr, typeof e.code === 'number' ? e.code : null);
     }

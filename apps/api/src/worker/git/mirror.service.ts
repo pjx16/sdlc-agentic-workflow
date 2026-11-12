@@ -2,6 +2,7 @@ import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
 import type { Project } from '../../generated/prisma/client';
+import { CredentialsService } from '../../credentials/credentials.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WorkerConfig } from '../worker-config';
 import { GitRunner } from './git-runner';
@@ -19,8 +20,9 @@ export class MirrorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: WorkerConfig,
+    creds: CredentialsService,
   ) {
-    this.runner = new GitRunner({ githubToken: config.githubToken });
+    this.runner = new GitRunner({ token: async () => (await creds.resolve()).github_token });
   }
 
   /** Clones the mirror for a pending project, checks the base branch, and records ok or failed. */
@@ -61,7 +63,6 @@ export class MirrorService {
   private describe(err: unknown): string {
     const e = err as { stderr?: string; message?: string; killed?: boolean };
     let text = e.killed ? 'git clone timed out' : (e.stderr?.trim() || e.message || 'git clone failed');
-    if (this.config.githubToken) text = text.split(this.config.githubToken).join('***');
     const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
     return (lines.find((l) => /^(fatal|error):/i.test(l)) ?? lines[0] ?? 'git clone failed').slice(0, MAX_ERROR_LENGTH);
   }

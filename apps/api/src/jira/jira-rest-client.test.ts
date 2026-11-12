@@ -46,7 +46,7 @@ describe('JiraRestClient requests (BUILD_PLAN 6.3)', () => {
 
   it('refuses to be built without credentials', () => {
     expect(() => new JiraRestClient({ baseUrl: '', email: 'a', apiToken: 'b' })).toThrow(/JIRA_BASE_URL/);
-    expect(() => JiraRestClient.fromEnv({} as NodeJS.ProcessEnv)).toThrow();
+    expect(() => JiraRestClient.fromCredentials({ jira_base_url: '', jira_email: '', jira_api_token: '' })).toThrow();
   });
 });
 

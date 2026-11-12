@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { CredentialsModule } from '../credentials/credentials.module';
+import { CredentialsService } from '../credentials/credentials.service';
 import { JiraClients } from '../jira/jira-clients';
 import { JiraModule } from '../jira/jira.module';
 import { LoggingModule } from '../logging.module';
@@ -52,10 +54,10 @@ import { WorkerRunner } from './worker-runner';
 
 /** The worker shares the database but has no HTTP surface and needs no dashboard credentials. */
 @Module({
-  imports: [LoggingModule, PrismaModule, StateModule, JiraModule],
+  imports: [LoggingModule, PrismaModule, CredentialsModule, StateModule, JiraModule],
   providers: [{ provide: WorkerConfig, useFactory: () => new WorkerConfig() },
     MirrorService,
-    { provide: GitRunner, useFactory: (c: WorkerConfig) => new GitRunner({ githubToken: c.githubToken }), inject: [WorkerConfig] },
+    { provide: GitRunner, useFactory: (creds: CredentialsService) => new GitRunner({ token: async () => (await creds.resolve()).github_token }), inject: [CredentialsService] },
     WorkspaceService,
     { provide: CONTAINER_ENGINE, useFactory: () => new DockerodeEngine() },
     ContainerRunner,
@@ -75,7 +77,7 @@ import { WorkerRunner } from './worker-runner';
     KbBuildService,
     PlanHandler,
     BreakdownHandler,
-    { provide: GITHUB_CLIENT, useFactory: (c: WorkerConfig) => new GhCliClient({ token: c.githubToken, tmpDir: c.dataDir }), inject: [WorkerConfig] },
+    { provide: GITHUB_CLIENT, useFactory: (c: WorkerConfig, creds: CredentialsService) => new GhCliClient({ token: async () => (await creds.resolve()).github_token, tmpDir: c.dataDir }), inject: [WorkerConfig, CredentialsService] },
     PrService,
     SubtaskStepsService,
     { provide: SUBTASK_STEPS, useExisting: SubtaskStepsService },

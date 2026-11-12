@@ -1,3 +1,4 @@
+import { staticCredentials } from '../../testing/static-credentials';
 import 'reflect-metadata';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -72,9 +73,9 @@ describe('kbUpdate stage (F11)', () => {
     const config = new WorkerConfig({ DATA_DIR: path.join(tmp, 'data'), DATABASE_URL: db.url, TEST_PUSH_URL_PREFIXES: 'file://', GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com', GUIDELINES_DIR: path.resolve(__dirname, '../../../../../guidelines') } as NodeJS.ProcessEnv);
     const project = await prisma.project.create({ data: { name: 'p', repoUrl: `file://${source}`, baseBranch: 'dev', stack: 'ts_node', installCmd: '', testCmdTemplate: 'x {files}', localKeyPrefix: 'P', mirrorStatus: 'pending' } });
     projectId = project.id;
-    await new MirrorService(prisma, config).clone(project);
-    const git = new GitRunner({ githubToken: '' });
-    workspaces = new WorkspaceService(prisma, config, git, new VerifyService(new ContainerRunner(new FakeEngine()), config));
+    await new MirrorService(prisma, config, staticCredentials()).clone(project);
+    const git = new GitRunner({ token: async () => '' });
+    workspaces = new WorkspaceService(prisma, config, git, new VerifyService(new ContainerRunner(new FakeEngine()), config), staticCredentials());
     const runner = {
       async run(req: StageRequest): Promise<StageResult> {
         lastRequest = req;

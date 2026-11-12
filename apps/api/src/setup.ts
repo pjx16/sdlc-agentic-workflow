@@ -3,6 +3,7 @@ import cookieParser from 'cookie-parser';
 import type { NextFunction, Request, Response } from 'express';
 import { ErrorCodes } from '@sdlc/shared';
 import { ErrorFilter } from './common/error.filter';
+import { CredentialsService } from './credentials/credentials.service';
 import { RedactInterceptor, apiSecrets } from './common/redact-interceptor';
 
 /** Shared by main.ts and the tests so both behave the same. */
@@ -20,6 +21,12 @@ export function configureApp(app: INestApplication): void {
     next();
   });
   app.use(cookieParser());
+  let creds: CredentialsService | undefined;
+  try {
+    creds = app.get(CredentialsService, { strict: false });
+  } catch {
+    creds = undefined; // modules built for a test without credentials
+  }
   app.useGlobalFilters(new ErrorFilter());
-  app.useGlobalInterceptors(new RedactInterceptor(apiSecrets()));
+  app.useGlobalInterceptors(new RedactInterceptor(() => [...apiSecrets(), ...(creds?.secretsSnapshot() ?? [])]));
 }

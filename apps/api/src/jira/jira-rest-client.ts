@@ -49,8 +49,8 @@ export class JiraRestClient implements JiraClient {
     this.maxPages = options.maxPages ?? 40;
   }
 
-  static fromEnv(env: NodeJS.ProcessEnv = process.env, options?: JiraRestOptions): JiraRestClient {
-    return new JiraRestClient({ baseUrl: env.JIRA_BASE_URL ?? '', email: env.JIRA_EMAIL ?? '', apiToken: env.JIRA_API_TOKEN ?? '' }, options);
+  static fromCredentials(c: { jira_base_url: string; jira_email: string; jira_api_token: string }, options?: JiraRestOptions): JiraRestClient {
+    return new JiraRestClient({ baseUrl: c.jira_base_url, email: c.jira_email, apiToken: c.jira_api_token }, options);
   }
 
   // ---------------------------------------------------------------- JiraClient

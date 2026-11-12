@@ -36,7 +36,7 @@ beforeAll(() => {
   chmodSync(bin, 0o755);
   log = path.join(tmp, 'calls.log');
   process.env.FAKE_GH_LOG = log;
-  client = new GhCliClient({ token: 'ghs_secret_token_value', binary: bin, tmpDir: tmp });
+  client = new GhCliClient({ token: async () => 'ghs_secret_token_value', binary: bin, tmpDir: tmp });
 });
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 beforeEach(() => {

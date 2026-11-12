@@ -1,3 +1,5 @@
+import { CredentialsModule } from '../credentials/credentials.module';
+import { staticCredentials } from '../testing/static-credentials';
 import 'reflect-metadata';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -46,7 +48,7 @@ describe('worker skeleton', () => {
 
     Object.assign(process.env, { DATABASE_URL: db.url, DATA_DIR: path.join(tmp, 'data'), GITHUB_TOKEN: '' });
     const moduleRef = await Test.createTestingModule({
-      imports: [PrismaModule],
+      imports: [PrismaModule, CredentialsModule],
       providers: [
         { provide: WorkerConfig, useFactory: () => new WorkerConfig() },
         MirrorService,
@@ -124,7 +126,7 @@ describe('worker skeleton', () => {
 
   it('does not record a stale result when the project was re-queued during the clone', async () => {
     const p = await newProject('stale');
-    const service = new MirrorService(prisma, config);
+    const service = new MirrorService(prisma, config, staticCredentials());
     await prisma.project.update({ where: { id: p.id }, data: { baseBranch: 'dev2' } });
     await service.clone(p); // p still carries the old baseBranch
     expect((await prisma.project.findUniqueOrThrow({ where: { id: p.id } })).mirrorStatus).toBe('pending');

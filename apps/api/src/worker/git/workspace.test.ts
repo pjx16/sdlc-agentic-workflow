@@ -11,7 +11,7 @@ const sh = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.
 let tmp: string;
 let source: string;
 let mirror: string;
-const git = new GitRunner({ githubToken: '' });
+const git = new GitRunner({ token: async () => '' });
 
 const spec = (name: string, over: Partial<WorkspaceSpec> = {}): WorkspaceSpec => ({
   mirrorPath: mirror, repoUrl: 'https://github.com/acme/billing', baseBranch: 'dev', workspacePath: path.join(tmp, 'workspaces', name), branch: `feature/KEY-1-${name}`, ...over,

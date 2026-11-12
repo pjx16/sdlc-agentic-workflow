@@ -1,3 +1,4 @@
+import { staticCredentials } from '../../testing/static-credentials';
 import 'reflect-metadata';
 import type { TicketStatus } from '@sdlc/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -32,7 +33,7 @@ describe('worker loop (BUILD_PLAN 6.6, F4)', () => {
   });
   const loopWith = (handlers: StepHandler[]) => {
     const config = new WorkerConfig({ DATA_DIR: '/tmp/sdlc-loop', DATABASE_URL: db.url } as NodeJS.ProcessEnv);
-    return new WorkerLoop(prisma, new MirrorService(prisma, config), new IntakePoller(prisma, jira, () => clock), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma, jira)), states, handlers, () => clock);
+    return new WorkerLoop(prisma, new MirrorService(prisma, config, staticCredentials()), new IntakePoller(prisma, jira, () => clock), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma, jira)), states, handlers, () => clock);
   };
   const ticket = async (status: TicketStatus = 'NEW', over: Record<string, unknown> = {}) => {
     n++;

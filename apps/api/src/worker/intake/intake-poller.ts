@@ -48,7 +48,7 @@ export class IntakePoller {
     for (const project of projects.filter((p) => !only || only(p))) {
       result.projects++;
       try {
-        const tickets = await this.clients.forMode(mode).searchTickets(project);
+        const tickets = await (await this.clients.forMode(mode)).searchTickets(project);
         for (const jt of tickets) {
           const outcome = await this.store(project, jt);
           if (outcome === 'created') result.created++;

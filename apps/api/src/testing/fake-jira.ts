@@ -46,15 +46,15 @@ export class FakeJira implements JiraClient {
 /** Replaces JiraClients in a test module with a FakeJira. */
 export class FakeJiraClients extends JiraClients {
   constructor(readonly jira: FakeJira = new FakeJira()) {
-    super();
+    super({ resolve: async () => ({}) } as never);
   }
-  override forRest() {
+  override async forRest() {
     return this.jira;
   }
   override hasMcp() {
     return true;
   }
-  override forMode() {
+  override async forMode() {
     return this.jira;
   }
 }

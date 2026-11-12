@@ -182,7 +182,7 @@ export class TicketsService {
   /** Developer edits made in Jira reach the next stages. A Jira problem is recorded and never blocks the approval. */
   private async refreshFromJira(ticketId: string, key: string, externalKey: string): Promise<void> {
     try {
-      const issue = await this.jira.forRest().readStatus(externalKey);
+      const issue = await (await this.jira.forRest()).readStatus(externalKey);
       await this.prisma.ticket.update({ where: { id: ticketId }, data: { title: issue.summary || undefined, body: issue.description } });
     } catch (err) {
       await this.prisma.event.create({ data: { ticketId, type: 'jira', message: `${key}: could not re-read the Jira issue: ${err instanceof Error ? err.message : String(err)}`.slice(0, 500) } });

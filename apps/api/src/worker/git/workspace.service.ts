@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
 import type { TicketType } from '@sdlc/shared';
+import { CredentialsService } from '../../credentials/credentials.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { type CmdResult, VerifyService } from '../verify/verify.service';
 import { WorkerConfig } from '../worker-config';
@@ -49,6 +50,7 @@ export class WorkspaceService {
     private readonly config: WorkerConfig,
     private readonly git: GitRunner,
     private readonly verify: VerifyService,
+    private readonly creds: CredentialsService,
   ) {}
 
   async prepare(ticketId: string): Promise<WorkspaceResult> {
@@ -91,7 +93,8 @@ export class WorkspaceService {
   /** `Git.commit(ticket, message)`: commits the workspace as the configured identity; hooks never run. */
   async commit(ticketId: string, message: string, opts: { paths?: readonly string[] } = {}): Promise<CommitResult> {
     const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
-    const result = await commitAll(this.git, this.config.workspacePath(ticket.projectId, ticket.key), message, { name: this.config.authorName, email: this.config.authorEmail }, opts);
+    const identity = await this.creds.resolve();
+    const result = await commitAll(this.git, this.config.workspacePath(ticket.projectId, ticket.key), message, { name: identity.git_author_name, email: identity.git_author_email }, opts);
     if (result.committed) await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Committed ${result.sha.slice(0, 8)}: ${message.split('\n')[0]}`.slice(0, 500) } });
     return result;
   }

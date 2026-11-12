@@ -34,7 +34,7 @@ export class ApprovalPoller {
       const approvals = ProjectSettingsSchema.parse(ticket.project.settings).jiraApprovalStatuses;
       if (!approvals.plan && !approvals.breakdown) continue;
       try {
-        const issue = await this.clients.forMode(mode).readStatus(ticket.externalKey as string);
+        const issue = await (await this.clients.forMode(mode)).readStatus(ticket.externalKey as string);
         const { status } = issue;
         const next = approvalTarget(ticket.status as TicketStatus, status, approvals);
         if (!next) continue;

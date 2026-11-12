@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { CredentialsService } from '../../credentials/credentials.service';
 import { stageJsonSchema, type ClaudeMdMode, type ModelAlias, type ProjectStack, type StageEnvelope, type StageName } from '@sdlc/shared';
 import type { FixReason } from '../../generated/prisma/client';
 import { USAGE_GATE, type UsageGatePort } from '../usage/usage-gate';
@@ -59,6 +60,7 @@ export class AgentRunner {
   constructor(
     private readonly containers: ContainerRunner,
     private readonly config: WorkerConfig,
+    private readonly creds: CredentialsService,
     @Inject(STAGE_RUN_STORE) private readonly store: StageRunStore,
     @Inject(LOG_SINK) private readonly logs: LogSink,
     @Optional() @Inject(USAGE_GATE) private readonly gate?: UsageGatePort,
@@ -128,7 +130,7 @@ export class AgentRunner {
       image: this.config.agentImage,
       cmd: ['run-stage'],
       env: {
-        CLAUDE_CODE_OAUTH_TOKEN: this.config.claudeToken,
+        CLAUDE_CODE_OAUTH_TOKEN: (await this.creds.resolve()).claude_token,
         HTTPS_PROXY: proxy,
         HTTP_PROXY: proxy,
         NO_PROXY: 'localhost,127.0.0.1',
