@@ -12,6 +12,8 @@ ENV DISABLE_AUTOUPDATER=1 \
     DISABLE_TELEMETRY=1 \
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 
+COPY --chmod=755 run-stage run-cmd /usr/local/bin/
+
 # The node base image provides user `node` (uid 1000).
 USER node
 WORKDIR /workspace

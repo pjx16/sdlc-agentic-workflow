@@ -7,11 +7,14 @@
     "dev": "tsc-watch -p tsconfig.build.json --onSuccess \"node dist/main.js\"",
     "typecheck": "prisma generate && tsc -p tsconfig.json --noEmit",
     "lint": "eslint src",
-    "test": "prisma generate && vitest run",
+    "test": "prisma generate && vitest run --project unit",
     "dev:worker": "tsc-watch -p tsconfig.build.json --onSuccess \"node dist/worker.js\"",
     "start": "node dist/main.js",
     "start:worker": "node dist/worker.js",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:int": "prisma generate && vitest run --project int",
+    "pretest:int": "docker build -q -t sdlc-agent/agent:latest ../../docker/agent && docker build -q -t sdlc-agent/proxy:test ../../docker/proxy",
+    "test:live": "vitest run --project live"
   },
   "dependencies": {
     "@nestjs/common": "^12.4.2",
@@ -22,6 +25,7 @@
     "@sdlc/shared": "*",
     "argon2": "^0.45.2",
     "cookie-parser": "^1.4.7",
+    "dockerode": "^5.0.1",
     "nestjs-pino": "^5.3.1",
     "pg": "^8.23.1",
     "pino": "^10.4.0",
@@ -35,6 +39,7 @@
     "@swc/core": "^1.16.22",
     "@testcontainers/postgresql": "^12.2.1",
     "@types/cookie-parser": "^1.4.10",
+    "@types/dockerode": "^4.0.2",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
