@@ -1,0 +1,53 @@
+@import 'tailwindcss';
+
+/* Light and dark themes follow the system. Neutral greys, one indigo accent, no shadows or gradients. */
+:root {
+  --bg: #f6f6f7;
+  --surface: #ffffff;
+  --border: #e2e2e5;
+  --text: #1a1a1c;
+  --muted: #6b6b73;
+  --accent: #4f46e5;
+  --accent-text: #ffffff;
+  --status-green: #16a34a;
+  --status-amber: #d97706;
+  --status-red: #dc2626;
+  --status-grey: #8a8a93;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111113;
+    --surface: #1a1a1d;
+    --border: #2c2c31;
+    --text: #ececef;
+    --muted: #9a9aa3;
+    --accent: #818cf8;
+    --accent-text: #111113;
+    --status-green: #4ade80;
+    --status-amber: #fbbf24;
+    --status-red: #f87171;
+    --status-grey: #8a8a93;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+  --color-green: var(--status-green);
+  --color-amber: var(--status-amber);
+  --color-red: var(--status-red);
+  --color-grey: var(--status-grey);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+}

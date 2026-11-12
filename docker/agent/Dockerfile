@@ -1,6 +1,7 @@
-FROM node:22-bookworm-slim
+FROM node:24-bookworm-slim
 
-ARG CLAUDE_CODE_VERSION=latest
+# Pinned from the milestone-0 spike (SPIKE.md, task 0.1).
+ARG CLAUDE_CODE_VERSION=2.1.322
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates curl bash jq \

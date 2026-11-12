@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.next/
+.turbo/
+.env
+*.log
+coverage/
+data/
+apps/api/src/generated/
