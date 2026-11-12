@@ -162,6 +162,9 @@ jobs:
 
   cli-macos:
     name: cli (macOS, no Docker)
+    # A smoke test for pull requests and branches. It is skipped on a release tag, where it would only add a dependency on macOS runner
+    # availability to a publish (it already ran on the same commit). In a called workflow, github.ref is the caller's ref.
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     needs: checks
     runs-on: macos-latest
     timeout-minutes: 15
