@@ -99,9 +99,9 @@ Supported target stacks: TypeScript/Node, NestJS and Next.js.
 
 ## Architecture
 
-![System diagram](./docs/architecture/diagrams/system.svg)
+![System diagram](./docs/architecture/v1.0.0/diagrams/system.svg)
 
-The architecture is documented in [`docs/architecture`](./docs/architecture/README.md), with diagrams that GitHub renders: the system and its containers, trust boundaries (which secret lives where), the ticket lifecycle, the subtask loop, the worker loop, stages and models, and the data model. It ends with a change log. **If you change the structure, update that file in the same pull request.**
+The architecture is documented per version in [`docs/architecture`](./docs/architecture/README.md); the current one is [1.0.0](./docs/architecture/v1.0.0/README.md), with diagrams that GitHub renders: the system and its containers, trust boundaries (which secret lives where), the ticket lifecycle, the subtask loop, the worker loop, stages and models, and the data model. It ends with a change log. The folder also holds the architecture change log. **If you change the structure, add a new version folder in the same pull request** (the rules are in the index).
 
 ## Setup
 
@@ -199,7 +199,7 @@ docker/
   agent/          Agent image (Claude Code CLI, run-stage, run-cmd)
   worker/         Worker image (git, gh)
   proxy/          Squid egress proxy
-docs/architecture/ Architecture, diagrams and architecture change log
+docs/architecture/ Architecture per version (v1.0.0/), diagrams and change log
 guidelines/       Default CLAUDE.md, stage prompts, stack guidelines, review checklist
 test/fake-claude/ Claude CLI stub used by tests
 ```
