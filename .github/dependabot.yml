@@ -9,6 +9,10 @@ updates:
     groups:
       npm-minor:
         update-types: [minor, patch]
+    ignore:
+      # A TypeScript major is a migration of its own (compiler, typescript-eslint, Prisma). Do it deliberately, not through a bot PR.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: github-actions
     directory: /
@@ -23,6 +27,10 @@ updates:
       interval: weekly
     commit-message:
       prefix: chore(deps)
+    ignore:
+      # Stay on the Node.js LTS line (24). Odd-numbered releases (25) are short-lived and not LTS; move to the next LTS by hand.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: docker
     directory: /apps/dashboard
@@ -30,6 +38,10 @@ updates:
       interval: weekly
     commit-message:
       prefix: chore(deps)
+    ignore:
+      # Stay on the Node.js LTS line (24). Odd-numbered releases (25) are short-lived and not LTS; move to the next LTS by hand.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: docker
     directory: /docker/worker
@@ -37,6 +49,10 @@ updates:
       interval: weekly
     commit-message:
       prefix: chore(deps)
+    ignore:
+      # Stay on the Node.js LTS line (24). Odd-numbered releases (25) are short-lived and not LTS; move to the next LTS by hand.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: docker
     directory: /docker/agent
@@ -44,6 +60,10 @@ updates:
       interval: weekly
     commit-message:
       prefix: chore(deps)
+    ignore:
+      # Stay on the Node.js LTS line (24). Odd-numbered releases (25) are short-lived and not LTS; move to the next LTS by hand.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: docker
     directory: /docker/proxy
@@ -58,3 +78,7 @@ updates:
       interval: weekly
     commit-message:
       prefix: chore(deps)
+    ignore:
+      # A major Postgres upgrade cannot start on a data volume created by the previous major version (it needs a dump and restore).
+      - dependency-name: postgres
+        update-types: ['version-update:semver-major']
