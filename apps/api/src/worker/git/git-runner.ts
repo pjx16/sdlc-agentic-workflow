@@ -41,7 +41,7 @@ export class GitRunner {
 
   async run(args: readonly string[], opts: GitRunOptions = {}): Promise<{ stdout: string; stderr: string }> {
     // `core.hooksPath=/dev/null` disables every hook, including pre-commit, commit-msg and pre-push.
-    const full = opts.hooks ? [...args] : ['-c', 'core.hooksPath=/dev/null', ...args];
+    const full = opts.hooks ? [...args] : ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', ...args];
     try {
       const { stdout, stderr } = await exec('git', full, {
         cwd: opts.cwd,

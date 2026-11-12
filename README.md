@@ -2,7 +2,7 @@
 
 A self-hosted, Docker-based **shipping engine** for solo developers. It turns tickets into reviewable pull requests with AI agents, while keeping AI usage lean and never giving agents access to your machine or credentials.
 
-> **Status: feature-complete, not yet proven on a real ticket.** Every milestone in [`BUILD_PLAN.md`](./BUILD_PLAN.md) is implemented and covered by unit and integration tests (a stand-in for Claude plays the model). The one thing still to do is a full run on a real ticket with live Claude (sub-task 13.5); the result will be recorded under [Live end-to-end run](#live-end-to-end-run). Expect rough edges until then.
+> **Status: feature-complete; one small real ticket has gone through end to end.** Every milestone in [`BUILD_PLAN.md`](./BUILD_PLAN.md) is implemented and covered by unit and integration tests (a stand-in for Claude plays the model), and a single-subtask ticket ran with live Claude from paste to merged PR (see [Live end-to-end run](#live-end-to-end-run), including the bugs it found). Larger tickets, review findings, CI failures and Jira were not exercised live. Expect rough edges.
 
 ## Contents
 
@@ -254,7 +254,22 @@ Development followed 14 milestones, defined in [`BUILD_PLAN.md`](./BUILD_PLAN.md
 
 ## Live end-to-end run
 
-Not done yet. Sub-task 13.5 is one full run on a small real ticket with live Claude; its result (ticket, models, tokens used, PR, what went wrong) will be recorded here.
+Run on 2026-11-12 with live Claude, Docker Compose, and a private scratch repository (TypeScript, one `add` function with a Vitest test) on branch `dev`. The ticket was pasted into the dashboard:
+
+> **LIVE-1 – Add a multiply function.** Add `multiply(a, b)` to `src/math.ts`, with tests covering positive numbers, zero and negatives.
+
+Result: **it reached `DONE`**. The pipeline went NEW → PLANNING → plan approved → BREAKDOWN (1 subtask) → breakdown approved → IN_PROGRESS → REVIEW → KB_UPDATE → AWAITING_CI → IN_HUMAN_REVIEW. The ticket moved to `DONE` about a minute after the PR was squash-merged on GitHub. The PR had four commits (`docs` KB build, `test:`, `feat:`, `docs` KB update), ready for review, with a review summary comment. The review stage found nothing to fix in its one round. The scratch repository has no CI, so "checks passed" was immediate.
+
+Tokens (all stages, 24 h window): about **184,000** in total. kbBuild 20k, plan 20k, breakdown 23k, tests 54k (three rounds, see below), implement 22k, review 21k, kbUpdate 23k. Models were the defaults (Opus for the plan, Sonnet for the rest, Haiku for the breakdown).
+
+What went wrong (and was fixed on this branch):
+
+- **npm cache volume was root-owned**, so every dependency install in an agent container failed (`EACCES` on `/npm-cache`). The agent Dockerfile now creates `/npm-cache` owned by `node`. An *existing* volume needs a one-off `chown`.
+- **The worker refused the workspace** ("dubious ownership"): workspaces are written by the agent user (uid 1000), the worker is root. The worker image now sets `safe.directory '*'`, and every worker git call also passes `core.fsmonitor=false` (hooks were already disabled), so a workspace's own git config cannot run code in the worker.
+- **A failed first install left a half-installed `node_modules`**, and a retry skips the install when `node_modules` exists, so the tests stage held twice ("Cannot find module"). I reinstalled by hand and pressed Retry. Not fixed: a failed install should remove `node_modules`. Until then, delete the workspace's `node_modules` *and* reinstall, or delete the workspace.
+- A held ticket's **Retry restarts only the subtask loop**; it does not redo the workspace install.
+
+Not exercised in this run: a review that finds issues, CI failures, support queries, Jira (REST or MCP), the usage gate pausing a run, and a multi-subtask ticket.
 
 ## Scope and known limitations
 
