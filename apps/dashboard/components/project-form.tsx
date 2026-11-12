@@ -3,11 +3,12 @@
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import {
-  CLAUDE_MD_MODES, JIRA_MODES, MODEL_ALIASES, PROJECT_STACKS, STAGE_NAMES, TICKET_STATUSES,
+  CLAUDE_MD_MODES, JIRA_MODES, MODEL_ALIASES, PROJECT_STACKS, STAGE_NAMES,
   ProjectSettingsSchema, commandWarnings, stageWarnings, type ProjectStack, type StageName,
 } from '@sdlc/shared';
 import { Check, FormProvider, Num, Section, Select, Text, TextArea, Warnings } from './form';
 import { MirrorStatus } from './mirror-status';
+import { StatusMapping } from './status-mapping';
 import { collapseListErrors, getIn, setIn, type FormValues } from '@/lib/form';
 import { applyStackChange, initialValues, toPayload } from '@/lib/project-form';
 import type { ProjectView } from '@/lib/types';
@@ -132,14 +133,7 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
               <Num path="settings.intake.mcpPollIntervalSec" label="MCP poll interval (seconds)" />
               <Text path="settings.jiraApprovalStatuses.plan" label="Plan approved status" hint="REST mode: a ticket moved to this Jira status approves its plan." />
               <Text path="settings.jiraApprovalStatuses.breakdown" label="Breakdown approved status" />
-              <fieldset className="sm:col-span-2">
-                <legend className="text-sm">Status mapping (pipeline status to Jira status)</legend>
-                <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                  {TICKET_STATUSES.map((status) => (
-                    <Text key={status} path={`settings.jiraStatusMap.${status}`} label={status} placeholder="Not mapped" />
-                  ))}
-                </div>
-              </fieldset>
+              <StatusMapping projectId={project?.id} mode={values.jiraMode as 'rest' | 'mcp'} />
             </>
           )}
           {!jiraOn && <p className="text-sm text-muted sm:col-span-2">Jira is off. Tickets are pasted into the dashboard.</p>}

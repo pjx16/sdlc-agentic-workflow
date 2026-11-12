@@ -1,0 +1,47 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { ProjectSettingsSchema, approvalTarget, type TicketStatus } from '@sdlc/shared';
+import { PrismaService } from '../prisma/prisma.service';
+import { StateMachine } from '../state/state-machine.service';
+import { JiraNotConfiguredError, JiraClients } from './jira-clients';
+import { JiraUnavailableError } from './jira-client';
+
+/**
+ * Inbound approval, REST mode only (F15): for tickets awaiting plan or breakdown approval, read the issue's
+ * Jira status; if it equals the configured approval status, approve. Any other manual Jira change is ignored.
+ */
+@Injectable()
+export class ApprovalPoller {
+  private readonly logger = new Logger(ApprovalPoller.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly clients: JiraClients,
+    private readonly states: StateMachine,
+  ) {}
+
+  /** Returns how many tickets were approved. Throws JiraUnavailableError if Jira is down (the loop pauses intake). */
+  async check(): Promise<number> {
+    const tickets = await this.prisma.ticket.findMany({
+      where: { source: 'jira', externalKey: { not: null }, status: { in: ['AWAITING_PLAN_APPROVAL', 'AWAITING_BREAKDOWN_APPROVAL'] }, project: { enabled: true, jiraMode: 'rest' } },
+      include: { project: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    let approved = 0;
+    for (const ticket of tickets) {
+      const approvals = ProjectSettingsSchema.parse(ticket.project.settings).jiraApprovalStatuses;
+      if (!approvals.plan && !approvals.breakdown) continue;
+      try {
+        const { status } = await this.clients.forRest().readStatus(ticket.externalKey as string);
+        const next = approvalTarget(ticket.status as TicketStatus, status, approvals);
+        if (!next) continue;
+        await this.states.transition(ticket.id, next, 'jira', `approved in Jira (status "${status}")`);
+        approved++;
+      } catch (err) {
+        if (err instanceof JiraUnavailableError || err instanceof JiraNotConfiguredError) throw err;
+        // One bad ticket (deleted issue, no permission) must not stop the others.
+        this.logger.warn(`Approval check for ${ticket.key} failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    return approved;
+  }
+}

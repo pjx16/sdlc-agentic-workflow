@@ -15,7 +15,7 @@ export function FormProvider({ value, children }: { value: FormContextValue; chi
   return <FormContext.Provider value={value}>{children}</FormContext.Provider>;
 }
 
-function useForm(): FormContextValue {
+export function useForm(): FormContextValue {
   const ctx = useContext(FormContext);
   if (!ctx) throw new globalThis.Error('Form controls must be rendered inside <FormProvider>');
   return ctx;

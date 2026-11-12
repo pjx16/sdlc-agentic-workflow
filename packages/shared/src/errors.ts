@@ -14,5 +14,7 @@ export const ErrorCodes = {
   validation: 'validation_error',
   notFound: 'not_found',
   conflict: 'conflict',
+  invalidTransition: 'invalid_transition',
+  jiraError: 'jira_error',
   internal: 'internal_error',
 } as const;

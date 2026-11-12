@@ -1,5 +1,6 @@
 import { Injectable, Logger, type OnModuleDestroy } from '@nestjs/common';
 import { AdvisoryLock } from './loop/advisory-lock';
+import { RestartRecovery } from './loop/restart-recovery';
 import { WorkerLoop } from './loop/worker-loop';
 import { WorkerConfig } from './worker-config';
 
@@ -11,6 +12,7 @@ export class WorkerRunner implements OnModuleDestroy {
   constructor(
     private readonly config: WorkerConfig,
     private readonly loop: WorkerLoop,
+    private readonly recovery: RestartRecovery,
   ) {
     this.lock = new AdvisoryLock(config.databaseUrl);
   }
@@ -21,8 +23,10 @@ export class WorkerRunner implements OnModuleDestroy {
       this.logger.error('Another worker already holds the lock; refusing to start');
       return false;
     }
-    this.logger.log('Worker lock acquired; loop started');
-    this.loop.start(this.config.mirrorPollMs);
+    this.logger.log('Worker lock acquired');
+    await this.recovery.recover();
+    this.loop.start();
+    this.logger.log('Worker loop started');
     return true;
   }
 
