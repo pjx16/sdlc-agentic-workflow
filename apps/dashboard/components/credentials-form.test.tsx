@@ -6,12 +6,16 @@ import { CredentialsForm } from './credentials-form';
 
 const view = (key: CredentialView['key'], over: Partial<CredentialView> = {}): CredentialView => ({ key, source: 'unset', hint: null, verifiedAt: null, verifyError: null, updatedAt: null, ...over });
 const ALL: CredentialView['key'][] = ['claude_token', 'github_token', 'git_author_name', 'git_author_email', 'jira_base_url', 'jira_email', 'jira_api_token'];
+const refresh = vi.fn();
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }));
+
 const fetchMock = vi.fn();
 
 describe('CredentialsForm', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchMock);
     fetchMock.mockReset();
+    refresh.mockReset();
   });
 
   it('never renders a secret: only the last four characters as a hint, in an empty password input', () => {
@@ -37,6 +41,7 @@ describe('CredentialsForm', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/credentials/github_token', expect.objectContaining({ method: 'PUT', body: JSON.stringify({ value: 'ghp_abcdefghijklmnopqrstuvwxyz' }) })));
     expect(await screen.findByText('••••wxyz')).toBeInTheDocument();
     expect((screen.getByLabelText('GitHub token') as HTMLInputElement).value).toBe('');
+    expect(refresh).toHaveBeenCalled(); // so the setup banner is re-evaluated
   });
 
   it('shows the result of a connection test', async () => {

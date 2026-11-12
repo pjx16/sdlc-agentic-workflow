@@ -1,6 +1,7 @@
 'use client';
 
 import { CREDENTIAL_KEYS, type CredentialKey, type CredentialView } from '@sdlc/shared';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { formatDateTime } from '@/lib/ticket-status';
 
@@ -143,9 +144,13 @@ function Field({ view, onChange }: { view: CredentialView; onChange: (v: Credent
 
 /** The connection cards of the setup wizard and the settings page. Secrets are never rendered, only a hint of the last 4 characters. */
 export function CredentialsForm({ initial, encryptionKeyOk = true }: { initial: CredentialView[]; encryptionKeyOk?: boolean }) {
+  const router = useRouter();
   const [views, setViews] = useState(initial);
   const byKey = new Map(views.map((v) => [v.key, v]));
-  const update = (v: CredentialView) => setViews((all) => all.map((x) => (x.key === v.key ? v : x)));
+  const update = (v: CredentialView) => {
+    setViews((all) => all.map((x) => (x.key === v.key ? v : x)));
+    router.refresh(); // the setup banner lives in the shell layout, which stays mounted: re-fetch it
+  };
 
   return (
     <div className="space-y-6">
