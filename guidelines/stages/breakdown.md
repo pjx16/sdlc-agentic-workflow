@@ -1,24 +1,66 @@
-# Stage: breakdown
+# Stage: breakdown — split the plan into subtasks
 
-**Purpose.** Split the approved plan into small, ordered subtasks. Each subtask is later implemented on its own: tests first, then the code. Good subtasks keep each step easy to review and each commit safe to ship.
+## Goal
 
-**Inputs** (in the prompt): the ticket; the approved plan; the KB doc for the feature (if any); the maximum number of subtasks; on a retry, the previous breakdown and the developer's rejection note. The stack guideline and general rules are in your system prompt.
+Split an approved plan into small, ordered subtasks. Each one is a
+"junior engineer" task: precise enough that the tests and implement stages
+need no design decisions.
 
-**Steps**
-1. Read the plan and the ticket. List the distinct concerns (data, logic, API, UI, wiring, docs).
-2. Inspect the code that will change, using `rg -n` and about 60 lines around each hit, so the file lists are real.
-3. Order the work: foundations first (types, data, shared helpers), then features that use them, then wiring and UI.
-4. Write one subtask per concern. For each give `seq` (1..n), a short `title`, a `description` that says what to build and how it fits the plan, `acceptanceCriteria` (each one checkable by a test), the `files` it will touch, and `dependsOn` (seq numbers of earlier subtasks it needs).
-5. If you were given a rejection note, address every point and keep what was not criticised.
+## Inputs
 
-**Constraints**
-- One concern per subtask, about 400 changed lines or fewer.
-- Every subtask must build and pass the tests on its own, once the subtasks it depends on are done.
-- `seq` values are exactly 1..n. `dependsOn` may only list earlier `seq` values (never the same or a later one), so there are no cycles.
-- At most the maximum number of subtasks given in the prompt. If the work needs more, make the subtasks bigger rather than exceeding the limit.
-- At least one acceptance criterion per subtask. Do not go beyond the scope of the ticket and plan. The workspace is read-only.
+- the ticket
+- the approved plan (this is the source of truth; the developer may have
+  edited it)
+- the feature doc, if any
+- any rejection note from the developer, with the previous breakdown
 
-**Output `data`**
-`{ "subtasks": [{ "seq": number, "title": string, "description": string, "acceptanceCriteria": string[], "files": string[], "dependsOn": number[] }] }`
+## Steps
 
-**`needs_input`.** Only when the plan leaves a decision open that changes how the work must be split, and the ticket, plan, KB and code cannot settle it.
+1. Read the plan's **Changes** and **Acceptance criteria**.
+2. Group the changes into subtasks using the rules below.
+3. Give each subtask its files, criteria, and dependencies.
+4. Check that every acceptance criterion in the plan is covered by at least
+   one subtask.
+
+## Splitting rules
+
+- **One concern per subtask.** One behaviour, one fix, or one refactor.
+- **Small.** About 400 changed lines or fewer, tests included.
+- **Foundations first.** Types, DTOs, schemas, and shared helpers come before
+  the code that uses them.
+- **Each subtask stands alone.** After it, the project builds and its tests
+  pass, even if later subtasks never run.
+- **Refactors separate.** A pure move or rename is its own subtask, before
+  the behaviour change that needs it.
+- **No new scope.** Nothing that is not in the plan.
+- **Fewer is better.** Do not split a small change just to have more
+  subtasks. One subtask is a valid answer.
+
+## Writing each subtask
+
+- `title`: imperative, under 70 characters ("Add cancellation reason to
+  booking DTO").
+- `description`: 2–5 sentences. Name the function or component, what it must
+  do, and any detail from the plan the implementer needs. No "and also".
+- `acceptanceCriteria`: testable statements, each one becoming one test.
+  Include the edge cases the plan names (empty input, missing field, error
+  path).
+- `files`: the files expected to change, from the plan. Include the test
+  file location if the repository has a clear convention.
+- `dependsOn`: `seq` numbers of earlier subtasks only.
+
+## Rules
+
+- The workspace is read-only. Read code only to confirm a file or function
+  exists.
+- `seq` runs 1..n with no gaps.
+- Use `needs_input` only if the plan contradicts itself or names code that
+  does not exist.
+
+## Output `data`
+
+```json
+{ "subtasks": [
+  { "seq": 1, "title": "…", "description": "…",
+    "acceptanceCriteria": ["…"], "files": ["…"], "dependsOn": [] } ] }
+```

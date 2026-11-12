@@ -1,22 +1,55 @@
-# Stage: fix
+# Stage: fix — fix exactly what failed
 
-**Purpose.** Repair a failing implementation. The tests (or the typecheck) failed after the `implement` stage; you are given the output and must make them pass.
+## Goal
 
-**Inputs** (in the prompt): the failure output (the last 60 lines of the typecheck or test run); the subtask it belongs to. On later rounds the output is from the run after your previous fix. The stack guideline and general rules are in your system prompt.
+Fix one specific set of problems and nothing else. The prompt's
+**Failure output** section tells you which of three cases you are in:
 
-**Steps**
-1. Read the failure output carefully. Identify which assertion, type error or exception failed and why.
-2. Find the responsible code with `rg -n` and read about 60 lines around it.
-3. Change the implementation so the failing behaviour is correct. Fix the cause, not the symptom.
-4. List the files you changed in `filesChanged`.
+- **tests** — test or typecheck output: the targeted tests or typecheck
+  failed after implementation
+- **review** — a list of findings (`file`, `line`, `issue`, `rule`, `fix`):
+  the review stage found critical or high issues
+- **ci** — a CI log tail: the pull request's CI checks failed
 
-**Constraints**
-- Change the implementation, never the tests. Test files are restored to their original content before the next run, so edits to them are discarded and the same failure will come back.
-- Keep the change small and inside the subtask. Do not rewrite unrelated code.
-- Edit files only: never run `git commit`, `git push`, `git reset` or any command that changes history.
-- If the failure shows an environment problem (a missing dependency, a broken command) rather than a code problem, say so in `summary` instead of working around it in the code.
+## Inputs
 
-**Output `data`**
-`{ "filesChanged": string[] }`
+- the failure output (the last 60 lines of test or CI output, or the list of
+  review findings)
+- the subtask and its acceptance criteria, when relevant
 
-**`needs_input`.** Only when the failure cannot be resolved without a decision that the ticket, plan, KB, tests and code do not settle.
+## Steps
+
+1. Read the failure. Find the **root cause**, not the first line of the
+   stack trace. Read the code at the cited lines.
+2. Make the smallest change that removes the cause.
+3. Verify:
+   - Tests: run typecheck and the targeted tests again.
+   - Review: re-read the lines each finding cites and confirm the issue
+     is gone.
+   - CI: reproduce the failing command locally if it is a test, lint, or
+     typecheck command; otherwise reason from the log.
+4. Read your diff once before finishing.
+
+## Rules
+
+- **Never edit test files** written by the tests stage. If a test is wrong,
+  return `needs_input` with the test name and the evidence.
+- Fix the cause, not the symptom: no special-casing test inputs, no
+  `// @ts-ignore`, no `eslint-disable`, no skipped tests, no weakened
+  assertions.
+- For review findings: fix every finding you were given. If you disagree
+  with one, do not fix it; explain why with evidence in `summary`, and it
+  will be shown to the developer.
+- Change nothing outside the problem. No refactors, no renames, no
+  formatting changes in untouched code.
+- If CI fails for a reason the code cannot fix (missing secret, flaky
+  infrastructure, expired token), return `blocked` and say so.
+
+## Output `data`
+
+```json
+{ "filesChanged": ["src/bookings/cancel.service.ts"] }
+```
+
+In `summary`, list each problem and what you did about it, one short line
+each.

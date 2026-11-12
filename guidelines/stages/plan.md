@@ -1,24 +1,72 @@
-# Stage: plan
+# Stage: plan — decide the approach
 
-**Purpose.** Produce an implementation plan for the ticket that a developer can approve, and that the breakdown stage can split into subtasks.
+## Goal
 
-**Inputs** (in the prompt): the ticket; the KB doc for the feature (if any); on a retry, the previous plan and the developer's rejection note. The stack guideline and general rules are in your system prompt.
+Turn one ticket into a plan a human can approve in a few minutes and a
+cheaper model can break into subtasks without making design decisions.
 
-**Steps**
-1. Read the ticket and the KB doc. Identify what must change and why.
-2. Inspect the code that will change: find it with `rg -n`, read about 60 lines around hits, and check how similar things are already done.
-3. Write the plan in markdown with these sections: **Goal**, **Approach** (the main changes, in order, naming files and functions), **Tests** (what will be tested, per behaviour), **Out of scope**.
-4. List `risks`: things that could go wrong or need care (migrations, compatibility, performance, security). Keep each to one line.
-5. List `openQuestions` only for genuine unknowns that do not block the plan; the developer will see them when approving.
-6. If you were given a rejection note, address every point in it and say what changed.
+## Inputs
 
-**Constraints**
-- The workspace is read-only. Do not edit files.
-- Plan only what the ticket asks for. No refactors for taste, no extra features.
-- Prefer the repository's existing patterns. Name real files and functions you have looked at.
-- Keep it short enough to review in a few minutes.
+- the ticket (title, body, type)
+- the feature doc from the knowledge base, if one exists
+- any rejection note from the developer, with the previous plan
 
-**Output `data`**
-`{ "planMarkdown": string, "risks": string[], "openQuestions": string[] }`
+## Steps
 
-**`needs_input`.** Only when a decision is missing that you cannot make from the ticket, the KB and the code, and a wrong guess would waste the whole plan. Put the question in `question`.
+1. Read the ticket and the feature doc. Restate the goal to yourself in one
+   sentence.
+2. Check the doc's claims only where the plan depends on them. Use `rg -n`
+   and read about 60 lines per hit. The workspace is read-only.
+3. Decide the approach. If there is a real choice, compare 2–3 options and
+   pick one.
+4. List the files to change and the order of the work.
+5. Write the risks and the questions only the developer can answer.
+
+If there is a rejection note, address every point in it and say how.
+
+## `planMarkdown` structure (keep it to one screen)
+
+```markdown
+## Goal
+One sentence: what changes for whom.
+
+## Current behaviour
+2–4 bullets, each with `file:line`. (For bugs: the root cause, with the
+line that proves it.)
+
+## Approach
+What we will do and why. If options were weighed:
+- **Option A** — trade-off
+- **Option B** — trade-off
+- **Chosen:** A, because …
+
+## Changes
+- `path/to/file.ts` — what changes
+- …
+
+## Acceptance criteria
+Testable checklist. Copy the ticket's criteria; add any that are implied.
+
+## Out of scope
+What this ticket does NOT do.
+```
+
+## Rules
+
+- Plan only. Do not write code.
+- Every claim about current behaviour cites `file:line`. Mark anything you
+  did not check as "not verified".
+- Prefer the smallest change that meets the acceptance criteria. Follow
+  existing patterns; do not propose refactors the ticket does not need.
+- Flag in `risks` anything touching data, database schema, public API,
+  events, auth, or secrets.
+- `openQuestions` are only questions that change the plan. If the plan can
+  go ahead with a reasonable default, choose it and say so in the plan.
+- Use `needs_input` only when you cannot write a sensible plan without the
+  answer (for example, two contradictory requirements).
+
+## Output `data`
+
+```json
+{ "planMarkdown": "…", "risks": ["…"], "openQuestions": ["…"] }
+```

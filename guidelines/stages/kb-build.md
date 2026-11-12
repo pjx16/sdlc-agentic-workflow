@@ -1,26 +1,52 @@
-# Stage: kbBuild
+# Stage: kbBuild — find or create the feature doc
 
-**Purpose.** Make sure the ticket's feature has a knowledge-base doc that later stages (plan, breakdown, tests, implement, review) can rely on. Either pick an existing doc, or write a new one.
+## Goal
 
-**Inputs** (in the prompt): the ticket; the keys already in the KB index; the KB directory and the line limit; the stack guideline.
+Give later stages a short, accurate doc for the feature this ticket touches,
+so they do not have to explore the codebase themselves.
 
-**Steps**
-1. Read the ticket. Decide which feature it touches.
-2. If one of the listed index keys is clearly that feature, return `isNew: false` with that exact key. Do not write a doc.
-3. Otherwise choose a new `featureKey` (lower-case letters, digits, dot, dash or underscore; short; not in the index) and write the doc at `<kbDir>/<featureKey>.md`, following the doc template.
-4. Explore the code to write it: find entry points with `rg -n`, read about 60 lines around each hit, follow the flow, and note data touched and external calls.
-5. Return the result.
+## Inputs
 
-**Constraints**
-- The workspace is writable, but you may change only files under the KB directory. Anything else is reverted.
-- Do not edit `features.json`; the orchestrator updates the index.
-- Do not copy code into the doc: point to `file:line`. No changelog, no speculation: unknowns go under *Open questions*.
-- Respect the line limit. Keep the doc about this feature only.
-- `isNew: false` requires a key from the index; any other key fails the attempt.
+- the ticket
+- the list of feature keys already in `<kbDir>/features.json`
+- the doc template (`kb-doc-template.md`)
 
-**Output `data`**
-`{ "featureKey": string, "isNew": boolean, "docPath": string, "globs": string[] }`
-- `docPath`: the doc's path relative to the repository root (for an existing doc, the path of its file).
-- `globs`: the source paths the feature lives in, such as `src/bookings/**`.
+## Steps
 
-**`needs_input`.** Only if the ticket is too ambiguous to tell what feature it concerns and nothing in the repository settles it.
+1. **Pick the feature.** If the ticket clearly belongs to an existing key,
+   return that key with `isNew: false` and stop. Edit nothing.
+2. **Name a new feature.** Otherwise choose a new key: lower-case, hyphenated,
+   named after the feature, not the ticket (`bookings`, not
+   `fix-booking-date`).
+3. **Locate the code.** Search for the ticket's nouns, routes, and handlers
+   with `rg -n`. Start from the entry point (route, controller, job, page) and
+   follow the calls inward. Stop as soon as you can describe the flow. Aim for
+   no more than 20 tool calls.
+4. **Write the doc** at `<kbDir>/<key>.md`, following the template.
+5. **Return the result.** Do not touch `features.json`: the orchestrator
+   writes the index entry (title, doc path, globs, commit, date) from your
+   `data`.
+
+## Rules
+
+- Change only files under `<kbDir>`. Anything else is reverted. Never edit
+  `features.json`.
+- Describe what the code does **now**, not what the ticket wants.
+- Every step in **Flow** cites `file:line`.
+- No code block longer than 5 lines. Point to the code instead of copying it.
+- Anything you inferred but did not check goes under **Open questions**,
+  marked "not verified".
+- `globs` are as narrow as possible: the folders where this feature lives.
+
+## Output `data`
+
+```json
+{ "featureKey": "bookings", "isNew": true,
+  "docPath": "docs/features/bookings.md", "globs": ["src/bookings/**"] }
+```
+
+When `isNew` is false, `featureKey` must be a key from the input list.
+
+`needs_input` only if the ticket is too ambiguous to tell which feature it
+concerns and nothing in the repository settles it. Use `blocked` only if no
+code related to the ticket exists at all.

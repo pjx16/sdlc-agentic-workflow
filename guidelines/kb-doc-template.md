@@ -1,36 +1,36 @@
-# Knowledge-base doc template
-
-One markdown file per feature, named `<featureKey>.md`. At most the number of lines given in the prompt (`kbDocMaxLines`).
-Write for a developer who has never seen this code and needs to change it safely.
-
-**Rules.** Describe what exists today. Do not copy code (point to `file:line`). Do not write a changelog. Do not speculate:
-if you are not sure, put it under *Open questions*.
-
----
-
-```markdown
 # <Feature title>
 
+<!-- Knowledge-base doc. Describes the code as it is now. At most the number of lines given in the prompt (`kbDocMaxLines`).
+     Every Flow step cites file:line. No code blocks over 5 lines. -->
+
 ## Overview
-Two to four sentences: what the feature does, who uses it, and where it lives.
+
+2–4 sentences: what the feature does, for whom, and why it exists.
 
 ## Entry points
-- `path/to/file.ts:42` — what triggers the feature (route, handler, job, event, UI action).
+
+- `METHOD /route` — `path/to/controller.ts:12` — what it does
+- Job / event / page — `path:line` — what triggers it
 
 ## Flow
-1. `path/to/file.ts:42` — what happens first.
-2. `path/to/other.ts:17` — what happens next.
-3. ...
+
+1. Step in plain words — `path/to/file.ts:40`
+2. …
 
 ## Data touched
-- Tables, collections, files or caches that are read or written, and by which step.
+
+- Entity / table / collection — fields read or written, and where
+  (`path:line`)
 
 ## External calls
-- Other services, APIs or queues this feature calls, and what it sends.
+
+- Service or API — what is called, when, and what happens on failure
+  (`path:line`)
 
 ## Edge cases and business rules
-- Rules that are easy to break: limits, ordering, idempotency, permissions, validation.
+
+- Rule in one sentence — `path:line`
 
 ## Open questions
-- Things that could not be confirmed from the code.
-```
+
+- Anything unclear or not verified. Remove an entry once the code answers it.
