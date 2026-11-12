@@ -1,4 +1,7 @@
 import 'reflect-metadata';
+import { mkdirSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { WorkerConfig } from '../worker-config';
 import { VerifyService, buildTestCommand, shellQuote } from '../verify/verify.service';
@@ -39,6 +42,15 @@ describe('buildCreateOptions (BUILD_PLAN 6.4, F5)', () => {
   it('mounts the workspace read-only for read-only stages', () => {
     const binds = buildCreateOptions(spec({ workspace: { path: '/w', readOnly: true } })).HostConfig?.Binds;
     expect(binds).toContain('/w:/workspace:ro');
+  });
+
+  it('mounts .git read-only over a read-write workspace, but not for read-only specs or workspaces without .git', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'ws-'));
+    mkdirSync(path.join(dir, '.git'));
+    const rw = buildCreateOptions(spec({ workspace: { path: dir, readOnly: false } })).HostConfig?.Binds ?? [];
+    expect(rw.indexOf(`${dir}/.git:/workspace/.git:ro`)).toBeGreaterThan(rw.indexOf(`${dir}:/workspace:rw`));
+    expect(buildCreateOptions(spec({ workspace: { path: dir, readOnly: true } })).HostConfig?.Binds?.join(' ')).not.toContain('/workspace/.git');
+    expect(buildCreateOptions(spec()).HostConfig?.Binds?.join(' ')).not.toContain('/workspace/.git');
   });
 
   it('hides files with an empty read-only bind mount (CLAUDE.md mode ours)', () => {
@@ -157,6 +169,7 @@ describe('Verify.runCmd', () => {
     expect(res.output.split('\n')).toHaveLength(100);
     const created = engine.created[0];
     expect(created?.Cmd).toEqual(['run-cmd']);
+    expect(created?.Env).toContain('HUSKY=0');
     expect(created?.Env).toContain('CMD=npx tsc --noEmit');
     expect(created?.Env).toContain('VERIFY_TIMEOUT=60');
     expect(created?.Env?.join(' ')).not.toContain('CLAUDE_CODE_OAUTH_TOKEN');

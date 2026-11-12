@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import type Docker from 'dockerode';
 
 export const AGENT_LABEL = 'sdlc.agent=true';
@@ -44,6 +46,8 @@ export function buildCreateOptions(spec: ContainerSpec): Docker.ContainerCreateO
   const binds: string[] = [];
   if (spec.workspace) {
     binds.push(`${spec.workspace.path}:/workspace:${spec.workspace.readOnly ? 'ro' : 'rw'}`);
+    // The worker runs git in this directory with credentials: an agent must not be able to change .git/config, hooks or refs.
+    if (!spec.workspace.readOnly && existsSync(path.join(spec.workspace.path, '.git'))) binds.push(`${spec.workspace.path}/.git:/workspace/.git:ro`);
     for (const name of spec.workspace.hide?.names ?? []) binds.push(`${spec.workspace.hide?.emptyFile}:/workspace/${name}:ro`);
   }
   if (spec.contextDir) binds.push(`${spec.contextDir}:/context:ro`);

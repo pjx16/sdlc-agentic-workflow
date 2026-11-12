@@ -50,6 +50,7 @@ export class VerifyService {
           HTTP_PROXY: 'http://proxy:3128',
           NO_PROXY: 'localhost,127.0.0.1',
           npm_config_cache: '/npm-cache',
+          HUSKY: '0', // `prepare` scripts must not write git config: .git is read-only in the container
         },
         workspace: { path: args.workspace, readOnly: false },
         memory: this.config.agentMemory,
