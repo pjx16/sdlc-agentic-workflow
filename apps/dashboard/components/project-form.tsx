@@ -97,7 +97,7 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
 
         <Section title="Repository">
           <Text path="name" label="Name" />
-          <Text path="repoUrl" label="Repository URL" placeholder="https://github.com/owner/repo" hint="HTTPS only." />
+          <Text path="repoUrl" label="Repository URL" placeholder="https://github.com/owner/repo" hint="HTTPS github.com repositories only." />
           <Text path="baseBranch" label="Base branch" />
           <Select path="stack" label="Stack" options={options(PROJECT_STACKS)} hint="Pre-fills the three commands below." />
           <Text path="localKeyPrefix" label="Local ticket prefix" hint="Used for pasted tickets, e.g. BILL-1. Default: first 4 letters of the name." />

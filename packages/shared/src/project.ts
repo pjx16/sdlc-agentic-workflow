@@ -34,7 +34,7 @@ export const ProjectInputSchema = z
       .string({ error: 'required' })
       .trim()
       .min(1, 'required')
-      .refine((v) => /^https:\/\/[^\s/]+\/\S+$/.test(v), 'must be an HTTPS repository URL'),
+      .refine((v) => /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?(\.git)?\/?$/.test(v), 'must be an HTTPS github.com repository URL'),
     baseBranch: z
       .string()
       .trim()

@@ -90,9 +90,16 @@ describe('ProjectInput', () => {
   });
 
   it('requires an HTTPS repository URL', () => {
-    for (const repoUrl of ['http://github.com/a/b', 'git@github.com:a/b.git', 'github.com/a/b', '']) {
+    for (const repoUrl of ['http://github.com/a/b', 'git@github.com:a/b.git', 'github.com/a/b', '', 'https://gitlab.com/a/b', 'https://github.com.evil.io/a/b', 'https://github.com/a', 'https://user@github.com/a/b', 'https://github.com/a/b@evil', 'https://github.com@evil.io/a/b']) {
       expect(ProjectInputSchema.safeParse({ ...valid, repoUrl }).success, repoUrl).toBe(false);
     }
+  });
+
+  it('accepts github.com repository URLs, with or without .git', () => {
+    for (const repoUrl of ['https://github.com/acme/billing', 'https://github.com/acme/billing.git']) {
+      expect(ProjectInputSchema.safeParse({ ...valid, repoUrl }).success, repoUrl).toBe(true);
+    }
+    expect(zodFields(ProjectInputSchema.safeParse({ ...valid, repoUrl: 'https://gitlab.com/a/b' }).error!).repoUrl).toBe('must be an HTTPS github.com repository URL');
   });
 
   it('reports every missing required field', () => {
