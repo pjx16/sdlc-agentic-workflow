@@ -1,8 +1,23 @@
 # sdlc-agent
 
+[![CI](https://github.com/pjx16/sdlc-agentic-workflow/actions/workflows/ci.yml/badge.svg)](https://github.com/pjx16/sdlc-agentic-workflow/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/pjx16/sdlc-agentic-workflow?include_prereleases)](https://github.com/pjx16/sdlc-agentic-workflow/releases)
+[![License: MIT](https://img.shields.io/github/license/pjx16/sdlc-agentic-workflow)](./LICENSE)
+
 A self-hosted, Docker-based **shipping engine** for solo developers. It turns tickets into reviewable pull requests with AI agents, while keeping AI usage lean and never giving agents access to your machine or credentials.
 
-> **Status: version 1, feature-complete.** All 14 milestones in [`BUILD_PLAN.md`](./BUILD_PLAN.md) are implemented and covered by unit, integration and browser tests (a stand-in plays Claude in those). One small real ticket has run end to end with live Claude, from a pasted ticket to a merged PR (see [Live end-to-end run](#live-end-to-end-run)). Larger tickets, review findings, CI failures and Jira have not been exercised live. Expect rough edges, and please report them.
+> [!WARNING]
+> **Status: under development.** This is a `0.0.0` pre-release. It is published so I can use it on my own projects and find what breaks. It is not production-ready, and it is not supported for anyone else.
+>
+> **Known limits**
+> - Only TypeScript/JavaScript stacks (Node.js, NestJS, Next.js) for now.
+> - Single user, password login.
+> - Agents run with full permissions inside their Docker containers. Don't point it at repositories you can't afford to lose, and don't run it on a machine that holds credentials you don't want exposed.
+> - The Claude usage pause is a guard, not a guarantee. Check your plan's limits yourself.
+>
+> Feedback and bug reports are welcome, but expect breaking changes until `0.1.0`.
+
+**What has been tested.** The milestones in [`BUILD_PLAN.md`](./BUILD_PLAN.md) are implemented and covered by unit, integration and browser tests (a stand-in plays Claude in those). One small real ticket has run end to end with live Claude, from a pasted ticket to a merged PR (see [Live end-to-end run](#live-end-to-end-run)). Larger tickets, review findings, CI failures and Jira have not been exercised live.
 
 ## What it does
 
@@ -72,13 +87,23 @@ The full flow, state machine and acceptance criteria are in [`BUILD_PLAN.md`](./
 ## Security model
 
 - Agent containers run as a non-root user with all capabilities dropped, `no-new-privileges`, memory/CPU/pid limits, a wall-clock timeout and **no Docker socket**.
-- Their only network path is an egress proxy (Squid) that allows just the Anthropic API and the npm registry. Their only secret is the Claude token.
-- The worker holds the GitHub and Jira credentials. It runs repository code only inside agent containers and commits with git hooks disabled.
-- The API is not published to the host, and the dashboard binds to `127.0.0.1` by default.
-- Secrets are redacted from logs and from everything shown in the dashboard.
+- The workspace's `.git` directory is mounted **read-only** in every agent container, so an agent can edit files but cannot change git config, hooks or refs.
+- Their only network path is an egress proxy (Squid) that allows just HTTPS tunnels to the Anthropic API and the npm registry. Their only secret is the Claude token.
+- The worker holds the GitHub and Jira credentials. It runs repository code only inside agent containers, and runs git with hooks, fsmonitor, credential helpers and non-HTTPS protocols disabled. It pushes to the repository URL stored for the project, never to the workspace's `origin`.
+- Repositories are restricted to `https://github.com/...`, and the GitHub token is only ever handed to github.com.
+- The worker never follows symlinks when it reads or writes files in an agent-written workspace.
+- The API is not published to the host, and the dashboard binds to `127.0.0.1` by default. The API refuses cross-site state-changing requests, and the dashboard sends anti-framing and `nosniff` headers.
+- Secrets are redacted from logs (including the session cookie) and from everything shown in the dashboard.
 - Ticket text and repository content are treated as untrusted data, never as instructions.
 - Agents have no access to merge. There is no auto-merge.
 - You are encouraged to enable branch protection on every base branch.
+
+**Residual risks**
+
+- The worker runs as root with the Docker socket, which is equivalent to root on the host. Run it on a dedicated VM or machine.
+- Agents can reach the Anthropic API and the npm registry, and a prompt-injected agent could use them to send repository content out. Only use repositories whose content you are comfortable sending to those services.
+- The npm cache volume is shared between projects.
+- Never publish the dashboard beyond `127.0.0.1` without a TLS reverse proxy and `COOKIE_SECURE=true`.
 
 ## Tech stack
 
@@ -101,7 +126,7 @@ Supported target stacks: TypeScript/Node, NestJS and Next.js.
 
 ![System diagram](./docs/architecture/v1.0.0/diagrams/system.svg)
 
-The architecture is documented per version in [`docs/architecture`](./docs/architecture/README.md); the current one is [1.0.0](./docs/architecture/v1.0.0/README.md), with diagrams that GitHub renders: the system and its containers, trust boundaries (which secret lives where), the ticket lifecycle, the subtask loop, the worker loop, stages and models, and the data model. It ends with a change log. The folder also holds the architecture change log. **If you change the structure, add a new version folder in the same pull request** (the rules are in the index).
+The architecture is documented per version in [`docs/architecture`](./docs/architecture/README.md); the current one is the [architecture docs (1.0.0)](./docs/architecture/v1.0.0/README.md), with diagrams that GitHub renders: the system and its containers, trust boundaries (which secret lives where), the ticket lifecycle, the subtask loop, the worker loop, stages and models, and the data model. It ends with a change log. The folder also holds the architecture change log. **If you change the structure, add a new version folder in the same pull request** (the rules are in the index).
 
 ## Setup
 
@@ -110,6 +135,30 @@ Requirements:
 - Docker and Docker Compose, on macOS or a Linux VM (the host user must be able to use the Docker socket)
 - Access to Claude Code: a token from `claude setup-token`
 - A GitHub repository to ship into, and optionally a Jira Cloud project
+
+### Install a release
+
+Releases are published on [GitHub Releases](https://github.com/pjx16/sdlc-agentic-workflow/releases). Nothing is built on your machine: the images come from GHCR.
+
+```bash
+# Download sdlc-agent-<version>.tar.gz and SHA256SUMS from the release page, then:
+shasum -a 256 -c SHA256SUMS            # macOS; on Linux: sha256sum -c SHA256SUMS
+tar -xzf sdlc-agent-<version>.tar.gz
+cd sdlc-agent-<version>
+cp .env.example .env                   # fill in the values described under Configuration (SDLC_VERSION is already set)
+mkdir -p "$(grep ^DATA_DIR= .env | cut -d= -f2)"
+docker compose up -d
+```
+
+The worker pulls the agent image on its first start, so the first run takes a little longer. Then open `http://localhost:3000`, log in with `DASHBOARD_PASSWORD`, and add a project.
+
+The images are published to GHCR with provenance attestations. To verify one (needs the GitHub CLI):
+
+```bash
+gh attestation verify oci://ghcr.io/pjx16/sdlc-agent-api:<version> --owner pjx16
+```
+
+### Run from source
 
 ```bash
 git clone https://github.com/pjx16/sdlc-agentic-workflow.git
@@ -138,7 +187,7 @@ To stop: `docker compose down`. The database lives in a Docker volume and surviv
 
 Open **Projects → New** and enter:
 
-- **Name**, **repository URL** (HTTPS, for example `https://github.com/acme/billing`) and **base branch** (default `dev`).
+- **Name**, **repository URL** (an HTTPS `github.com` URL, for example `https://github.com/acme/billing`) and **base branch** (default `dev`).
 - **Stack** (TypeScript/Node, NestJS or Next.js). Choosing it pre-fills the install, typecheck and targeted-test commands; all are editable. The test command must contain `{files}`.
 - **Knowledge-base directory**, relative to the repository root (default `docs/kb`).
 - **CLAUDE.md mode**: `ours` (our defaults, the repository's own `CLAUDE.md` is hidden from Claude), `theirs` (only the repository's), or `both`.
@@ -229,7 +278,7 @@ The end-to-end suite starts its own Postgres container and the API and dashboard
 
 ## Roadmap
 
-Version 1 was built in 14 milestones, defined in [`BUILD_PLAN.md`](./BUILD_PLAN.md) and split into sub-tasks in [`SUB_TASKS.md`](./SUB_TASKS.md):
+The first build was split into 14 milestones, defined in [`BUILD_PLAN.md`](./BUILD_PLAN.md) and split into sub-tasks in [`SUB_TASKS.md`](./SUB_TASKS.md):
 
 | # | Milestone | State |
 | --- | --- | --- |
@@ -271,7 +320,7 @@ Not exercised in these runs: a review that finds issues, CI failures, support qu
 
 ## Scope and known limitations
 
-Out of scope for v1: a QA agent or post-merge testing, concurrency above 1, Jira webhooks or intake other than Jira and paste, git hosts other than GitHub (HTTPS only, no SSH URLs), multiple users or roles, stacks other than TS/Node, NestJS and Next.js, notifications, auto-merge, and cloud deployment scripts.
+Out of scope for now: a QA agent or post-merge testing, concurrency above 1, Jira webhooks or intake other than Jira and paste, git hosts other than GitHub (HTTPS only, no SSH URLs), multiple users or roles, stacks other than TS/Node, NestJS and Next.js, notifications, auto-merge, and cloud deployment scripts.
 
 Known limitations:
 
@@ -284,19 +333,17 @@ Known limitations:
 - A failed first dependency install leaves a half-installed `node_modules`, and Retry skips the reinstall. Delete the workspace's `node_modules` and reinstall, or delete the workspace (see the live run notes).
 - Creating a ticket through the API requires the text in `body`; unknown fields are rejected.
 
+## Releases and versioning
+
+Versions follow [semantic versioning](https://semver.org/). `0.0.x` releases are pre-releases for the author's own use, and breaking changes (database migrations, configuration, API) are allowed until `0.1.0`. See [`CHANGELOG.md`](./CHANGELOG.md) before upgrading.
+
 ## Contributing
 
-Feedback on the design is welcome, and code contributions can be discussed in an issue first.
-
-- Open an issue to discuss ideas, questions or problems with the plan.
-- Please read [`BUILD_PLAN.md`](./BUILD_PLAN.md) first. Features outside its scope (§2) will not be accepted into v1.
-- Use npm and Turborepo only (no pnpm or yarn). Commits must not carry `Co-Authored-By` trailers or AI attribution.
-
-See [`CONTRIBUTING.md`](./CONTRIBUTING.md) and the [Code of Conduct](./CODE_OF_CONDUCT.md) (both are placeholders for now, to be expanded before the first release).
+Bug reports and feedback are welcome through issues. Pull requests are not accepted yet, except small fixes agreed in an issue first. See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the ground rules, and [`SECURITY.md`](./SECURITY.md) for how to report a vulnerability.
 
 ## Security
 
-Please do **not** report security vulnerabilities in public issues. Use GitHub's private vulnerability reporting (the repository's **Security** tab → **Report a vulnerability**) once it is enabled. See [`SECURITY.md`](./SECURITY.md) (a placeholder for now).
+Please do **not** report security vulnerabilities in public issues. Use GitHub's private vulnerability reporting (the repository's **Security** tab → **Report a vulnerability**). See [`SECURITY.md`](./SECURITY.md) for the threat model and the known residual risks.
 
 This tool runs AI-generated code and holds a GitHub token. Review the [security model](#security-model), use a fine-grained token limited to the repositories you need, and enable branch protection.
 
