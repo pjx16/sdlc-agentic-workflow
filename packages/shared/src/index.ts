@@ -1,4 +1,5 @@
 export * from './constants';
+export * from './credentials';
 export * from './enums';
 export * from './errors';
 export * from './global-settings';

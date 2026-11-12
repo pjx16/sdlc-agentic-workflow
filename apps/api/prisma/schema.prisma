@@ -365,3 +365,22 @@ model Session {
 
   @@index([expiresAt])
 }
+
+/// A credential entered in the dashboard. Secrets hold an AES-256-GCM payload (v1.<iv>.<tag>.<ciphertext>), other values plain text.
+model Credential {
+  key         String    @id
+  value       String
+  isSecret    Boolean
+  hint        String?
+  verifiedAt  DateTime? @db.Timestamptz(6)
+  verifyError String?
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(6)
+}
+
+/// The single admin login created in the setup wizard (argon2 hash).
+model AdminAccount {
+  id           String   @id @default("admin")
+  passwordHash String
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(6)
+}

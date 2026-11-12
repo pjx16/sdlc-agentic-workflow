@@ -11,6 +11,7 @@ export type ErrorBody = z.infer<typeof ErrorBodySchema>;
 export const ErrorCodes = {
   unauthorized: 'unauthorized',
   forbidden: 'forbidden',
+  setupRequired: 'setup_required',
   tooManyRequests: 'too_many_requests',
   validation: 'validation_error',
   notFound: 'not_found',
