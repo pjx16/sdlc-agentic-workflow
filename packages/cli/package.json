@@ -1,0 +1,20 @@
+{
+  "name": "sdlc-agent",
+  "version": "0.0.0",
+  "description": "Install and run sdlc-agent, a self-hosted engine that turns tickets into reviewable pull requests with AI agents.",
+  "license": "MIT",
+  "bin": { "sdlc-agent": "dist/cli.js" },
+  "files": ["dist", "assets", "README.md", "LICENSE"],
+  "engines": { "node": ">=20" },
+  "repository": { "type": "git", "url": "git+https://github.com/pjx16/sdlc-agentic-workflow.git", "directory": "packages/cli" },
+  "homepage": "https://github.com/pjx16/sdlc-agentic-workflow#readme",
+  "bugs": "https://github.com/pjx16/sdlc-agentic-workflow/issues",
+  "keywords": ["ai", "agents", "claude", "jira", "github", "pull-requests", "self-hosted", "docker"],
+  "scripts": {
+    "build": "node scripts/copy-assets.mjs && tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src"
+  },
+  "publishConfig": { "access": "public", "provenance": true }
+}
