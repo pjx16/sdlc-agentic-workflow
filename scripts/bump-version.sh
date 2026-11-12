@@ -14,12 +14,14 @@ PREVIOUS=$(node -p "require('./package.json').version")
 TODAY=$(date +%Y-%m-%d)
 
 for pkg in package.json apps/*/package.json packages/*/package.json; do
+  # Replace only the top-level "version" line so the file keeps its formatting.
   node -e "
     const fs = require('fs');
-    const file = process.argv[1];
-    const json = JSON.parse(fs.readFileSync(file, 'utf8'));
-    json.version = process.argv[2];
-    fs.writeFileSync(file, JSON.stringify(json, null, 2) + '\n');
+    const [file, version] = process.argv.slice(1);
+    const text = fs.readFileSync(file, 'utf8');
+    const next = text.replace(/^(\\s*\"version\": \")[^\"]*(\")/m, '\$1' + version + '\$2');
+    if (next === text && JSON.parse(text).version !== version) { console.error('no version line in ' + file); process.exit(1); }
+    fs.writeFileSync(file, next);
   " "$pkg" "$VERSION"
 done
 npm install --package-lock-only >/dev/null

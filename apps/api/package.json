@@ -1,6 +1,6 @@
 {
   "name": "@sdlc/api",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "scripts": {
     "build": "prisma generate && tsc -p tsconfig.build.json",

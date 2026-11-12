@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-## [0.0.0] - 2026-11-12
+## [0.0.1] - 2026-11-13
 
 First public pre-release. Published so the author can use sdlc-agent on their own projects (including sdlc-agent itself) and find what breaks. Not production-ready and not supported for other users.
 
@@ -31,6 +31,8 @@ First public pre-release. Published so the author can use sdlc-agent on their ow
 - `DASHBOARD_PASSWORD` and the token variables are optional; `ENCRYPTION_KEY` is required.
 
 ### Fixed
+- Review comment tables escape backslashes before pipes, and settings updates ignore `__proto__`, `constructor` and `prototype` keys (CodeQL findings).
+- Files the agent creates are open to the worker's user (`umask 000`), and a non-root worker only changes permissions on files it owns, so the integration tests and a non-root worker work on Linux.
 - Jira intake no longer takes sub-tasks as tickets, including the sub-tasks the pipeline publishes for its own subtasks (it was picking those up and starting a new ticket for each).
 
 ### Security
@@ -46,6 +48,9 @@ First public pre-release. Published so the author can use sdlc-agent on their ow
 ### Removed
 - `SESSION_SECRET` is no longer required (it was never used for signing).
 
+### Changed (release tooling)
+- The release workflow skips the macOS smoke test on tags and fills in an existing GitHub release instead of failing; Dependabot no longer proposes major updates of Node, Postgres and TypeScript.
+
 ### Known limits
 - Only TypeScript/JavaScript stacks (Node.js, NestJS, Next.js).
 - Single user, password login.
@@ -53,5 +58,6 @@ First public pre-release. Published so the author can use sdlc-agent on their ow
 - The Claude usage pause is a guard, not a guarantee.
 - No `script-src` Content-Security-Policy on the dashboard yet.
 
-[Unreleased]: https://github.com/pjx16/sdlc-agentic-workflow/compare/v0.0.0...HEAD
+[Unreleased]: https://github.com/pjx16/sdlc-agentic-workflow/compare/v0.0.1...HEAD
+[0.0.1]: https://github.com/pjx16/sdlc-agentic-workflow/compare/v0.0.0...v0.0.1
 [0.0.0]: https://github.com/pjx16/sdlc-agentic-workflow/releases/tag/v0.0.0
