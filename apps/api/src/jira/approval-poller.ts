@@ -31,9 +31,12 @@ export class ApprovalPoller {
       const approvals = ProjectSettingsSchema.parse(ticket.project.settings).jiraApprovalStatuses;
       if (!approvals.plan && !approvals.breakdown) continue;
       try {
-        const { status } = await this.clients.forRest().readStatus(ticket.externalKey as string);
+        const issue = await this.clients.forRest().readStatus(ticket.externalKey as string);
+        const { status } = issue;
         const next = approvalTarget(ticket.status as TicketStatus, status, approvals);
         if (!next) continue;
+        // Plan approval: developer edits to the title and description made in Jira reach the breakdown stage (F7).
+        if (next === 'BREAKDOWN') await this.prisma.ticket.update({ where: { id: ticket.id }, data: { title: issue.summary || undefined, body: issue.description } });
         await this.states.transition(ticket.id, next, 'jira', `approved in Jira (status "${status}")`);
         approved++;
       } catch (err) {

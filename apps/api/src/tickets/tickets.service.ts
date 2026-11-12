@@ -2,7 +2,10 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { ErrorCodes, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, type TicketStatus } from '@sdlc/shared';
 import { ApiException } from '../common/api-exception';
 import { parseBody } from '../common/parse-body';
+import { z } from 'zod';
+import { JiraClients } from '../jira/jira-clients';
 import { PrismaService } from '../prisma/prisma.service';
+import { StateMachine } from '../state/state-machine.service';
 import { type TicketDto, toTicketDto } from './ticket.dto';
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
@@ -34,11 +37,18 @@ export interface TimelineBar {
   endedAt: string | null;
 }
 
+const ApproveBody = z.object({ planMarkdown: z.string().trim().min(1, 'must not be empty').max(100_000, 'must be at most 100000 characters').optional() });
+const RejectBody = z.object({ note: z.string({ error: 'required' }).trim().min(1, 'required').max(2000, 'must be at most 2000 characters') });
+
 const fieldError = (field: string, message: string) => new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Validation failed', { [field]: message });
 
 @Injectable()
 export class TicketsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly states: StateMachine,
+    private readonly jira: JiraClients,
+  ) {}
 
   /** GET /tickets, newest activity first. Filters: `projectId`, `status`. */
   async list(query: { projectId?: string; status?: string }): Promise<TicketListItem[]> {
@@ -125,5 +135,51 @@ export class TicketsService {
       return created;
     });
     return toTicketDto(ticket);
+  }
+
+  /** The plan gate only exists while a ticket is awaiting plan approval (409 otherwise). */
+  private async awaitingPlan(id: string) {
+    const ticket = await this.prisma.ticket.findUnique({ where: { id }, include: { project: true } });
+    if (!ticket) throw new ApiException(HttpStatus.NOT_FOUND, ErrorCodes.notFound, 'Ticket not found');
+    if (ticket.status !== 'AWAITING_PLAN_APPROVAL') {
+      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `The ticket is not awaiting plan approval (it is ${ticket.status})`);
+    }
+    return ticket;
+  }
+
+  /**
+   * POST /tickets/:id/plan/approve: stores the edited plan if one is sent, and in REST mode re-reads the issue's title and
+   * description so edits made in Jira reach the breakdown stage (F7). Then BREAKDOWN (row 5).
+   */
+  async approvePlan(id: string, body: unknown): Promise<TicketDto> {
+    const { planMarkdown } = parseBody(ApproveBody, body ?? {});
+    const ticket = await this.awaitingPlan(id);
+
+    if (planMarkdown !== undefined && planMarkdown !== ticket.planMarkdown) {
+      const { count } = await this.prisma.ticket.updateMany({ where: { id, status: 'AWAITING_PLAN_APPROVAL' }, data: { planMarkdown } });
+      if (count === 0) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'The ticket changed while it was being updated');
+    }
+    if (ticket.source === 'jira' && ticket.externalKey && ticket.project.jiraMode === 'rest') await this.refreshFromJira(ticket.id, ticket.key, ticket.externalKey);
+
+    const { ticket: updated } = await this.states.transition(id, 'BREAKDOWN', 'user', planMarkdown !== undefined && planMarkdown !== ticket.planMarkdown ? 'Plan approved with edits' : 'Plan approved');
+    return toTicketDto(updated);
+  }
+
+  /** POST /tickets/:id/plan/reject: the note goes back to the plan stage with the previous plan (row 6). */
+  async rejectPlan(id: string, body: unknown): Promise<TicketDto> {
+    const { note } = parseBody(RejectBody, body ?? {});
+    await this.awaitingPlan(id);
+    const { ticket } = await this.states.transition(id, 'PLANNING', 'user', note);
+    return toTicketDto(ticket);
+  }
+
+  /** Developer edits made in Jira reach the next stages. A Jira problem is recorded and never blocks the approval. */
+  private async refreshFromJira(ticketId: string, key: string, externalKey: string): Promise<void> {
+    try {
+      const issue = await this.jira.forRest().readStatus(externalKey);
+      await this.prisma.ticket.update({ where: { id: ticketId }, data: { title: issue.summary || undefined, body: issue.description } });
+    } catch (err) {
+      await this.prisma.event.create({ data: { ticketId, type: 'jira', message: `${key}: could not re-read the Jira issue: ${err instanceof Error ? err.message : String(err)}`.slice(0, 500) } });
+    }
   }
 }

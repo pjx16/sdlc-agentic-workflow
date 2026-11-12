@@ -1,0 +1,1 @@
+[{"result":{"status":"done","summary":"Plan ready","data":{"planMarkdown":"# Plan\\n- do it","risks":[],"openQuestions":[]}},"usage":{"input_tokens":100,"output_tokens":200},"rateLimit":{"status":"allowed","unifiedWindows":{"five_hour":{"utilization":0.25},"seven_day":{"utilization":0.05}}}}]

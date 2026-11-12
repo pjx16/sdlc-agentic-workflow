@@ -34,7 +34,13 @@ export interface StageInputs {
   ticket?: TicketInfo;
   kbDoc?: string;
   indexKeys?: string[];
+  /** For kbBuild: where the doc goes and how long it may be. */
+  kbDir?: string;
+  kbDocMaxLines?: number;
   plan?: string;
+  /** For a re-run of `plan` after a rejection (F7). */
+  previousPlan?: string;
+  rejectionNote?: string;
   subtask?: SubtaskInfo;
   testFiles?: string[];
   exampleTestFile?: string;
@@ -165,10 +171,15 @@ function planSections(stage: StageName, i: StageInputs): Plan {
 
   switch (stage) {
     case 'kbBuild':
-      sections.push(ticketFull(), { heading: 'Index keys', body: list(i.indexKeys ?? []) });
+      sections.push(ticketFull(), {
+        heading: 'Index keys',
+        body: `${list(i.indexKeys ?? [])}${i.kbDir ? `\n\nWrite a new doc under \`${i.kbDir}/\` (for example \`${i.kbDir}/<featureKey>.md\`)${i.kbDocMaxLines ? `, at most ${i.kbDocMaxLines} lines` : ''}.` : ''}`,
+      });
       break;
     case 'plan':
       sections.push(ticketFull(), kb());
+      if (i.previousPlan) sections.push({ heading: 'Previous plan', body: i.previousPlan });
+      if (i.rejectionNote) sections.push({ heading: 'Rejection note', body: `The developer rejected the previous plan with this note. Address every point.\n\n${i.rejectionNote}` });
       break;
     case 'breakdown':
       sections.push(ticketFull(), { heading: 'Approved plan', body: i.plan ?? '_No plan._' }, kb());

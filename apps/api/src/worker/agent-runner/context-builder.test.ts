@@ -78,6 +78,16 @@ describe('prompt.md (BUILD_PLAN 6.4)', () => {
     expect(read((await build('kbBuild')).runDir, 'prompt.md')).toContain('NEST GUIDELINE');
   });
 
+  it('adds the previous plan and the rejection note to a re-run of plan, and nothing on the first run', async () => {
+    const first = await build('plan');
+    expect(headings(read(first.runDir, 'prompt.md'))).not.toContain('Previous plan');
+    const rerun = await build('plan', {}, { previousPlan: '# Old plan', rejectionNote: 'Use the existing queue, not a new table' });
+    const prompt = read(rerun.runDir, 'prompt.md');
+    expect(headings(prompt)).toEqual(['Instructions', 'Ticket', 'KB doc', 'Previous plan', 'Rejection note', 'Output']);
+    expect(prompt).toContain('# Old plan');
+    expect(prompt).toContain('Use the existing queue, not a new table');
+  });
+
   it('omits the previous-findings section unless there are findings, and the subtask for fix when absent', async () => {
     const withFindings = await build('review', {}, { previousFindings: [{ id: 'f1', severity: 'high', file: 'a.ts', line: 3, issue: 'bad', rule: 'r', fix: 'fix it' }] });
     expect(headings(read(withFindings.runDir, 'prompt.md'))).toContain('Previous findings');

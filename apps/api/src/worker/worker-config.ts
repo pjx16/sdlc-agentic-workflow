@@ -5,6 +5,9 @@ export class WorkerConfig {
   readonly dataDir: string;
   readonly databaseUrl: string;
   readonly githubToken: string;
+  /** Identity for every commit (GIT_AUTHOR_NAME / GIT_AUTHOR_EMAIL). */
+  readonly authorName: string;
+  readonly authorEmail: string;
   readonly mirrorPollMs: number;
   readonly agentImage: string;
   readonly agentMemory: string;
@@ -25,6 +28,8 @@ export class WorkerConfig {
     this.dataDir = dataDir;
     this.databaseUrl = env.DATABASE_URL as string;
     this.githubToken = env.GITHUB_TOKEN ?? '';
+    this.authorName = env.GIT_AUTHOR_NAME ?? '';
+    this.authorEmail = env.GIT_AUTHOR_EMAIL ?? '';
     this.mirrorPollMs = Number(env.MIRROR_POLL_MS ?? 5000);
     this.agentImage = env.AGENT_IMAGE || 'sdlc-agent/agent:latest';
     this.agentMemory = env.AGENT_MEMORY || '4g';

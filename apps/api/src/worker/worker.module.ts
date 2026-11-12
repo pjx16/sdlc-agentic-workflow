@@ -13,9 +13,18 @@ import { LOG_SINK } from './agent-runner/log-sink';
 import { PrismaStageRunStore, STAGE_RUN_STORE } from './agent-runner/stage-run-store';
 import { CONTAINER_ENGINE, DockerodeEngine } from './agent-runner/container-engine';
 import { ContainerRunner } from './agent-runner/container-runner';
+import { GitRunner } from './git/git-runner';
 import { MirrorService } from './git/mirror.service';
+import { WorkspaceService } from './git/workspace.service';
 import { VerifyService } from './verify/verify.service';
 import { IntakePoller } from './intake/intake-poller';
+import { PlanHandler } from './pipeline/plan.handler';
+import { KB_BUILDER, KbHandler } from './pipeline/kb.handler';
+import { KbBuildService } from './pipeline/kb-build.service';
+import { StageLauncher } from './pipeline/stage-launcher';
+import { NewTicketHandler } from './pipeline/new-ticket.handler';
+import { STEP_HANDLERS, type StepHandler } from './pipeline/step-handler';
+import { StageOutcomes } from './pipeline/stage-outcomes';
 import { RestartRecovery } from './loop/restart-recovery';
 import { WorkerLoop } from './loop/worker-loop';
 import { WorkerConfig } from './worker-config';
@@ -24,7 +33,10 @@ import { WorkerRunner } from './worker-runner';
 /** The worker shares the database but has no HTTP surface and needs no dashboard credentials. */
 @Module({
   imports: [LoggingModule, PrismaModule, StateModule, JiraModule],
-  providers: [{ provide: WorkerConfig, useFactory: () => new WorkerConfig() }, MirrorService,
+  providers: [{ provide: WorkerConfig, useFactory: () => new WorkerConfig() },
+    MirrorService,
+    { provide: GitRunner, useFactory: (c: WorkerConfig) => new GitRunner({ githubToken: c.githubToken }), inject: [WorkerConfig] },
+    WorkspaceService,
     { provide: CONTAINER_ENGINE, useFactory: () => new DockerodeEngine() },
     ContainerRunner,
     { provide: STAGE_RUN_STORE, useClass: PrismaStageRunStore },
@@ -33,11 +45,19 @@ import { WorkerRunner } from './worker-runner';
     VerifyService,
     { provide: IntakePoller, useFactory: (prisma: PrismaService, clients: JiraClients) => new IntakePoller(prisma, clients), inject: [PrismaService, JiraClients] },
     ApprovalPoller,
+    StageOutcomes,
+    StageLauncher,
+    KbBuildService,
+    PlanHandler,
+    { provide: KB_BUILDER, useExisting: KbBuildService },
+    NewTicketHandler,
+    KbHandler,
+    { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler] },
     RestartRecovery,
     {
       provide: WorkerLoop,
-      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine) => new WorkerLoop(prisma, mirrors, intake, approvals, states, []),
-      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine],
+      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine, handlers: StepHandler[]) => new WorkerLoop(prisma, mirrors, intake, approvals, states, handlers),
+      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine, STEP_HANDLERS],
     },
     WorkerRunner,
   ],

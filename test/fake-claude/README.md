@@ -18,4 +18,7 @@ A stand-in for the `claude` CLI so tests never call a real model (BUILD_PLAN sec
 | `needs-input` | `plan` asks a question |
 | `rate-limit` | `plan` is rejected by the rate limiter |
 | `leak` | `plan` prints `CLAUDE_CODE_OAUTH_TOKEN` in its output (tests log redaction) |
+| `kb-new` | `kbBuild` writes a new doc and also edits a file outside the KB directory |
+| `kb-existing` | `kbBuild` selects the existing `bookings` key |
+| `kb-bad-key` | `kbBuild` returns `isNew: false` with a key that is not in the index |
 | `fenced` | `plan` returns its result as a fenced JSON block instead of `structured_output` |
