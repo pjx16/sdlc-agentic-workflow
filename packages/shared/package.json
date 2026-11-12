@@ -1,6 +1,6 @@
 {
   "name": "@sdlc/shared",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,5 +10,7 @@
     "lint": "eslint src",
     "test": "vitest run"
   },
-  "dependencies": { "zod": "^4.6.7" }
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
 }
