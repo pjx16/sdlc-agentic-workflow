@@ -88,6 +88,15 @@ describe('prompt.md (BUILD_PLAN 6.4)', () => {
     expect(prompt).toContain('Use the existing queue, not a new table');
   });
 
+  it('gives breakdown its limit, and on a re-run the previous breakdown and the note', async () => {
+    const first = await build('breakdown', {}, { maxSubtasks: 6 });
+    expect(headings(read(first.runDir, 'prompt.md'))).toEqual(['Ticket', 'Approved plan', 'KB doc', 'Limits', 'Output']);
+    expect(read(first.runDir, 'prompt.md')).toContain('At most 6 subtasks.');
+    const rerun = await build('breakdown', {}, { maxSubtasks: 6, previousBreakdown: '[{"seq":1}]', rejectionNote: 'Split the API from the UI' });
+    expect(headings(read(rerun.runDir, 'prompt.md'))).toEqual(['Ticket', 'Approved plan', 'KB doc', 'Limits', 'Previous breakdown', 'Rejection note', 'Output']);
+    expect(read(rerun.runDir, 'prompt.md')).toContain('Split the API from the UI');
+  });
+
   it('omits the previous-findings section unless there are findings, and the subtask for fix when absent', async () => {
     const withFindings = await build('review', {}, { previousFindings: [{ id: 'f1', severity: 'high', file: 'a.ts', line: 3, issue: 'bad', rule: 'r', fix: 'fix it' }] });
     expect(headings(read(withFindings.runDir, 'prompt.md'))).toContain('Previous findings');

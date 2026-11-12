@@ -6,6 +6,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApprovalPoller } from '../jira/approval-poller';
 import { StateMachine } from '../state/state-machine.service';
+import { SubtasksService } from '../subtasks/subtasks.service';
 import { StateModule } from '../state/state.module';
 import { AgentRunner } from './agent-runner/agent-runner';
 import { FileLogSink } from './agent-runner/file-log-sink';
@@ -18,6 +19,7 @@ import { MirrorService } from './git/mirror.service';
 import { WorkspaceService } from './git/workspace.service';
 import { VerifyService } from './verify/verify.service';
 import { IntakePoller } from './intake/intake-poller';
+import { BreakdownHandler } from './pipeline/breakdown.handler';
 import { PlanHandler } from './pipeline/plan.handler';
 import { KB_BUILDER, KbHandler } from './pipeline/kb.handler';
 import { KbBuildService } from './pipeline/kb-build.service';
@@ -44,15 +46,17 @@ import { WorkerRunner } from './worker-runner';
     AgentRunner,
     VerifyService,
     { provide: IntakePoller, useFactory: (prisma: PrismaService, clients: JiraClients) => new IntakePoller(prisma, clients), inject: [PrismaService, JiraClients] },
+    SubtasksService,
     ApprovalPoller,
     StageOutcomes,
     StageLauncher,
     KbBuildService,
     PlanHandler,
+    BreakdownHandler,
     { provide: KB_BUILDER, useExisting: KbBuildService },
     NewTicketHandler,
     KbHandler,
-    { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler] },
+    { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler] },
     RestartRecovery,
     {
       provide: WorkerLoop,

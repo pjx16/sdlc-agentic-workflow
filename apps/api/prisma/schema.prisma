@@ -192,6 +192,8 @@ model Ticket {
   prNumber        Int?
   prUrl           String?
   planMarkdown    String?
+  /// The proposed subtasks while the ticket waits at the breakdown gate (validated by shared validateBreakdown).
+  breakdownDraft  Json?
   reviewRound     Int           @default(0)
   lastReviewedSha String?
   ciFixPending    Boolean       @default(false)

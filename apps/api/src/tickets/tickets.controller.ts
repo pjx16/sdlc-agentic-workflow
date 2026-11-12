@@ -38,6 +38,18 @@ export class TicketsController {
     return this.tickets.rejectPlan(id, body);
   }
 
+  @Post(':id/breakdown/approve')
+  @HttpCode(HttpStatus.OK)
+  approveBreakdown(@Param('id') id: string, @Body() body: unknown) {
+    return this.tickets.approveBreakdown(id, body);
+  }
+
+  @Post(':id/breakdown/reject')
+  @HttpCode(HttpStatus.OK)
+  rejectBreakdown(@Param('id') id: string, @Body() body: unknown) {
+    return this.tickets.rejectBreakdown(id, body);
+  }
+
   @Post()
   paste(@Body() body: unknown): Promise<TicketDto> {
     return this.tickets.paste(body);

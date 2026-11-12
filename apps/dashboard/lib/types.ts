@@ -99,3 +99,21 @@ export interface GuidelineNode {
   type: 'dir' | 'file';
   children?: GuidelineNode[];
 }
+
+export interface SubtaskRow {
+  id: string;
+  seq: number;
+  title: string;
+  description: string;
+  status: string;
+  fixRounds: number;
+  acceptanceCriteria: string[];
+  files: string[];
+  dependsOn: number[];
+}
+
+export interface TicketFull extends TicketWithPlan {
+  breakdownDraft: import('@sdlc/shared').SubtaskDraft[] | null;
+  subtasks: SubtaskRow[];
+  maxSubtasks: number;
+}

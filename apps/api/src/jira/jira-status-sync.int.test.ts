@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { SubtasksService } from '../subtasks/subtasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StateMachine } from '../state/state-machine.service';
 import { FakeJira, FakeJiraClients } from '../testing/fake-jira';
@@ -36,7 +37,7 @@ describe('Jira status mapping (F15)', () => {
     const clients = new FakeJiraClients();
     jira = clients.jira;
     sm = new StateMachine(prisma, [new JiraStatusSync(prisma, clients)]);
-    poller = new ApprovalPoller(prisma, clients, sm);
+    poller = new ApprovalPoller(prisma, clients, sm, new SubtasksService(prisma, clients));
   }, 180_000);
   afterAll(async () => {
     await prisma?.onModuleDestroy();
@@ -133,9 +134,26 @@ describe('Jira status mapping (F15)', () => {
       jira.readStatus = original;
     });
 
+    it('on breakdown approval, creates the Subtask rows from the proposed list first', async () => {
+      const draft = [{ seq: 1, title: 'first', description: 'd', acceptanceCriteria: ['c'], files: [], dependsOn: [] }, { seq: 2, title: 'second', description: 'd', acceptanceCriteria: ['c'], files: [], dependsOn: [1] }];
+      const t = await ticket((await project()).id, { status: 'AWAITING_BREAKDOWN_APPROVAL', breakdownDraft: draft });
+      jira.statuses[t.externalKey!] = 'Ready for Dev';
+      expect(await poller.check()).toBe(1);
+      expect((await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } })).status).toBe('IN_PROGRESS');
+      expect((await prisma.subtask.findMany({ where: { ticketId: t.id }, orderBy: { seq: 'asc' } })).map((s) => s.title)).toEqual(['first', 'second']);
+    });
+
+    it('does not approve a breakdown from Jira when the proposed list is invalid', async () => {
+      const t = await ticket((await project()).id, { status: 'AWAITING_BREAKDOWN_APPROVAL', breakdownDraft: [{ seq: 1, title: 'x', acceptanceCriteria: [], dependsOn: [] }] });
+      jira.statuses[t.externalKey!] = 'Ready for Dev';
+      expect(await poller.check()).toBe(0);
+      expect((await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } })).status).toBe('AWAITING_BREAKDOWN_APPROVAL');
+      expect(await prisma.subtask.count({ where: { ticketId: t.id } })).toBe(0);
+    });
+
     it('approves a breakdown, and ignores any other Jira status', async () => {
       const p = await project();
-      const a = await ticket(p.id, { status: 'AWAITING_BREAKDOWN_APPROVAL' });
+      const a = await ticket(p.id, { status: 'AWAITING_BREAKDOWN_APPROVAL', breakdownDraft: [{ seq: 1, title: 'only', description: '', acceptanceCriteria: ['c'], files: [], dependsOn: [] }] });
       const b = await ticket(p.id, { status: 'AWAITING_PLAN_APPROVAL' });
       jira.statuses[a.externalKey!] = 'Ready for Dev';
       jira.statuses[b.externalKey!] = 'In Progress'; // a manual change that must be ignored

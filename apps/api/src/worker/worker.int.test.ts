@@ -10,6 +10,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { StateMachine } from '../state/state-machine.service';
 import { FakeJiraClients } from '../testing/fake-jira';
 import { IntakePoller } from './intake/intake-poller';
+import { SubtasksService } from '../subtasks/subtasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import { MirrorService } from './git/mirror.service';
@@ -54,7 +55,7 @@ describe('worker skeleton', () => {
           useFactory: (p: PrismaService, m: MirrorService) => {
             const jira = new FakeJiraClients();
             const states = new StateMachine(p);
-            return new WorkerLoop(p, m, new IntakePoller(p, jira), new ApprovalPoller(p, jira, states), states, []);
+            return new WorkerLoop(p, m, new IntakePoller(p, jira), new ApprovalPoller(p, jira, states, new SubtasksService(p, jira)), states, []);
           },
           inject: [PrismaService, MirrorService],
         },
