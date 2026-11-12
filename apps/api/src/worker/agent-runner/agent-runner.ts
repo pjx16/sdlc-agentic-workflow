@@ -1,9 +1,10 @@
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { stageJsonSchema, type ClaudeMdMode, type ModelAlias, type ProjectStack, type StageEnvelope, type StageName } from '@sdlc/shared';
 import type { FixReason } from '../../generated/prisma/client';
+import { USAGE_GATE, type UsageGatePort } from '../usage/usage-gate';
 import { WorkerConfig } from '../worker-config';
 import { buildStageContext, type StageInputs } from './context-builder';
 import type { ContainerSpec } from './container-options';
@@ -60,6 +61,7 @@ export class AgentRunner {
     private readonly config: WorkerConfig,
     @Inject(STAGE_RUN_STORE) private readonly store: StageRunStore,
     @Inject(LOG_SINK) private readonly logs: LogSink,
+    @Optional() @Inject(USAGE_GATE) private readonly gate?: UsageGatePort,
   ) {}
 
   async run(req: StageRequest): Promise<StageResult> {
@@ -173,7 +175,12 @@ export class AgentRunner {
     const logPath = await log.close();
 
     const parsed = parseStream(lines, req.stage);
-    if (parsed.rateLimit) await this.store.saveRateLimit(parsed.rateLimit).catch((e: unknown) => this.logger.warn(`saveRateLimit failed: ${String(e)}`));
+    const ownTokens = parsed.usage.inputTokens + parsed.usage.outputTokens + parsed.usage.cacheWriteTokens;
+    if (this.gate) {
+      await this.gate.afterStage({ limit: parsed.rateLimit, rateLimitError: isRateLimited(parsed), stageRunId, ownTokens }).catch((e: unknown) => this.logger.warn(`Usage gate failed: ${String(e)}`));
+    } else if (parsed.rateLimit) {
+      await this.store.saveRateLimit(parsed.rateLimit).catch((e: unknown) => this.logger.warn(`saveRateLimit failed: ${String(e)}`));
+    }
     const base = { usage: parsed.usage, resultJson: this.resultJson(parsed), logPath };
 
     if (container.killed) {
