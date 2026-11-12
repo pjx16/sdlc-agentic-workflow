@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { CredentialsModule } from '../credentials/credentials.module';
+import { CredentialsService } from '../credentials/credentials.service';
 import { JiraClients } from '../jira/jira-clients';
 import { JiraModule } from '../jira/jira.module';
 import { LoggingModule } from '../logging.module';
@@ -45,6 +47,7 @@ import { JiraMcpClient } from '../jira/jira-mcp-client';
 import { JiraMcpStages } from './jira-mcp/jira-mcp-stages';
 import { McpIntake } from './intake/mcp-intake';
 import { CleanupService } from './cleanup/cleanup.service';
+import { OrphanCleanup } from './cleanup/orphan-cleanup';
 import { MergePoller } from './ci/merge-poller';
 import { CiFixHandler } from './ci/ci-fix.handler';
 import { WorkerConfig } from './worker-config';
@@ -52,10 +55,10 @@ import { WorkerRunner } from './worker-runner';
 
 /** The worker shares the database but has no HTTP surface and needs no dashboard credentials. */
 @Module({
-  imports: [LoggingModule, PrismaModule, StateModule, JiraModule],
+  imports: [LoggingModule, PrismaModule, CredentialsModule, StateModule, JiraModule],
   providers: [{ provide: WorkerConfig, useFactory: () => new WorkerConfig() },
     MirrorService,
-    { provide: GitRunner, useFactory: (c: WorkerConfig) => new GitRunner({ githubToken: c.githubToken }), inject: [WorkerConfig] },
+    { provide: GitRunner, useFactory: (creds: CredentialsService) => new GitRunner({ token: async () => (await creds.resolve()).github_token }), inject: [CredentialsService] },
     WorkspaceService,
     { provide: CONTAINER_ENGINE, useFactory: () => new DockerodeEngine() },
     ContainerRunner,
@@ -75,7 +78,7 @@ import { WorkerRunner } from './worker-runner';
     KbBuildService,
     PlanHandler,
     BreakdownHandler,
-    { provide: GITHUB_CLIENT, useFactory: (c: WorkerConfig) => new GhCliClient({ token: c.githubToken, tmpDir: c.dataDir }), inject: [WorkerConfig] },
+    { provide: GITHUB_CLIENT, useFactory: (c: WorkerConfig, creds: CredentialsService) => new GhCliClient({ token: async () => (await creds.resolve()).github_token, tmpDir: c.dataDir }), inject: [WorkerConfig, CredentialsService] },
     PrService,
     SubtaskStepsService,
     { provide: SUBTASK_STEPS, useExisting: SubtaskStepsService },
@@ -88,19 +91,20 @@ import { WorkerRunner } from './worker-runner';
     ReviewHandler,
     CiFixHandler,
     HoldNotifier,
+    OrphanCleanup,
     { provide: CleanupService, useFactory: (p: PrismaService, c: WorkerConfig) => new CleanupService(p, c), inject: [PrismaService, WorkerConfig] },
     { provide: McpIntake, useFactory: (p: PrismaService, i: IntakePoller, a: ApprovalPoller, st: SubtasksService, sync: JiraStatusSync) => new McpIntake(p, i, undefined, a, st, sync), inject: [PrismaService, IntakePoller, ApprovalPoller, SubtasksService, JiraStatusSync] },
     { provide: CiPoller, useFactory: (p: PrismaService, st: StateMachine, pr: PrService, gh: GitHubClient, hn: HoldNotifier) => new CiPoller(p, st, pr, gh, undefined, hn), inject: [PrismaService, StateMachine, PrService, GITHUB_CLIENT, HoldNotifier] },
     { provide: MergePoller, useFactory: (p: PrismaService, st: StateMachine, gh: GitHubClient) => new MergePoller(p, st, gh), inject: [PrismaService, StateMachine, GITHUB_CLIENT] },
-    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, mcp: McpIntake, cleanup: CleanupService): Housekeeper[] => [ci, merge, mcp, cleanup], inject: [CiPoller, MergePoller, McpIntake, CleanupService] },
+    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, mcp: McpIntake, cleanup: CleanupService, orphans: OrphanCleanup): Housekeeper[] => [ci, merge, mcp, cleanup, orphans], inject: [CiPoller, MergePoller, McpIntake, CleanupService, OrphanCleanup] },
     NewTicketHandler,
     KbHandler,
     { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler, InProgressHandler, ReviewHandler, KbUpdateHandler, HumanReviewHandler, CiFixHandler] },
     RestartRecovery,
     {
       provide: WorkerLoop,
-      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine, handlers: StepHandler[], housekeepers: Housekeeper[], holds: HoldNotifier) => new WorkerLoop(prisma, mirrors, intake, approvals, states, handlers, undefined, housekeepers, holds),
-      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine, STEP_HANDLERS, HOUSEKEEPERS, HoldNotifier],
+      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine, handlers: StepHandler[], housekeepers: Housekeeper[], holds: HoldNotifier, creds: CredentialsService) => new WorkerLoop(prisma, mirrors, intake, approvals, states, handlers, undefined, housekeepers, holds, creds),
+      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine, STEP_HANDLERS, HOUSEKEEPERS, HoldNotifier, CredentialsService],
     },
     WorkerRunner,
   ],

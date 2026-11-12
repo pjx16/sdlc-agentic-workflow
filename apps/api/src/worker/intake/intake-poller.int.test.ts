@@ -45,6 +45,24 @@ describe('Jira intake polling (F3)', () => {
     clock += INTAKE_BACKOFF_MS * 2; // clear any backoff left by an earlier test
   });
 
+  it('never takes sub-tasks as tickets: by type name, by Jira flag, and the ones the pipeline published itself', async () => {
+    const p = await project();
+    const parent = await prisma.ticket.create({ data: { projectId: p.id, key: 'ABC-1', externalKey: 'ABC-1', source: 'jira', title: 'parent', status: 'IN_PROGRESS' } });
+    await prisma.subtask.create({ data: { ticketId: parent.id, seq: 1, title: 'mine', description: 'd', acceptanceCriteria: [], files: [], dependsOn: [], externalKey: 'ABC-9' } });
+    jira.tickets = [
+      jt('ABC-1', { issuetype: 'Story' }), // already stored
+      jt('ABC-2', { issuetype: 'Sub-task' }),
+      jt('ABC-3', { issuetype: 'Subtask' }),
+      jt('ABC-4', { issuetype: 'Task', isSubtask: true }), // Jira says it has a parent
+      jt('ABC-9', { issuetype: 'Task' }), // published by the pipeline for subtask 1
+      jt('ABC-5', { issuetype: 'Story' }),
+      jt('ABC-6', { issuetype: 'Task' }),
+    ];
+    const res = await poller.poll();
+    expect(res).toMatchObject({ created: 2, duplicates: 1, subtasksIgnored: 4, errors: [] });
+    expect((await prisma.ticket.findMany({ where: { projectId: p.id }, orderBy: { key: 'asc' } })).map((t) => t.key)).toEqual(['ABC-1', 'ABC-5', 'ABC-6']);
+  });
+
   it('stores polled tickets as NEW with the mapped type, text and labels', async () => {
     const p = await project();
     jira.tickets = [jt('ABC-1'), jt('ABC-2', { issuetype: 'Bug' }), jt('ABC-3', { issuetype: 'Epic', description: '' })];
@@ -93,7 +111,7 @@ describe('Jira intake polling (F3)', () => {
   it('handles an empty JQL result', async () => {
     await project();
     jira.tickets = [];
-    expect(await poller.poll()).toEqual({ projects: 1, created: 0, duplicates: 0, errors: [] });
+    expect(await poller.poll()).toEqual({ projects: 1, created: 0, duplicates: 0, errors: [], subtasksIgnored: 0 });
     expect(await prisma.ticket.count()).toBe(0);
   });
 

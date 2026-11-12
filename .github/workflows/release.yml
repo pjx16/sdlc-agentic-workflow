@@ -1,0 +1,192 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: ci
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  images:
+    name: image (${{ matrix.name }})
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: api, context: ., file: apps/api/Dockerfile }
+          - { name: worker, context: ., file: docker/worker/Dockerfile }
+          - { name: dashboard, context: ., file: apps/dashboard/Dockerfile }
+          - { name: proxy, context: docker/proxy, file: docker/proxy/Dockerfile }
+          # Must match the CLAUDE_CODE_VERSION default in docker-compose.yml.
+          - { name: agent, context: docker/agent, file: docker/agent/Dockerfile, build_args: 'CLAUDE_CODE_VERSION=2.1.322' }
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/sdlc-agent-${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          # No `latest` tag while the major version is 0.
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=sha
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: mode=max
+          sbom: true
+          build-args: ${{ matrix.build_args }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,scope=${{ matrix.name }},mode=max
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          image-ref: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+  bundle:
+    name: bundle
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the install bundle
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          dir="sdlc-agent-${VERSION}"
+          mkdir -p "${dir}/docker"
+          cp deploy/docker-compose.yml "${dir}/docker-compose.yml"
+          sed "s/^SDLC_VERSION=.*/SDLC_VERSION=${VERSION}/" .env.example > "${dir}/.env.example"
+          cp -R guidelines "${dir}/guidelines"
+          cp docker/jira-mcp.example.json "${dir}/docker/jira-mcp.example.json"
+          cp LICENSE README.md CHANGELOG.md SECURITY.md "${dir}/"
+          tar -czf "${dir}.tar.gz" "${dir}"
+          sha256sum "${dir}.tar.gz" > SHA256SUMS
+          cat SHA256SUMS
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bundle
+          path: |
+            sdlc-agent-*.tar.gz
+            SHA256SUMS
+          if-no-files-found: error
+
+  npm:
+    name: npm
+    needs: [images, bundle]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing (OIDC) needs npm 11.5.1 or newer. Pinned to the version in the root packageManager field, like ci.yml.
+      # There is no NPM_TOKEN secret, and this job can publish to npm: dependencies' install scripts must never run in it.
+      - run: npm install -g npm@12.0.2
+      - run: npm ci --ignore-scripts
+      - run: npm run build -w sdlc-agent
+      - name: Publish
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          PACKAGE_VERSION=$(node -p "require('./packages/cli/package.json').version")
+          if [ "${PACKAGE_VERSION}" != "${VERSION}" ]; then
+            echo "packages/cli/package.json is ${PACKAGE_VERSION} but the tag is ${VERSION}" >&2
+            exit 1
+          fi
+          # A pre-release tag (v0.0.2-rc.1) goes to the "next" dist-tag, a plain tag to "latest".
+          case "${VERSION}" in *-*) DIST_TAG=next ;; *) DIST_TAG=latest ;; esac
+          npm publish -w sdlc-agent --provenance --access public --tag "${DIST_TAG}"
+
+  release:
+    name: release
+    needs: [images, bundle]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bundle
+          path: dist
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          # The "## [VERSION]" section of CHANGELOG.md becomes the release notes.
+          awk -v header="## [${VERSION}]" '
+            index($0, header) == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "CHANGELOG.md has no notes for ${VERSION}" >&2
+            exit 1
+          fi
+          flags=()
+          case "${VERSION}" in 0.*) flags+=(--prerelease) ;; esac
+          gh release create "${TAG}" --repo "${GITHUB_REPOSITORY}" --title "${TAG}" --notes-file notes.md --verify-tag "${flags[@]}" \
+            "dist/sdlc-agent-${VERSION}.tar.gz" dist/SHA256SUMS

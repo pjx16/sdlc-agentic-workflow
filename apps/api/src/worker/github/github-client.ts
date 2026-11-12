@@ -61,7 +61,8 @@ export function parseRepo(repoUrl: string): string {
 const FAILED_LOG_LINES = 60;
 
 export interface GhCliOptions {
-  token: string;
+  /** Looked up on every call. */
+  token: () => Promise<string>;
   /** The gh executable (replaced by a stub in tests). */
   binary?: string;
   /** Where temporary body files go. */
@@ -77,15 +78,16 @@ export class GhCliClient implements GitHubClient {
   }
 
   private async gh(args: readonly string[], opts: { allowFailure?: boolean } = {}): Promise<string> {
+    const token = await this.opts.token();
     try {
-      const { stdout } = await exec(this.binary, [...args], { env: { ...process.env, GH_TOKEN: this.opts.token, GH_PROMPT_DISABLED: '1', NO_COLOR: '1' }, timeout: 120_000, maxBuffer: 20 * 1024 * 1024 });
+      const { stdout } = await exec(this.binary, [...args], { env: { ...process.env, GH_TOKEN: token, GH_PROMPT_DISABLED: '1', NO_COLOR: '1' }, timeout: 120_000, maxBuffer: 20 * 1024 * 1024 });
       return stdout;
     } catch (err) {
       const e = err as { stdout?: string; stderr?: string; message?: string };
       // `gh pr checks` exits non-zero while checks are pending or failing, but still prints the JSON.
       if (opts.allowFailure && e.stdout && e.stdout.trim()) return e.stdout;
       let text = (e.stderr || e.message || 'gh failed').trim();
-      if (this.opts.token) text = text.split(this.opts.token).join('***');
+      if (token) text = text.split(token).join('***');
       throw new GitHubError(text.split('\n')[0]?.slice(0, 300) ?? 'gh failed', args);
     }
   }

@@ -1,3 +1,4 @@
+import { staticCredentials } from '../../testing/static-credentials';
 import 'reflect-metadata';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -31,7 +32,7 @@ function runnerFor(scenario: string, env: Record<string, string> = {}) {
     AGENT_EXTRA_BINDS: `${ROOT}/test/fake-claude/claude:/usr/local/bin/claude:ro,${ROOT}/test/fake-claude:/fake-claude:ro`,
     AGENT_EXTRA_ENV: `FAKE_SCENARIO=${scenario},FAKE_SCENARIOS_DIR=/fake-claude/scenarios`, ...env,
   } as NodeJS.ProcessEnv);
-  return new AgentRunner(new ContainerRunner(new DockerodeEngine(docker)), config, new PrismaStageRunStore(prisma), new FileLogSink(config));
+  return new AgentRunner(new ContainerRunner(new DockerodeEngine(docker)), config, staticCredentials({ claude_token: FAKE_TOKEN }), new PrismaStageRunStore(prisma), new FileLogSink(config, staticCredentials({ claude_token: FAKE_TOKEN })));
 }
 
 function workspace(): string {

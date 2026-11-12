@@ -1,3 +1,4 @@
+import { staticCredentials } from '../../testing/static-credentials';
 import 'reflect-metadata';
 import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -80,21 +81,21 @@ describe('milestone 5 end to end (real containers, fake-claude)', () => {
 
     const config = new WorkerConfig({
       DATA_DIR: dataDir, DATABASE_URL: db.url, CLAUDE_CODE_OAUTH_TOKEN: 'fake-token', GUIDELINES_DIR: path.join(ROOT, 'guidelines'),
-      GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com',
+      TEST_PUSH_URL_PREFIXES: 'file://', GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com',
       AGENT_EXTRA_BINDS: `${ROOT}/test/fake-claude/claude:/usr/local/bin/claude:ro,${ROOT}/test/fake-claude:/fake-claude:ro`,
       AGENT_EXTRA_ENV: 'FAKE_SCENARIO=kb-new,FAKE_SCENARIOS_DIR=/fake-claude/scenarios',
     } as NodeJS.ProcessEnv);
 
     const project = await prisma.project.create({ data: { name: 'billing', repoUrl: `file://${source}`, baseBranch: 'dev', stack: 'nestjs', installCmd: 'echo installed', testCmdTemplate: 'x {files}', localKeyPrefix: 'BILL', mirrorStatus: 'pending' } });
     projectId = project.id;
-    const mirrors = new MirrorService(prisma, config);
+    const mirrors = new MirrorService(prisma, config, staticCredentials());
     await mirrors.clone(project);
 
     egress = await startEgress();
     const containers = new ContainerRunner(new DockerodeEngine(docker));
-    const git = new GitRunner({ githubToken: '' });
-    const workspaces = new WorkspaceService(prisma, config, git, new VerifyService(containers, config));
-    const agent = new AgentRunner(containers, config, new PrismaStageRunStore(prisma), new FileLogSink(config));
+    const git = new GitRunner({ token: async () => '' });
+    const workspaces = new WorkspaceService(prisma, config, git, new VerifyService(containers, config), staticCredentials());
+    const agent = new AgentRunner(containers, config, staticCredentials({ claude_token: 'fake-token' }), new PrismaStageRunStore(prisma), new FileLogSink(config, staticCredentials({ claude_token: 'fake-token' })));
     const launcher = new StageLauncher(prisma, config, agent);
     const outcomes = new StageOutcomes(prisma);
     const kbBuild = new KbBuildService(prisma, launcher, outcomes, workspaces, git);

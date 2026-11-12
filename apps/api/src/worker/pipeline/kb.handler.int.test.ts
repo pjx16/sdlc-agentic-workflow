@@ -1,3 +1,4 @@
+import { staticCredentials } from '../../testing/static-credentials';
 import 'reflect-metadata';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -50,8 +51,8 @@ describe('NEW and KB step handlers', () => {
     const config = new WorkerConfig({ DATA_DIR: path.join(tmp, 'data'), DATABASE_URL: db.url } as NodeJS.ProcessEnv);
     const project = await prisma.project.create({ data: { name: 'p', repoUrl: `file://${source}`, baseBranch: 'dev', stack: 'ts_node', installCmd: 'npm ci', testCmdTemplate: 'x {files}', localKeyPrefix: 'P', mirrorStatus: 'pending' } });
     projectId = project.id;
-    await new MirrorService(prisma, config).clone(project);
-    workspaces = new WorkspaceService(prisma, config, new GitRunner({ githubToken: '' }), new VerifyService(new ContainerRunner(new FakeEngine({ lines: ['ok'] })), config));
+    await new MirrorService(prisma, config, staticCredentials()).clone(project);
+    workspaces = new WorkspaceService(prisma, config, new GitRunner({ token: async () => '' }), new VerifyService(new ContainerRunner(new FakeEngine({ lines: ['ok'] })), config), staticCredentials());
   }, 180_000);
   afterAll(async () => {
     await prisma?.onModuleDestroy();
@@ -73,7 +74,7 @@ describe('NEW and KB step handlers', () => {
     });
 
     it('holds the ticket (needs_help) when the dependency install fails', async () => {
-      const failing = new WorkspaceService(prisma, new WorkerConfig({ DATA_DIR: path.join(tmp, 'data'), DATABASE_URL: db.url } as NodeJS.ProcessEnv), new GitRunner({ githubToken: '' }), new VerifyService(new ContainerRunner(new FakeEngine({ exitCode: 1, lines: ['npm ERR! 404'] })), new WorkerConfig({ DATA_DIR: path.join(tmp, 'data'), DATABASE_URL: db.url } as NodeJS.ProcessEnv)));
+      const failing = new WorkspaceService(prisma, new WorkerConfig({ DATA_DIR: path.join(tmp, 'data'), DATABASE_URL: db.url } as NodeJS.ProcessEnv), new GitRunner({ token: async () => '' }), new VerifyService(new ContainerRunner(new FakeEngine({ exitCode: 1, lines: ['npm ERR! 404'] })), new WorkerConfig({ DATA_DIR: path.join(tmp, 'data'), DATABASE_URL: db.url } as NodeJS.ProcessEnv)), staticCredentials());
       const out = (await new NewTicketHandler(failing).run(await ticket())) as Extract<StepOutcome, { kind: 'hold' }>;
       expect(out).toMatchObject({ kind: 'hold', reason: 'needs_help' });
       expect(out.note).toContain('install failed');

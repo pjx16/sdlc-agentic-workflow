@@ -17,6 +17,9 @@ export class FakeEngine implements ContainerEngine {
   /** Labels passed to removeByLabel, and what it reports having removed (or an error to throw). */
   readonly removedLabels: string[] = [];
   removeResult: number | Error = 0;
+  /** Images passed to ensureImage. */
+  readonly ensuredImages: string[] = [];
+  ensureResult: 'present' | 'pulled' | Error = 'present';
 
   /** One behaviour for every container, or a list: container n uses entry n and the last one repeats. */
   constructor(private readonly behaviour: FakeBehaviour | FakeBehaviour[] = {}) {}
@@ -27,6 +30,12 @@ export class FakeEngine implements ContainerEngine {
     const handle = new FakeHandle(`fake-${this.handles.length + 1}`, list[Math.min(this.handles.length, list.length - 1)] ?? {});
     this.handles.push(handle);
     return handle;
+  }
+
+  async ensureImage(name: string): Promise<'present' | 'pulled'> {
+    this.ensuredImages.push(name);
+    if (this.ensureResult instanceof Error) throw this.ensureResult;
+    return this.ensureResult;
   }
 
   async removeByLabel(label: string): Promise<number> {

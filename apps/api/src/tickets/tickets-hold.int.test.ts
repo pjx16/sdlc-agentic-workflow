@@ -82,4 +82,63 @@ describe('Hold, resume and retry (3.7, BUILD_PLAN 6.6 rows 16-18, 6.8)', () => {
       expect(await reload(tk.id)).toMatchObject({ ciFixDone: false, ciFixPending: false, ciWaitStartedAt: null });
     });
   });
+
+  describe('hold explanation and redo tests', () => {
+    const held = async (over: Record<string, unknown> = {}) => {
+      const tk = await ticket({ status: 'ON_HOLD', holdReason: 'needs_help', holdFromStatus: 'IN_PROGRESS', ...over });
+      await t.prisma.stateTransition.create({ data: { ticketId: tk.id, fromStatus: 'IN_PROGRESS', toStatus: 'ON_HOLD', actor: 'system', reason: 'The fix stage failed twice: the test cannot pass' } });
+      await t.prisma.stageRun.create({ data: { projectId, ticketId: tk.id, stage: 'fix', model: 'sonnet', attempt: 2, round: 1, status: 'failed', error: 'The stage reported it is blocked' } });
+      return tk;
+    };
+    const subtask = (ticketId: string, over: Record<string, unknown> = {}) =>
+      t.prisma.subtask.create({ data: { ticketId, seq: 1, title: 'Add the section', description: 'd', acceptanceCriteria: [], files: [], dependsOn: [], status: 'FIXING', fixRounds: 1, testCommit: 'abc123', testFiles: ['src/a.test.ts'], ...over } });
+
+    it('GET /hold explains what happened: the reason, the failed run, the current subtask, and whether tests can be redone', async () => {
+      const tk = await held();
+      await subtask(tk.id);
+      const res = await t.agent.get(`/tickets/${tk.id}/hold`).expect(200);
+      expect(res.body).toMatchObject({
+        status: 'ON_HOLD', holdReason: 'needs_help', holdFromStatus: 'IN_PROGRESS', note: 'The fix stage failed twice: the test cannot pass',
+        failedRun: { stage: 'fix', attempt: 2, error: 'The stage reported it is blocked' }, subtask: { seq: 1, title: 'Add the section', status: 'FIXING', fixRounds: 1 }, canRedoTests: true,
+      });
+      await t.anonymous.get(`/tickets/${tk.id}/hold`).expect(401);
+      await t.agent.get('/tickets/00000000-0000-0000-0000-000000000000/hold').expect(404);
+    });
+
+    it('GET /hold says tests cannot be redone when there is no subtask with tests, or the ticket is not held', async () => {
+      const noSubtask = await held();
+      expect((await t.agent.get(`/tickets/${noSubtask.id}/hold`).expect(200)).body).toMatchObject({ subtask: null, canRedoTests: false });
+      const noTests = await held();
+      await subtask(noTests.id, { testCommit: null, status: 'TESTS' });
+      expect((await t.agent.get(`/tickets/${noTests.id}/hold`).expect(200)).body.canRedoTests).toBe(false);
+      const running = await ticket();
+      expect((await t.agent.get(`/tickets/${running.id}/hold`).expect(200)).body).toMatchObject({ note: null, failedRun: null, canRedoTests: false });
+    });
+
+    it('redo-tests sends the current subtask back to the tests stage with the failure and the note, and resumes the ticket', async () => {
+      const tk = await held();
+      const s = await subtask(tk.id);
+      const res = await t.agent.post(`/tickets/${tk.id}/redo-tests`).send({ note: 'accept export const' }).expect(200);
+      expect(res.body).toMatchObject({ status: 'IN_PROGRESS', holdReason: null });
+      const row = await t.prisma.subtask.findUniqueOrThrow({ where: { id: s.id } });
+      expect(row).toMatchObject({ status: 'TESTS', fixRounds: 0, redoTests: true, testCommit: 'abc123' }); // the worker clears testCommit when it discards the work
+      expect(row.retriedAt).not.toBeNull();
+      expect(row.lastFailure).toContain('written again from scratch');
+      expect(row.lastFailure).toContain('The fix stage failed twice: the test cannot pass');
+      expect(row.lastFailure).toContain('Developer note: accept export const');
+      expect(row.lastFailure).toContain('Do not require a particular code style');
+    });
+
+    it('redo-tests is refused (409) when there are no tests to redo or the ticket is not held, and validates the note', async () => {
+      const noTests = await held();
+      await subtask(noTests.id, { testCommit: null, status: 'TESTS' });
+      await t.agent.post(`/tickets/${noTests.id}/redo-tests`).send({}).expect(409);
+      const running = await ticket();
+      await t.agent.post(`/tickets/${running.id}/redo-tests`).send({}).expect(409);
+      const ok = await held();
+      await subtask(ok.id);
+      await t.agent.post(`/tickets/${ok.id}/redo-tests`).send({ note: 'x'.repeat(2001) }).expect(400);
+      await t.anonymous.post(`/tickets/${ok.id}/redo-tests`).send({}).expect(401);
+    });
+  });
 });

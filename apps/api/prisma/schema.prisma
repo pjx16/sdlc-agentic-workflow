@@ -260,6 +260,8 @@ model Subtask {
   lastFailure        String?
   /// Set by Retry: only `tests` runs after this count towards the verify-red retry limit.
   retriedAt          DateTime?     @db.Timestamptz(6)
+  /// Set by "Redo tests": the worker discards this subtask's tests and implementation before the tests stage runs again.
+  redoTests          Boolean       @default(false)
 
   stageRuns StageRun[]
 
@@ -364,4 +366,39 @@ model Session {
   createdAt DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([expiresAt])
+}
+
+/// A credential entered in the dashboard. Secrets hold an AES-256-GCM payload (v1.<iv>.<tag>.<ciphertext>), other values plain text.
+model Credential {
+  key         String    @id
+  value       String
+  isSecret    Boolean
+  hint        String?
+  verifiedAt  DateTime? @db.Timestamptz(6)
+  verifyError String?
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(6)
+}
+
+/// The single admin login created in the setup wizard (argon2 hash).
+model AdminAccount {
+  id           String   @id @default("admin")
+  passwordHash String
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(6)
+}
+
+/// What the worker last did, so the dashboard can show that it is alive and what it is (not) doing. One row, written by the worker.
+model WorkerStatus {
+  id              String    @id @default("worker")
+  heartbeatAt     DateTime  @db.Timestamptz(6)
+  tickOutcome     String
+  tickDetail      String?
+  intakeMode      String?
+  intakeAt        DateTime? @db.Timestamptz(6)
+  intakeProjects  Int       @default(0)
+  intakeWaiting   Int       @default(0)
+  intakeCreated   Int       @default(0)
+  intakeSeen      Int       @default(0)
+  intakeError     String?
+  intakeSkipped   String?
 }

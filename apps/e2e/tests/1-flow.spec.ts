@@ -96,7 +96,7 @@ test('pause banner: shows why, Ignore clears it', async ({ page }) => {
 test('pause banner: Resume clears a pause', async ({ page }) => {
   await withDb((c) => c.query(`UPDATE "GlobalSettings" SET "pipelinePaused" = true, "pausedReason" = 'manual' WHERE id = 'global'`));
   await login(page);
-  await page.getByRole('button', { name: 'Resume' }).click();
+  await page.getByRole('alert').filter({ hasText: 'Pipeline paused' }).getByRole('button', { name: 'Resume', exact: true }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'Pipeline paused' })).toHaveCount(0);
 });
 

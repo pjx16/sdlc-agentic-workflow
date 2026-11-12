@@ -61,7 +61,7 @@ export class SubtasksService {
     for (const subtask of ticket.subtasks) {
       if (subtask.externalKey) continue;
       try {
-        const { key } = await this.jira.forMode(ticket.project.jiraMode as 'rest' | 'mcp').createSubtask(ticket.externalKey, {
+        const { key } = await (await this.jira.forMode(ticket.project.jiraMode as 'rest' | 'mcp')).createSubtask(ticket.externalKey, {
           summary: subtask.title,
           description: this.describe(subtask),
           issueTypeName: settings.jiraSubtaskTypeName,

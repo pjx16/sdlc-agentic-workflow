@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -11,7 +11,7 @@ const sh = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.
 let tmp: string;
 let source: string;
 let mirror: string;
-const git = new GitRunner({ githubToken: '' });
+const git = new GitRunner({ token: async () => '' });
 
 const spec = (name: string, over: Partial<WorkspaceSpec> = {}): WorkspaceSpec => ({
   mirrorPath: mirror, repoUrl: 'https://github.com/acme/billing', baseBranch: 'dev', workspacePath: path.join(tmp, 'workspaces', name), branch: `feature/KEY-1-${name}`, ...over,
@@ -98,5 +98,17 @@ describe('makeWritableForAgent', () => {
     const how = await makeWritableForAgent(s.workspacePath);
     expect(['chown', 'chmod']).toContain(how);
     if (how === 'chmod') expect(statSync(path.join(s.workspacePath, 'README.md')).mode & 0o006).toBe(0o006);
+  });
+
+  it('without root it opens up the files it owns, nested ones included, and does not fail on the rest', async () => {
+    const s = spec('i');
+    await prepareWorkspace(git, s);
+    mkdirSync(path.join(s.workspacePath, 'deep/er'), { recursive: true, mode: 0o700 });
+    writeFileSync(path.join(s.workspacePath, 'deep/er/file.txt'), 'x', { mode: 0o400 });
+    if ((await makeWritableForAgent(s.workspacePath)) === 'chmod') {
+      expect(statSync(path.join(s.workspacePath, 'deep/er/file.txt')).mode & 0o666).toBe(0o666);
+      expect(statSync(path.join(s.workspacePath, 'deep/er')).mode & 0o777).toBe(0o777);
+      expect(statSync(s.workspacePath).mode & 0o777).toBe(0o777);
+    }
   });
 });

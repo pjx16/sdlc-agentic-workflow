@@ -18,6 +18,8 @@ describe('Projects API (F2)', () => {
     await db?.drop();
   });
   beforeEach(async () => {
+    await t.prisma.stageRun.deleteMany();
+    await t.prisma.ticket.deleteMany();
     await t.prisma.project.deleteMany();
   });
 
@@ -145,5 +147,52 @@ describe('Projects API (F2)', () => {
     for (const call of [t.agent.get('/projects/nope'), t.agent.patch('/projects/nope').send({}), t.agent.delete('/projects/nope'), t.agent.post('/projects/nope/mirror/retry')]) {
       expect((await call.expect(404)).body.error).toBe('not_found');
     }
+  });
+
+  describe('permanent delete', () => {
+    const seedWork = async (projectId: string) => {
+      const ticket = await t.prisma.ticket.create({ data: { projectId, key: 'BILL-1', source: 'paste', title: 'x', status: 'IN_PROGRESS' } });
+      await t.prisma.subtask.create({ data: { ticketId: ticket.id, seq: 1, title: 's', description: 'd', acceptanceCriteria: [], files: [], dependsOn: [] } });
+      await t.prisma.event.create({ data: { ticketId: ticket.id, type: 'system', message: 'hi' } });
+      await t.prisma.stageRun.create({ data: { projectId, ticketId: ticket.id, stage: 'plan', model: 'opus', attempt: 1, status: 'succeeded' } });
+      await t.prisma.stageRun.create({ data: { projectId, stage: 'kbBuild', model: 'sonnet', attempt: 1, status: 'succeeded' } }); // not tied to a ticket
+      return ticket;
+    };
+
+    it('reports what would be deleted', async () => {
+      const { body: project } = await t.agent.post('/projects').send(valid).expect(201);
+      await seedWork(project.id);
+      const res = await t.agent.get(`/projects/${project.id}/delete-impact`).expect(200);
+      expect(res.body).toEqual({ tickets: 1, openTickets: 1, stageRuns: 2, runningStage: false });
+      await t.agent.get('/projects/00000000-0000-0000-0000-000000000000/delete-impact').expect(404);
+    });
+
+    it('deletes the project with its tickets, subtasks, events and stage runs, and leaves other projects alone', async () => {
+      const { body: project } = await t.agent.post('/projects').send(valid).expect(201);
+      const { body: other } = await t.agent.post('/projects').send({ ...valid, name: 'Other', repoUrl: 'https://github.com/acme/other' }).expect(201);
+      await seedWork(project.id);
+      await t.prisma.ticket.create({ data: { projectId: other.id, key: 'OTH-1', source: 'paste', title: 'keep', status: 'NEW' } });
+
+      const res = await t.agent.delete(`/projects/${project.id}/permanent`).expect(200);
+      expect(res.body).toEqual({ deleted: true, tickets: 1 });
+      await t.agent.get(`/projects/${project.id}`).expect(404);
+      expect(await t.prisma.ticket.count({ where: { projectId: project.id } })).toBe(0);
+      expect(await t.prisma.stageRun.count({ where: { projectId: project.id } })).toBe(0);
+      expect(await t.prisma.subtask.count()).toBe(0);
+      expect(await t.prisma.event.count({ where: { message: 'hi' } })).toBe(0);
+      expect(await t.prisma.ticket.count({ where: { projectId: other.id } })).toBe(1);
+    });
+
+    it('refuses while a stage of the project is running', async () => {
+      const { body: project } = await t.agent.post('/projects').send(valid).expect(201);
+      await t.prisma.stageRun.create({ data: { projectId: project.id, stage: 'plan', model: 'opus', attempt: 1, status: 'running' } });
+      const res = await t.agent.delete(`/projects/${project.id}/permanent`).expect(409);
+      expect(res.body.error).toBe('conflict');
+      await t.agent.get(`/projects/${project.id}`).expect(200);
+    });
+
+    it('requires a session', async () => {
+      await t.anonymous.delete('/projects/abc/permanent').expect(401);
+    });
   });
 });

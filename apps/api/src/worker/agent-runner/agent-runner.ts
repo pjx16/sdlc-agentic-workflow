@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { CredentialsService } from '../../credentials/credentials.service';
 import { stageJsonSchema, type ClaudeMdMode, type ModelAlias, type ProjectStack, type StageEnvelope, type StageName } from '@sdlc/shared';
 import type { FixReason } from '../../generated/prisma/client';
 import { USAGE_GATE, type UsageGatePort } from '../usage/usage-gate';
@@ -52,6 +53,9 @@ export type StageResult =
   | { kind: 'killed'; stageRunId: string; attempts: number };
 
 /** Runs one AI stage end to end (BUILD_PLAN 6.4 and 6.8). */
+/** What Claude Code / the API print when the token is not accepted. */
+const AUTH_FAILURE = /authentication_error|invalid bearer token|oauth token (has )?expired|invalid api key/i;
+
 @Injectable()
 export class AgentRunner {
   private readonly logger = new Logger(AgentRunner.name);
@@ -59,6 +63,7 @@ export class AgentRunner {
   constructor(
     private readonly containers: ContainerRunner,
     private readonly config: WorkerConfig,
+    private readonly creds: CredentialsService,
     @Inject(STAGE_RUN_STORE) private readonly store: StageRunStore,
     @Inject(LOG_SINK) private readonly logs: LogSink,
     @Optional() @Inject(USAGE_GATE) private readonly gate?: UsageGatePort,
@@ -128,7 +133,7 @@ export class AgentRunner {
       image: this.config.agentImage,
       cmd: ['run-stage'],
       env: {
-        CLAUDE_CODE_OAUTH_TOKEN: this.config.claudeToken,
+        CLAUDE_CODE_OAUTH_TOKEN: (await this.creds.resolve()).claude_token,
         HTTPS_PROXY: proxy,
         HTTP_PROXY: proxy,
         NO_PROXY: 'localhost,127.0.0.1',
@@ -197,6 +202,9 @@ export class AgentRunner {
     }
 
     const failure = this.failureReason(container, parsed, req);
+    if (failure && AUTH_FAILURE.test(lines.join('\n'))) {
+      await this.creds.markVerified('claude_token', 'Claude rejected the token').catch(() => undefined);
+    }
     if (failure) {
       await this.store.finish(stageRunId, { ...base, status: 'failed', error: failure });
       return { kind: 'failed', reason: failure, stageRunId };
@@ -204,9 +212,11 @@ export class AgentRunner {
     const envelope = parsed.envelope as StageEnvelope;
     if (envelope.status === 'needs_input') {
       await this.store.finish(stageRunId, { ...base, status: 'needs_input' });
+      await this.creds.markVerified('claude_token', null).catch(() => undefined);
       return { kind: 'needs_input', question: envelope.question as string, stageRunId };
     }
     await this.store.finish(stageRunId, { ...base, status: 'succeeded' });
+    await this.creds.markVerified('claude_token', null).catch(() => undefined); // a stage that ran proves the token works
     return { kind: 'done', envelope, stageRunId };
   }
 

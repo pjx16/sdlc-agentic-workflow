@@ -10,3 +10,7 @@ apps/api/src/generated/
 *.tsbuildinfo
 test-results/
 playwright-report/
+.DS_Store
+
+packages/cli/assets/
+packages/cli/LICENSE

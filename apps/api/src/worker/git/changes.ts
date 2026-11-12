@@ -1,3 +1,4 @@
+import { HARDENING_FLAGS } from './git-runner';
 import { execFileSync } from 'node:child_process';
 
 export interface Change {
@@ -26,6 +27,6 @@ export function parsePorcelain(out: string): Change[] {
 
 /** Changed and new files in a workspace, ignoring installed dependencies. Synchronous, for stage output validation. */
 export function changedFilesSync(workspace: string): Change[] {
-  const out = execFileSync('git', ['-c', 'core.hooksPath=/dev/null', 'status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: workspace, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 });
+  const out = execFileSync('git', [...HARDENING_FLAGS, 'status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: workspace, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 });
   return parsePorcelain(out).filter((c) => !c.path.startsWith('node_modules/') && !c.path.startsWith('.git/'));
 }

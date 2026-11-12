@@ -17,7 +17,9 @@ Return the tickets that match one JQL query, as clean JSON. Nothing else.
    only these fields: key, summary, description, issuetype, labels, priority,
    status. Do not read comments or other issues.
 2. Return one entry per issue, in the order Jira gave them. Do not return
-   more than Jira returned for this one query.
+   more than Jira returned for this one query. Keep each issue's real issue
+   type name in `issuetype` (including "Sub-task"); the orchestrator ignores
+   sub-tasks itself.
 3. Convert each description to plain text or markdown. Use `null` for a
    missing priority and `[]` for no labels.
 4. Return the list.

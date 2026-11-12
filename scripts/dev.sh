@@ -7,6 +7,9 @@ cd "$(dirname "$0")/.."
 ROOT="$PWD"
 
 [ -f .env ] || { echo "No .env found. Copy .env.example to .env and fill it in."; exit 1; }
+# shellcheck source=scripts/ensure-encryption-key.sh
+. ./scripts/ensure-encryption-key.sh
+ensure_encryption_key .env
 set -a; . ./.env; set +a
 : "${DATA_DIR:?set DATA_DIR in .env}"
 : "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"

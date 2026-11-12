@@ -56,6 +56,17 @@ export class TicketsController {
     return this.tickets.holdTicket(id);
   }
 
+  @Get(':id/hold')
+  holdInfo(@Param('id') id: string) {
+    return this.tickets.holdInfo(id);
+  }
+
+  @Post(':id/redo-tests')
+  @HttpCode(HttpStatus.OK)
+  redoTests(@Param('id') id: string, @Body() body: unknown) {
+    return this.tickets.redoTests(id, body);
+  }
+
   @Post(':id/resume')
   @HttpCode(HttpStatus.OK)
   resume(@Param('id') id: string) {

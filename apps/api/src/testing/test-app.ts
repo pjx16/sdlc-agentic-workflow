@@ -29,7 +29,6 @@ export async function createTestApp(databaseUrl: string, modules: Type[]): Promi
   Object.assign(process.env, {
     DATABASE_URL: databaseUrl,
     DASHBOARD_PASSWORD: TEST_PASSWORD,
-    SESSION_SECRET: 'x'.repeat(32),
     COOKIE_SECURE: 'false',
   });
   const jira = new FakeJiraClients();

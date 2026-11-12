@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { InstallAppButton } from './install-app-button';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { NAV_ITEMS, isActive } from '@/lib/nav-items';
@@ -84,6 +85,7 @@ export function Sidebar({ pipeline }: Props) {
             </div>
           )}
         </div>
+        <InstallAppButton collapsed={collapsed} />
         <button
           type="button"
           onClick={toggle}

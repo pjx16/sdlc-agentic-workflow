@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ProjectSettingsSchema } from '@sdlc/shared';
+import { CredentialsService } from '../../credentials/credentials.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GITHUB_CLIENT, type GitHubClient, parseRepo } from '../github/github-client';
 import { buildPrDescription } from '../github/pr-description';
@@ -14,6 +15,7 @@ export class PrService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: WorkerConfig,
+    private readonly creds: CredentialsService,
     @Inject(GITHUB_CLIENT) private readonly github: GitHubClient,
   ) {}
 
@@ -22,7 +24,7 @@ export class PrService {
     const t = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { project: true, subtasks: { orderBy: { seq: 'asc' } } } });
     return buildPrDescription({
       ticket: { key: t.key, title: t.title, body: t.body, externalKey: t.externalKey },
-      jiraBaseUrl: this.config.jiraBaseUrl || undefined,
+      jiraBaseUrl: (await this.creds.resolve()).jira_base_url || undefined,
       testCommand: t.project.testCmdTemplate,
       remainingFindings: await this.remainingFindings(ticketId, t.reviewRound),
       subtasks: t.subtasks.map((s) => ({ seq: s.seq, title: s.title, featCommit: s.featCommit, acceptanceCriteria: Array.isArray(s.acceptanceCriteria) ? s.acceptanceCriteria.map(String) : [] })),

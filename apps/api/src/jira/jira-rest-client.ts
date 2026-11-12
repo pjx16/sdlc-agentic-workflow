@@ -24,7 +24,7 @@ export interface JiraRestOptions {
 
 const DEFAULT_BACKOFF = [1000, 4000, 16000] as const;
 const MAX_RETRY_AFTER_MS = 60_000;
-const SEARCH_FIELDS = ['summary', 'description', 'issuetype', 'labels', 'priority'];
+const SEARCH_FIELDS = ['summary', 'description', 'issuetype', 'labels', 'priority', 'parent'];
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -49,8 +49,8 @@ export class JiraRestClient implements JiraClient {
     this.maxPages = options.maxPages ?? 40;
   }
 
-  static fromEnv(env: NodeJS.ProcessEnv = process.env, options?: JiraRestOptions): JiraRestClient {
-    return new JiraRestClient({ baseUrl: env.JIRA_BASE_URL ?? '', email: env.JIRA_EMAIL ?? '', apiToken: env.JIRA_API_TOKEN ?? '' }, options);
+  static fromCredentials(c: { jira_base_url: string; jira_email: string; jira_api_token: string }, options?: JiraRestOptions): JiraRestClient {
+    return new JiraRestClient({ baseUrl: c.jira_base_url, email: c.jira_email, apiToken: c.jira_api_token }, options);
   }
 
   // ---------------------------------------------------------------- JiraClient
@@ -127,6 +127,7 @@ export class JiraRestClient implements JiraClient {
       issuetype: String(f.issuetype?.name ?? ''),
       labels: Array.isArray(f.labels) ? f.labels.map(String) : [],
       priority: f.priority?.name ? String(f.priority.name) : null,
+      isSubtask: f.issuetype?.subtask === true || Boolean(f.parent),
     };
   }
 

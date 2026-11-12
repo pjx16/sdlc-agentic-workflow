@@ -1,3 +1,5 @@
+import { CredentialsService } from '../../credentials/credentials.service';
+import { staticCredentials } from '../../testing/static-credentials';
 import 'reflect-metadata';
 import type { TicketStatus } from '@sdlc/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -32,7 +34,7 @@ describe('worker loop (BUILD_PLAN 6.6, F4)', () => {
   });
   const loopWith = (handlers: StepHandler[]) => {
     const config = new WorkerConfig({ DATA_DIR: '/tmp/sdlc-loop', DATABASE_URL: db.url } as NodeJS.ProcessEnv);
-    return new WorkerLoop(prisma, new MirrorService(prisma, config), new IntakePoller(prisma, jira, () => clock), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma, jira)), states, handlers, () => clock);
+    return new WorkerLoop(prisma, new MirrorService(prisma, config, staticCredentials()), new IntakePoller(prisma, jira, () => clock), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma, jira)), states, handlers, () => clock);
   };
   const ticket = async (status: TicketStatus = 'NEW', over: Record<string, unknown> = {}) => {
     n++;
@@ -62,6 +64,25 @@ describe('worker loop (BUILD_PLAN 6.6, F4)', () => {
     await prisma.globalSettings.deleteMany();
     projectId = (await prisma.project.create({ data: { name: `p${++n}`, repoUrl: 'https://x/y', stack: 'ts_node', testCmdTemplate: 'x {files}', localKeyPrefix: 'P', mirrorStatus: 'ok' } })).id;
     clock += 1_000_000;
+  });
+
+  it('runs no step and clones nothing while the required credentials are missing (setup incomplete)', async () => {
+    const saved = { ...process.env };
+    for (const k of ['CLAUDE_CODE_OAUTH_TOKEN', 'GITHUB_TOKEN', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'DASHBOARD_PASSWORD']) delete process.env[k];
+    try {
+      const config = new WorkerConfig({ DATA_DIR: '/tmp/sdlc-loop', DATABASE_URL: db.url } as NodeJS.ProcessEnv);
+      const creds = new CredentialsService(prisma);
+      const loop = new WorkerLoop(prisma, new MirrorService(prisma, config, creds), new IntakePoller(prisma, jira, () => clock), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma, jira)), states, [handler('NEW', () => ({ kind: 'stay' }))], () => clock, [], undefined, creds);
+      const t = await ticket('NEW');
+      const pending = await prisma.project.update({ where: { id: projectId }, data: { mirrorStatus: 'pending', mirrorError: null } });
+      expect(await loop.tick()).toBe('not_configured');
+      expect(ran).toEqual([]);
+      expect(await status(t.id)).toBe('NEW');
+      expect((await prisma.project.findUniqueOrThrow({ where: { id: pending.id } })).mirrorError).toContain('Waiting for setup');
+      await prisma.project.update({ where: { id: projectId }, data: { mirrorStatus: 'ok', mirrorError: null } });
+    } finally {
+      process.env = saved;
+    }
   });
 
   it('runs exactly one step for the oldest actionable ticket, then applies the transition', async () => {

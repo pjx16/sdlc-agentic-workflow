@@ -1,3 +1,4 @@
+import { staticCredentials } from '../../testing/static-credentials';
 import 'reflect-metadata';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -69,12 +70,12 @@ describe('kbUpdate stage (F11)', () => {
     writeFileSync(path.join(source, 'docs/kb/bookings.md'), '# Bookings\noriginal doc\n');
     sh(source, 'add', '.');
     sh(source, 'commit', '-q', '-m', 'init');
-    const config = new WorkerConfig({ DATA_DIR: path.join(tmp, 'data'), DATABASE_URL: db.url, GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com', GUIDELINES_DIR: path.resolve(__dirname, '../../../../../guidelines') } as NodeJS.ProcessEnv);
+    const config = new WorkerConfig({ DATA_DIR: path.join(tmp, 'data'), DATABASE_URL: db.url, TEST_PUSH_URL_PREFIXES: 'file://', GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com', GUIDELINES_DIR: path.resolve(__dirname, '../../../../../guidelines') } as NodeJS.ProcessEnv);
     const project = await prisma.project.create({ data: { name: 'p', repoUrl: `file://${source}`, baseBranch: 'dev', stack: 'ts_node', installCmd: '', testCmdTemplate: 'x {files}', localKeyPrefix: 'P', mirrorStatus: 'pending' } });
     projectId = project.id;
-    await new MirrorService(prisma, config).clone(project);
-    const git = new GitRunner({ githubToken: '' });
-    workspaces = new WorkspaceService(prisma, config, git, new VerifyService(new ContainerRunner(new FakeEngine()), config));
+    await new MirrorService(prisma, config, staticCredentials()).clone(project);
+    const git = new GitRunner({ token: async () => '' });
+    workspaces = new WorkspaceService(prisma, config, git, new VerifyService(new ContainerRunner(new FakeEngine()), config), staticCredentials());
     const runner = {
       async run(req: StageRequest): Promise<StageResult> {
         lastRequest = req;
@@ -116,7 +117,7 @@ describe('kbUpdate stage (F11)', () => {
     expect(sh(ws, 'rev-parse', 'HEAD')).toBe(sh(path.join(tmp, 'source'), 'rev-parse', t.branch as string));
     expect(lastRequest).toMatchObject({ stage: 'kbUpdate', inputs: { kbDir: 'docs/kb', kbDocMaxLines: 300, existingDoc: '# Bookings\noriginal doc\n' } });
     expect((lastRequest?.inputs as { diff: string }).diff).toContain('src/app.ts');
-    expect((lastRequest?.inputs as { docTemplate: string }).docTemplate).toContain('Knowledge-base doc template');
+    expect((lastRequest?.inputs as { docTemplate: string }).docTemplate).toContain('## Entry points'); // the shipped template (guidelines/kb-doc-template.md)
   });
 
   it('makes no commit when the change does not affect the doc', async () => {

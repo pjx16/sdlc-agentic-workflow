@@ -3,7 +3,7 @@ name: sdlc-agent
 
 services:
   postgres:
-    image: postgres:17
+    image: postgres:17.11@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
     restart: unless-stopped
     environment:
       POSTGRES_USER: sdlc
@@ -30,8 +30,9 @@ services:
       postgres: { condition: service_healthy }
     environment:
       DATABASE_URL: postgresql://sdlc:${POSTGRES_PASSWORD}@postgres:5432/sdlc
-      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?set DASHBOARD_PASSWORD in .env}
-      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+      SETUP_CODE: ${SETUP_CODE:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env (openssl rand -base64 32)}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       JIRA_BASE_URL: ${JIRA_BASE_URL:-}
       JIRA_EMAIL: ${JIRA_EMAIL:-}
@@ -58,6 +59,7 @@ services:
       api: { condition: service_healthy }
     environment:
       DATABASE_URL: postgresql://sdlc:${POSTGRES_PASSWORD}@postgres:5432/sdlc
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env (openssl rand -base64 32)}
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GIT_AUTHOR_NAME: ${GIT_AUTHOR_NAME:-}

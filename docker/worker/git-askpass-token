@@ -1,6 +1,7 @@
 #!/bin/sh
-# Lets git authenticate to GitHub over HTTPS with GITHUB_TOKEN, without writing it to disk.
+# Hands GITHUB_TOKEN to git for github.com over HTTPS only; any other host gets nothing.
 case "$1" in
-  Username*) echo "x-access-token" ;;
-  *) echo "${GITHUB_TOKEN}" ;;
+  "Username for 'https://github.com':"*) echo "x-access-token" ;;
+  "Password for 'https://x-access-token@github.com':"*) echo "${GITHUB_TOKEN}" ;;
+  *) exit 1 ;;
 esac

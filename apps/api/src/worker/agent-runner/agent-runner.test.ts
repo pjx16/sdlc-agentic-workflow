@@ -1,3 +1,4 @@
+import { staticCredentials } from '../../testing/static-credentials';
 import 'reflect-metadata';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -38,7 +39,7 @@ const request = (over: Partial<StageRequest> = {}): StageRequest => ({
 const setup = (behaviour: FakeBehaviour | FakeBehaviour[]) => {
   const engine = new FakeEngine(behaviour);
   const store = new MemoryStore();
-  return { engine, store, runner: new AgentRunner(new ContainerRunner(engine), config, store, new NullLogSink()) };
+  return { engine, store, runner: new AgentRunner(new ContainerRunner(engine), config, staticCredentials({ claude_token: 'tok' }), store, new NullLogSink()) };
 };
 
 describe('AgentRunner (BUILD_PLAN 6.4, 6.8)', () => {

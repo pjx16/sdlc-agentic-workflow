@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { existsSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { StageEnvelope } from '@sdlc/shared';
 import { StepsHarness, sh } from '../../testing/steps-harness';
@@ -48,6 +49,58 @@ describe('tests stage (F9)', () => {
     };
     await steps.tests(t, s);
     expect(during).toBe('TESTS');
+  });
+
+  describe('redo tests', () => {
+    it('discards the old tests and implementation, starts from the commit before the tests, and gives the tests stage the failure', async () => {
+      const t = await h.ticket();
+      const s = await h.subtask(t.id, 1);
+      const ws = h.ws(t);
+      const before = sh(ws, 'rev-parse', 'HEAD');
+      h.write(ws, 'src/f1.test.ts', 'old test');
+      sh(ws, 'add', '.');
+      sh(ws, 'commit', '-q', '-m', 'test: old');
+      const testCommit = sh(ws, 'rev-parse', 'HEAD');
+      h.write(ws, 'src/f1.ts', 'old implementation'); // uncommitted: the implementation made after the tests
+      const redo = await h.prisma.subtask.update({
+        where: { id: s.id },
+        data: { status: 'TESTS', testCommit, testFiles: ['src/f1.test.ts'], redoTests: true, lastFailure: 'The previous tests could not be satisfied.' },
+      });
+      let seenOldWork = true;
+      h.agent.scripts.tests = ({ ws: w }) => {
+        seenOldWork = existsSync(`${w}/src/f1.ts`) || existsSync(`${w}/src/f1.test.ts`);
+        h.write(w, 'src/f1.test.ts', 'new test');
+        return done(['src/f1.test.ts']);
+      };
+      expect(await steps.tests(t, redo)).toEqual({ kind: 'continue' });
+      expect(seenOldWork).toBe(false); // the tests stage started from the clean state
+      expect(sh(ws, 'rev-parse', 'HEAD')).toBe(before);
+      expect(h.agent.requests[0]?.inputs.previousAttempt).toBe('The previous tests could not be satisfied.');
+      expect(await h.reload(s.id)).toMatchObject({ status: 'VERIFY_RED', redoTests: false, testCommit: null, testFiles: ['src/f1.test.ts'] });
+      expect((await h.prisma.event.findMany({ where: { ticketId: t.id } })).some((e) => e.message.includes('Redo tests: discarded'))).toBe(true);
+    });
+
+    it('never discards commits that are newer than the subtask tests', async () => {
+      const t = await h.ticket();
+      const s = await h.subtask(t.id, 1);
+      const ws = h.ws(t);
+      h.write(ws, 'src/f1.test.ts', 'old test');
+      sh(ws, 'add', '.');
+      sh(ws, 'commit', '-q', '-m', 'test: old');
+      const testCommit = sh(ws, 'rev-parse', 'HEAD');
+      h.write(ws, 'src/later.ts', 'a later commit');
+      sh(ws, 'add', '.');
+      sh(ws, 'commit', '-q', '-m', 'feat: later');
+      const later = sh(ws, 'rev-parse', 'HEAD');
+      const redo = await h.prisma.subtask.update({ where: { id: s.id }, data: { status: 'TESTS', testCommit, redoTests: true } });
+      h.agent.scripts.tests = ({ ws: w }) => {
+        h.write(w, 'src/f1.test.ts', 'new test');
+        return done(['src/f1.test.ts']);
+      };
+      await steps.tests(t, redo);
+      expect(sh(ws, 'log', '--format=%H', '-n', '3')).toContain(later);
+      expect((await h.prisma.event.findMany({ where: { ticketId: t.id } })).some((e) => e.message.includes('nothing was discarded'))).toBe(true);
+    });
   });
 
   describe('orchestrator checks on testFiles fail the attempt (and the stage retries once)', () => {

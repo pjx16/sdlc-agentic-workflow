@@ -33,6 +33,11 @@ export class SessionService {
     return true;
   }
 
+  /** Logs out every session except the one holding `token`. */
+  async destroyOthers(token: string): Promise<void> {
+    await this.prisma.session.deleteMany({ where: { tokenHash: { not: hashToken(token) } } });
+  }
+
   async destroy(token: string): Promise<void> {
     await this.prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } });
   }

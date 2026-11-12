@@ -18,16 +18,28 @@ export function redactDeep<T>(value: T, redact: (text: string) => string): T {
  */
 @Injectable()
 export class RedactInterceptor implements NestInterceptor {
-  private readonly redact: (text: string) => string;
+  private redact: (text: string) => string;
+  private known = '';
 
-  constructor(secrets: readonly (string | undefined)[]) {
-    this.redact = createRedactor(secrets);
+  /** `secrets` may be a supplier: the redactor is rebuilt whenever the list changes (a token saved in the dashboard). */
+  constructor(private readonly secrets: readonly (string | undefined)[] | (() => readonly (string | undefined)[])) {
+    this.redact = createRedactor([]);
+    this.refresh();
+  }
+
+  private refresh(): void {
+    const list = (typeof this.secrets === 'function' ? this.secrets() : this.secrets).filter((s): s is string => Boolean(s));
+    const joined = list.join('\n');
+    if (joined === this.known && this.known !== '') return;
+    this.known = joined;
+    this.redact = createRedactor(list);
   }
 
   intercept(_context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    this.refresh();
     return next.handle().pipe(map((body) => redactDeep(body, this.redact)));
   }
 }
 
-/** The secrets the API process itself holds (the tokens of the worker are covered by their shapes). */
-export const apiSecrets = (env: NodeJS.ProcessEnv = process.env): (string | undefined)[] => [env.JIRA_API_TOKEN, env.JIRA_MCP_AUTH, env.SESSION_SECRET, env.DASHBOARD_PASSWORD, env.POSTGRES_PASSWORD, env.GITHUB_TOKEN, env.CLAUDE_CODE_OAUTH_TOKEN];
+/** The infrastructure secrets from the environment; credentials are added from CredentialsService. */
+export const apiSecrets = (env: NodeJS.ProcessEnv = process.env): (string | undefined)[] => [env.JIRA_API_TOKEN, env.JIRA_MCP_AUTH, env.SESSION_SECRET, env.DASHBOARD_PASSWORD, env.POSTGRES_PASSWORD, env.ENCRYPTION_KEY, env.SETUP_CODE, env.GITHUB_TOKEN, env.CLAUDE_CODE_OAUTH_TOKEN];

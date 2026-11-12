@@ -8,7 +8,7 @@ import { commitAll } from './commit';
 import { GitRunner } from './git-runner';
 
 const sh = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=agent', '-c', 'user.email=agent@example.com', ...args], { cwd, encoding: 'utf8' }).trim();
-const git = new GitRunner({ githubToken: '' });
+const git = new GitRunner({ token: async () => '' });
 const identity = { name: 'Dev Bot', email: 'bot@example.com' };
 let ws: string;
 const write = (rel: string, content: string | Buffer = 'x') => {

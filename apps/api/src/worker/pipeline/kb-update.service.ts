@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { ProjectSettingsSchema, type StageEnvelope } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { readTextNoFollowSync } from '../fs/safe-fs';
 import { CommitGuardError, squashAgentCommits } from '../git/commit-guard';
 import { PushRejectedError } from '../git/commit';
 import { GitRunner } from '../git/git-runner';
@@ -100,8 +101,9 @@ export class KbUpdateService {
     const d = envelope.data as KbUpdateData;
     if (d.featureKey !== ctx.featureKey) return `featureKey must stay "${ctx.featureKey}", not "${d.featureKey}"`;
     const full = safeDocPath(ctx.ws, ctx.kbDir, path.relative(ctx.kbDir, d.docPath));
-    if (!full || !existsSync(full)) return `docPath "${d.docPath}" must be the existing doc inside ${ctx.kbDir}`;
-    const lines = readFileSync(full, 'utf8').split('\n').length;
+    const text = full ? readTextNoFollowSync(ctx.ws, path.relative(ctx.ws, full)) : null; // never follows a symlink the agent left (S3)
+    if (text === null) return `docPath "${d.docPath}" must be the existing doc inside ${ctx.kbDir}`;
+    const lines = text.split('\n').length;
     return lines > ctx.maxLines ? `the doc has ${lines} lines, more than the limit of ${ctx.maxLines}` : null;
   }
 

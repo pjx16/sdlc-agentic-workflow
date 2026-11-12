@@ -30,7 +30,7 @@ export class JiraStatusSync implements TransitionListener {
     if (!target || !settings.jiraWriteBack.transitions) return;
 
     try {
-      await this.clients.forMode(project.jiraMode).transition(ticket.externalKey, target);
+      await (await this.clients.forMode(project.jiraMode)).transition(ticket.externalKey, target);
       await this.prisma.stateTransition.update({ where: { id: transition.id }, data: { jiraStatusApplied: target, jiraSyncResult: 'applied', jiraSyncError: null } });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

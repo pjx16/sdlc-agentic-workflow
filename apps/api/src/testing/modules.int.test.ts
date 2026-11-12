@@ -17,7 +17,7 @@ describe('application wiring', () => {
   let db: TestDatabase;
   beforeAll(async () => {
     db = await createTestDatabase();
-    Object.assign(process.env, { DATABASE_URL: db.url, DASHBOARD_PASSWORD: 'x'.repeat(8), SESSION_SECRET: 'y'.repeat(32), DATA_DIR: '/tmp/sdlc-wiring' });
+    Object.assign(process.env, { DATABASE_URL: db.url, DASHBOARD_PASSWORD: 'x'.repeat(12), DATA_DIR: '/tmp/sdlc-wiring' });
   }, 180_000);
   afterAll(async () => db?.drop());
 
@@ -33,5 +33,18 @@ describe('application wiring', () => {
     await app.init();
     for (const provider of [WorkerRunner, WorkerLoop, RestartRecovery, IntakePoller, ApprovalPoller, StateMachine, AgentRunner]) expect(app.get(provider), provider.name).toBeDefined();
     await app.close();
+  });
+
+  it('the worker loop is wired to the credentials, so it blocks until setup is complete', async () => {
+    const saved = { ...process.env };
+    for (const k of ['CLAUDE_CODE_OAUTH_TOKEN', 'GITHUB_TOKEN', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'DASHBOARD_PASSWORD']) delete process.env[k];
+    const app = await Test.createTestingModule({ imports: [WorkerModule] }).compile();
+    try {
+      await app.init();
+      expect(await app.get(WorkerLoop).tick()).toBe('not_configured');
+    } finally {
+      await app.close();
+      process.env = saved;
+    }
   });
 });

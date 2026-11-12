@@ -32,7 +32,7 @@ let prisma: PrismaService;
 let nowMs = Date.now();
 
 async function buildApp(env: Record<string, string>): Promise<INestApplication> {
-  Object.assign(process.env, { DATABASE_URL: testDb.url, DASHBOARD_PASSWORD: PASSWORD, SESSION_SECRET: 'x'.repeat(32), ...env });
+  Object.assign(process.env, { DATABASE_URL: testDb.url, DASHBOARD_PASSWORD: PASSWORD, ...env });
   const moduleRef = await Test.createTestingModule({ imports: [PrismaModule, AuthModule, SystemModule, ProtectedModule] })
     .overrideProvider(CLOCK)
     .useValue(() => nowMs)
@@ -96,6 +96,16 @@ describe('F1 authentication', () => {
     const res = await login('nope', '10.0.0.2').expect(401);
     expect(res.body.error).toBe('unauthorized');
     expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
+  it('refuses state-changing requests from another site (Sec-Fetch-Site), and allows same-origin ones', async () => {
+    const post = (site: string) => request(app.getHttpServer()).post('/auth/login').set('X-Forwarded-For', '10.0.0.9').set('Sec-Fetch-Site', site).send({ password: PASSWORD });
+    for (const site of ['same-site', 'cross-site']) {
+      const res = await post(site).expect(403);
+      expect(res.body).toEqual({ error: 'forbidden', message: 'Cross-site request refused' });
+      expect(res.headers['set-cookie']).toBeUndefined();
+    }
+    await post('same-origin').expect(200);
   });
 
   it('rejects a missing password with a validation error', async () => {

@@ -24,6 +24,11 @@ describe('egress from an agent container (BUILD_PLAN 6.1, F5)', () => {
     expect(await outcome(through(3128, 'registry.npmjs.org'))).toMatch(/exit=0/);
   }, 60_000);
 
+  it('refuses plain-HTTP requests to an allowlisted domain (CONNECT to 443 only)', async () => {
+    const out = await outcome('curl -s -o /dev/null -w "%{http_code}" --max-time 15 -x http://proxy:3128 http://registry.npmjs.org/; echo " exit=$?"');
+    expect(out).toMatch(/^403 /); // the proxy answers 403 itself
+  }, 60_000);
+
   it('cannot reach a host that is not on the allowlist', async () => {
     const out = await outcome(through(3128, 'example.com'));
     expect(out).toMatch(/^000/);

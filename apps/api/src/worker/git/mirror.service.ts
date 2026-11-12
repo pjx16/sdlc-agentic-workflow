@@ -1,28 +1,33 @@
-import { execFile } from 'node:child_process';
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import { Injectable, Logger } from '@nestjs/common';
 import type { Project } from '../../generated/prisma/client';
+import { CredentialsService } from '../../credentials/credentials.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WorkerConfig } from '../worker-config';
+import { GitRunner } from './git-runner';
+import { checkRepoAccess } from './repo-access';
 
-const run = promisify(execFile);
+/** A message already written for the user: shown as it is. */
+class RepoAccessError extends Error {}
+
 const CLONE_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_ERROR_LENGTH = 500;
-
-/** Used when GIT_ASKPASS is not set (local development); the worker image sets it. */
-const DEFAULT_ASKPASS = path.resolve(__dirname, '../../../../../docker/worker/git-askpass-token');
 
 /** Bare mirrors of project repositories (BUILD_PLAN 6.2). */
 @Injectable()
 export class MirrorService {
   private readonly logger = new Logger(MirrorService.name);
 
+  private readonly runner: GitRunner;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: WorkerConfig,
-  ) {}
+    private readonly creds: CredentialsService,
+  ) {
+    this.runner = new GitRunner({ token: async () => (await creds.resolve()).github_token });
+  }
 
   /** Clones the mirror for a pending project, checks the base branch, and records ok or failed. */
   async clone(project: Project): Promise<void> {
@@ -31,6 +36,9 @@ export class MirrorService {
     try {
       await rm(dir, { recursive: true, force: true });
       await mkdir(path.dirname(dir), { recursive: true });
+      // Ask GitHub first: a token without access to this repository would otherwise only produce a raw git 403.
+      const denied = await checkRepoAccess(project.repoUrl, (await this.creds.resolve()).github_token);
+      if (denied) throw new RepoAccessError(denied);
       await this.git(['clone', '--mirror', '--', project.repoUrl, dir]);
       const hasBase = await this.git(['--git-dir', dir, 'show-ref', '--verify', '--quiet', `refs/heads/${project.baseBranch}`]).then(
         () => true,
@@ -38,7 +46,7 @@ export class MirrorService {
       );
       if (!hasBase) error = `Base branch "${project.baseBranch}" was not found in the repository`;
     } catch (err) {
-      error = this.describe(err);
+      error = err instanceof RepoAccessError ? err.message : this.describe(err);
     }
     if (error) await rm(dir, { recursive: true, force: true });
 
@@ -56,23 +64,12 @@ export class MirrorService {
   }
 
   private git(args: string[]) {
-    return run('git', args, {
-      timeout: CLONE_TIMEOUT_MS,
-      maxBuffer: 10 * 1024 * 1024,
-      env: {
-        ...process.env,
-        // The token is only ever handed to git through the askpass helper, never in a URL or git config.
-        GIT_ASKPASS: process.env.GIT_ASKPASS ?? DEFAULT_ASKPASS,
-        GITHUB_TOKEN: this.config.githubToken,
-        GIT_TERMINAL_PROMPT: '0',
-      },
-    });
+    return this.runner.run(args, { timeoutMs: CLONE_TIMEOUT_MS });
   }
 
   private describe(err: unknown): string {
     const e = err as { stderr?: string; message?: string; killed?: boolean };
-    let text = e.killed ? 'git clone timed out' : (e.stderr?.trim() || e.message || 'git clone failed');
-    if (this.config.githubToken) text = text.split(this.config.githubToken).join('***');
+    const text = e.killed ? 'git clone timed out' : (e.stderr?.trim() || e.message || 'git clone failed');
     const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
     return (lines.find((l) => /^(fatal|error):/i.test(l)) ?? lines[0] ?? 'git clone failed').slice(0, MAX_ERROR_LENGTH);
   }

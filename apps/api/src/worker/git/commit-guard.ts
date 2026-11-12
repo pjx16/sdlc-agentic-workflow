@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { statSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
 import path from 'node:path';
 import { parsePorcelain } from './changes';
-import type { GitRunner } from './git-runner';
+import { HARDENING_FLAGS, type GitRunner } from './git-runner';
 
 export const MAX_FILE_BYTES = 1024 * 1024;
 
@@ -61,7 +61,7 @@ export async function assertStagedChangeIsSafe(git: GitRunner, workspace: string
   const files = await stagedFiles(git, workspace);
   const violations = findViolations(files, (f) => {
     try {
-      return statSync(path.join(workspace, f)).size;
+      return lstatSync(path.join(workspace, f)).size;
     } catch {
       return 0;
     }
@@ -89,11 +89,11 @@ export async function squashAgentCommits(git: GitRunner, workspace: string, preS
  * be part of a stage's output validation: a stage that leaves a secret or a huge file behind fails its attempt (BUILD_PLAN 6.8).
  */
 export function workspaceViolationsSync(workspace: string): GuardViolation[] {
-  const out = execFileSync('git', ['-c', 'core.hooksPath=/dev/null', 'status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: workspace, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const out = execFileSync('git', [...HARDENING_FLAGS, 'status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: workspace, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   const files = parsePorcelain(out).filter((c) => !c.status.includes('D') && !c.path.startsWith('.git/')).map((c) => c.path);
   return findViolations(files, (f) => {
     try {
-      return statSync(path.join(workspace, f)).size;
+      return lstatSync(path.join(workspace, f)).size;
     } catch {
       return 0;
     }

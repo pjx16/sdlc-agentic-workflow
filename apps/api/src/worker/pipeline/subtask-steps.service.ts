@@ -9,7 +9,7 @@ import type { SubtaskInfo } from '../agent-runner/context-builder';
 import { changedFilesSync } from '../git/changes';
 import { CommitGuardError, describeViolations, squashAgentCommits, workspaceViolationsSync } from '../git/commit-guard';
 import { PushRejectedError } from '../git/commit';
-import { GitRunner } from '../git/git-runner';
+import { GitRunner, HARDENING_FLAGS } from '../git/git-runner';
 import { makeWritableForAgent } from '../git/workspace';
 import { WorkspaceService, installedHash, manifestHash, recordInstalled } from '../git/workspace.service';
 import { featureKeyOf, lookup } from '../kb/kb-index';
@@ -89,9 +89,10 @@ export class SubtaskStepsService implements SubtaskSteps {
     const ws = this.launcher.workspaceOf(ticket);
     if (subtask.status === 'PENDING') await this.setStatus(subtask.id, 'TESTS');
     await makeWritableForAgent(ws);
+    if (subtask.redoTests) await this.discardSubtaskWork(ticket, subtask, ws);
 
     const preHead = await this.head(ws);
-    const tracked = execFileSync('git', ['ls-files'], { cwd: ws, encoding: 'utf8' }).split('\n').filter(Boolean);
+    const tracked = execFileSync('git', [...HARDENING_FLAGS, 'ls-files'], { cwd: ws, encoding: 'utf8' }).split('\n').filter(Boolean);
     const info = toSubtaskInfo(subtask);
     const result = await this.launcher.launch(
       ticket,
@@ -229,6 +230,25 @@ export class SubtaskStepsService implements SubtaskSteps {
     }
     await this.setStatus(subtask.id, 'VERIFY_GREEN', extra);
     return { kind: 'continue' };
+  }
+
+  /**
+   * "Redo tests": puts the workspace back to where it was before this subtask's tests were committed, so the tests stage starts clean
+   * (otherwise the implementation already in place would make any new test pass at once, which verify-red rejects). Only done when the
+   * test commit is still the latest commit: anything committed after it is never discarded.
+   */
+  private async discardSubtaskWork(ticket: Ticket, subtask: Subtask, ws: string): Promise<void> {
+    if (subtask.testCommit) {
+      const head = await this.head(ws);
+      if (head === subtask.testCommit) {
+        await this.git.run(['reset', '--hard', `${subtask.testCommit}^`], { cwd: ws });
+        await this.git.run(['clean', '-fd', '-e', 'node_modules'], { cwd: ws });
+        await this.warn(ticket, `Redo tests: discarded the tests and the implementation of subtask ${subtask.seq}; the tests stage runs again`);
+      } else {
+        await this.warn(ticket, `Redo tests: the workspace has newer commits than this subtask's tests, so nothing was discarded`);
+      }
+    }
+    await this.prisma.subtask.update({ where: { id: subtask.id }, data: { redoTests: false, testCommit: null, testFiles: [], featCommit: null } });
   }
 
   // ------------------------------------------------------------------ verify-green

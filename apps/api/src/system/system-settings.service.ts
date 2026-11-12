@@ -17,8 +17,46 @@ export interface GlobalSettingsView extends GlobalSettingsInput {
   intakePaused: boolean;
 }
 
+/** What the worker last reported (see worker/status). `online` is derived from the heartbeat. */
+export interface WorkerStatusView {
+  online: boolean;
+  heartbeatAt: string;
+  /** idle | stepped | paused | blocked | not_configured */
+  tickOutcome: string;
+  tickDetail: string | null;
+  /** The last Jira intake poll of each mode that has run. */
+  intake: IntakeStatusView[];
+}
+
+export interface IntakeStatusView {
+  mode: 'rest' | 'mcp';
+  at: string | null;
+  /** Projects polled (Jira mode on, mirror ready). */
+  projects: number;
+  /** Projects in this mode left out because their mirror is not ready. */
+  waiting: number;
+  created: number;
+  seen: number;
+  error: string | null;
+  skipped: string | null;
+}
+
+export interface RecentEvent {
+  id: string;
+  at: string;
+  type: string;
+  message: string;
+  ticketId: string | null;
+  ticketKey: string | null;
+}
+
+/** The worker is considered offline when its last heartbeat is older than this (it ticks every 5 seconds). */
+export const WORKER_ONLINE_MS = 30_000;
+
 export interface SystemView {
   settings: GlobalSettingsView;
+  worker: WorkerStatusView | null;
+  recentEvents: RecentEvent[];
   runningStage: { id: string; stage: string; model: string; projectId: string; ticketId: string | null; startedAt: string | null } | null;
   usage: { at: string; fiveHourPct: number | null; sevenDayPct: number | null; status: string | null; resetsAt: string | null; source: string } | null;
 }
@@ -75,8 +113,28 @@ export class SystemSettingsService {
     const settings = await this.settings();
     const running = await this.prisma.stageRun.findFirst({ where: { status: 'running' }, orderBy: { startedAt: 'desc' } });
     const usage = await this.prisma.usageSnapshot.findFirst({ orderBy: { at: 'desc' } });
+    const worker = await this.prisma.workerStatus.findUnique({ where: { id: 'worker' } });
+    const intakeRows = await this.prisma.workerStatus.findMany({ where: { id: { in: ['intake-rest', 'intake-mcp'] } }, orderBy: { id: 'asc' } });
+    const events = await this.prisma.event.findMany({ orderBy: { at: 'desc' }, take: 8, include: { ticket: { select: { key: true } } } });
     return {
       settings,
+      worker: worker && {
+        online: Date.now() - worker.heartbeatAt.getTime() < WORKER_ONLINE_MS,
+        heartbeatAt: worker.heartbeatAt.toISOString(),
+        tickOutcome: worker.tickOutcome,
+        tickDetail: worker.tickDetail,
+        intake: intakeRows.map((r) => ({
+          mode: r.id === 'intake-mcp' ? ('mcp' as const) : ('rest' as const),
+          at: r.intakeAt?.toISOString() ?? null,
+          projects: r.intakeProjects,
+          waiting: r.intakeWaiting,
+          created: r.intakeCreated,
+          seen: r.intakeSeen,
+          error: r.intakeError,
+          skipped: r.intakeSkipped,
+        })),
+      },
+      recentEvents: events.map((e) => ({ id: e.id, at: e.at.toISOString(), type: e.type, message: e.message, ticketId: e.ticketId, ticketKey: e.ticket?.key ?? null })),
       runningStage: running && {
         id: running.id,
         stage: running.stage,

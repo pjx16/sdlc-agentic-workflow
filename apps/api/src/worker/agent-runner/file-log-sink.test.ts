@@ -1,3 +1,4 @@
+import { staticCredentials } from '../../testing/static-credentials';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -11,7 +12,7 @@ let sink: FileLogSink;
 
 beforeAll(() => {
   tmp = mkdtempSync(path.join(tmpdir(), 'sdlc-logs-'));
-  sink = new FileLogSink(new WorkerConfig({ DATA_DIR: tmp, DATABASE_URL: 'x', CLAUDE_CODE_OAUTH_TOKEN: claude, GITHUB_TOKEN: 'gh-secret-token-123', JIRA_API_TOKEN: 'jira-secret-token-456' } as NodeJS.ProcessEnv));
+  sink = new FileLogSink(new WorkerConfig({ DATA_DIR: tmp, DATABASE_URL: 'x' } as NodeJS.ProcessEnv), staticCredentials({ claude_token: claude, github_token: 'gh-secret-token-123', jira_api_token: 'jira-secret-token-456' }));
 });
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 

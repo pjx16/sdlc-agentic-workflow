@@ -1,9 +1,10 @@
+import { staticCredentials } from '../../testing/static-credentials';
 import 'reflect-metadata';
 import { execFileSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FakeGitHub } from '../../testing/fake-github';
 import { docker, leftoverAgentContainers, startEgress, type EgressFixture } from '../../testing/docker-fixture';
@@ -74,23 +75,23 @@ describe('subtask TDD loop end to end (real containers, fake-claude)', () => {
     mkdirSync(dataDir, { recursive: true });
     chmodSync(dataDir, 0o777);
     const config = new WorkerConfig({
-      DATA_DIR: dataDir, DATABASE_URL: db.url, CLAUDE_CODE_OAUTH_TOKEN: 'fake-token', GUIDELINES_DIR: path.join(ROOT, 'guidelines'), GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com',
+      DATA_DIR: dataDir, DATABASE_URL: db.url, CLAUDE_CODE_OAUTH_TOKEN: 'fake-token', GUIDELINES_DIR: path.join(ROOT, 'guidelines'), TEST_PUSH_URL_PREFIXES: 'file://', GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com',
       AGENT_EXTRA_BINDS: `${ROOT}/test/fake-claude/claude:/usr/local/bin/claude:ro,${ROOT}/test/fake-claude:/fake-claude:ro`,
       AGENT_EXTRA_ENV: `FAKE_SCENARIO=${scenario},FAKE_SCENARIOS_DIR=/fake-claude/scenarios`,
     } as NodeJS.ProcessEnv);
     const project = await prisma.project.create({
       data: { name: `proj-${n}`, repoUrl: `file://${bare}`, baseBranch: 'dev', stack: 'ts_node', installCmd: 'echo installed', typecheckCmd: 'echo typecheck ok', testCmdTemplate: 'sh check.sh {files}', localKeyPrefix: 'TGT', mirrorStatus: 'pending', ...(opts.project ?? {}) },
     });
-    await new MirrorService(prisma, config).clone(project);
+    await new MirrorService(prisma, config, staticCredentials()).clone(project);
     const containers = new ContainerRunner(new DockerodeEngine(docker));
-    const git = new GitRunner({ githubToken: '' });
+    const git = new GitRunner({ token: async () => '' });
     const verify = new VerifyService(containers, config);
-    const workspaces = new WorkspaceService(prisma, config, git, verify);
-    const agent = new AgentRunner(containers, config, new PrismaStageRunStore(prisma), new FileLogSink(config));
+    const workspaces = new WorkspaceService(prisma, config, git, verify, staticCredentials());
+    const agent = new AgentRunner(containers, config, staticCredentials({ claude_token: 'fake-token' }), new PrismaStageRunStore(prisma), new FileLogSink(config, staticCredentials({ claude_token: 'fake-token' })));
     const launcher = new StageLauncher(prisma, config, agent);
     const outcomes = new StageOutcomes(prisma);
     const github = new FakeGitHub();
-    const steps = new SubtaskStepsService(prisma, launcher, outcomes, workspaces, git, verify, config, new PrService(prisma, config, github));
+    const steps = new SubtaskStepsService(prisma, launcher, outcomes, workspaces, git, verify, config, new PrService(prisma, config, staticCredentials(), github));
 
     const ticket = await prisma.ticket.create({ data: { projectId: project.id, key: `TGT-${n}`, source: 'paste', title: 'Export bookings', body: 'Add a CSV export.', status: 'IN_PROGRESS', planMarkdown: '# Plan' } });
     await workspaces.prepare(ticket.id);
@@ -160,6 +161,9 @@ describe('subtask TDD loop end to end (real containers, fake-claude)', () => {
   it('a draft PR is opened after the first subtask, with the description template', async () => {
     const r = await rig('tdd-ok');
     await prisma.project.update({ where: { id: r.projectId }, data: { repoUrl: 'https://github.com/acme/billing' } });
+    // The push goes to the stored URL; route that github.com URL to the local bare remote.
+    Object.assign(process.env, { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: `url.file://${bare}.insteadOf`, GIT_CONFIG_VALUE_0: 'https://github.com/acme/billing' });
+    onTestFinished(() => void ['GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0'].forEach((k) => delete process.env[k]));
     expect(r.github.opened).toHaveLength(0);
     await drive(r, async () => (await subtask(r.subtaskIds[0] as string)).status === 'DONE');
     expect((await subtask(r.subtaskIds[1] as string)).status).toBe('PENDING'); // the second subtask has not started

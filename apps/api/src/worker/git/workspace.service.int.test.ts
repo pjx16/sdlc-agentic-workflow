@@ -1,3 +1,4 @@
+import { staticCredentials } from '../../testing/static-credentials';
 import 'reflect-metadata';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -40,12 +41,12 @@ describe('WorkspaceService', () => {
     writeFileSync(path.join(source, 'package.json'), '{}');
     sh(source, 'add', '.');
     sh(source, 'commit', '-q', '-m', 'init');
-    config = new WorkerConfig({ DATA_DIR: path.join(tmp, 'data'), DATABASE_URL: db.url } as NodeJS.ProcessEnv);
+    config = new WorkerConfig({ DATA_DIR: path.join(tmp, 'data'), DATABASE_URL: db.url, TEST_PUSH_URL_PREFIXES: 'file://' } as NodeJS.ProcessEnv);
     const project = await prisma.project.create({ data: { name: 'p', repoUrl: `file://${source}`, baseBranch: 'dev', stack: 'ts_node', installCmd: 'npm ci', testCmdTemplate: 'x {files}', localKeyPrefix: 'P', mirrorStatus: 'pending' } });
     projectId = project.id;
-    await new MirrorService(prisma, config).clone(project); // a real mirror of the local repository
+    await new MirrorService(prisma, config, staticCredentials()).clone(project); // a real mirror of the local repository
     engine = new FakeEngine({ lines: ['added 120 packages'] });
-    service = new WorkspaceService(prisma, config, new GitRunner({ githubToken: '' }), new VerifyService(new ContainerRunner(engine), config));
+    service = new WorkspaceService(prisma, config, new GitRunner({ token: async () => '' }), new VerifyService(new ContainerRunner(engine), config), staticCredentials());
   }, 180_000);
   afterAll(async () => {
     await prisma?.onModuleDestroy();
@@ -98,7 +99,7 @@ describe('WorkspaceService', () => {
 
   it('reports a failed install without throwing, so the caller can hold the ticket', async () => {
     const failing = new FakeEngine({ exitCode: 1, lines: ['npm ERR! 404 not found'] });
-    const s = new WorkspaceService(prisma, config, new GitRunner({ githubToken: '' }), new VerifyService(new ContainerRunner(failing), config));
+    const s = new WorkspaceService(prisma, config, new GitRunner({ token: async () => '' }), new VerifyService(new ContainerRunner(failing), config), staticCredentials());
     const res = await s.prepare((await ticket()).id);
     expect(res.install).toMatchObject({ ok: false, exitCode: 1, tail: 'npm ERR! 404 not found' });
   });
