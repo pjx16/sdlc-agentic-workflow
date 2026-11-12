@@ -7,6 +7,7 @@ import { RedactInterceptor, apiSecrets } from './common/redact-interceptor';
 export function configureApp(app: INestApplication): void {
   // The API sits behind the dashboard's /api rewrite, which adds X-Forwarded-For (one hop).
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  app.getHttpAdapter().getInstance().disable('x-powered-by');
   app.use(cookieParser());
   app.useGlobalFilters(new ErrorFilter());
   app.useGlobalInterceptors(new RedactInterceptor(apiSecrets()));
