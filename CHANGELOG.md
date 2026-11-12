@@ -6,8 +6,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-### Fixed
-- Jira intake no longer takes sub-tasks as tickets, including the sub-tasks the pipeline publishes for its own subtasks (it was picking those up and starting a new ticket for each).
+## [0.0.0] - 2026-11-12
+
+First public pre-release. Published so the author can use sdlc-agent on their own projects (including sdlc-agent itself) and find what breaks. Not production-ready and not supported for other users.
 
 ### Added
 - A held or failed ticket now explains what happened and lists the steps to keep it moving, with the actions that apply: Resume, Retry, and **Redo tests** (discards a subtask's tests and code and writes the tests again, with the failure and an optional note as context), so a wrong or over-strict test no longer leaves a ticket stuck.
@@ -18,15 +19,6 @@ All notable changes to this project are documented here. The format follows [Kee
 - The `sdlc-agent` npm CLI (`npx sdlc-agent init`): installs and runs the stack from the published images, with `up`, `down`, `status`, `logs`, `upgrade` (with a database backup), `doctor`, `reset-admin` and `uninstall`.
 - First-run setup wizard: create the admin password with a one-time setup code, then enter the Claude token, GitHub token and git identity (Jira optional) in the dashboard, each with a Test button. The pipeline stays blocked, with a banner, until the required credentials are set.
 - Credentials are stored in the database, encrypted with AES-256-GCM using `ENCRYPTION_KEY`. Environment variables still override stored values.
-
-### Changed
-- `DASHBOARD_PASSWORD` and the token variables are optional; `ENCRYPTION_KEY` is required.
-
-## [0.0.0] - YYYY-MM-DD
-
-First public pre-release. Published so the author can use sdlc-agent on their own projects (including sdlc-agent itself) and find what breaks. Not production-ready and not supported for other users.
-
-### Added
 - Ticket pipeline: Jira (REST or MCP) or pasted tickets → AI plan → approval → AI breakdown → approval → test-first implementation per subtask → AI review (max 2 fix rounds) → knowledge-base update → CI wait (one fix round) → PR ready for human merge.
 - Isolated agent containers (no capabilities, no Docker socket, egress only through an allowlisting proxy) and an orchestrator that does every commit, push and PR itself.
 - Usage gate on the 5-hour and 7-day Claude windows, with Resume and Ignore actions.
@@ -34,6 +26,12 @@ First public pre-release. Published so the author can use sdlc-agent on their ow
 - Per-repository knowledge base with a deterministic index.
 - CI (lint, typecheck, unit, integration, e2e, Docker builds, audit), security scanning (CodeQL, gitleaks, dependency review, Scorecard) and Dependabot.
 - Release pipeline: multi-arch images on GHCR with SBOM and provenance attestations, plus an install bundle on GitHub Releases.
+
+### Changed
+- `DASHBOARD_PASSWORD` and the token variables are optional; `ENCRYPTION_KEY` is required.
+
+### Fixed
+- Jira intake no longer takes sub-tasks as tickets, including the sub-tasks the pipeline publishes for its own subtasks (it was picking those up and starting a new ticket for each).
 
 ### Security
 - Agent containers mount the workspace `.git` read-only; worker git calls disable credential helpers and non-HTTPS protocols, and push to the stored repository URL only.
