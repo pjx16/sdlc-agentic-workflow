@@ -2,29 +2,7 @@
 
 A self-hosted, Docker-based **shipping engine** for solo developers. It turns tickets into reviewable pull requests with AI agents, while keeping AI usage lean and never giving agents access to your machine or credentials.
 
-> **Status: feature-complete; one small real ticket has gone through end to end.** Every milestone in [`BUILD_PLAN.md`](./BUILD_PLAN.md) is implemented and covered by unit and integration tests (a stand-in for Claude plays the model), and a single-subtask ticket ran with live Claude from paste to merged PR (see [Live end-to-end run](#live-end-to-end-run), including the bugs it found). Larger tickets, review findings, CI failures and Jira were not exercised live. Expect rough edges.
-
-## Contents
-
-- [What it does](#what-it-does)
-- [Why](#why)
-- [How it works](#how-it-works)
-- [Design principles](#design-principles)
-- [Security model](#security-model)
-- [Tech stack](#tech-stack)
-- [Setup](#setup)
-- [Adding a project](#adding-a-project)
-- [Writing guidelines](#writing-guidelines)
-- [Configuration](#configuration)
-- [Repository layout](#repository-layout)
-- [Tests](#tests)
-- [Roadmap](#roadmap)
-- [Live end-to-end run](#live-end-to-end-run)
-- [Scope and known limitations](#scope-and-known-limitations)
-- [Contributing](#contributing)
-- [Security](#security)
-- [License](#license)
-- [Disclaimer](#disclaimer)
+> **Status: version 1, feature-complete.** All 14 milestones in [`BUILD_PLAN.md`](./BUILD_PLAN.md) are implemented and covered by unit, integration and browser tests (a stand-in plays Claude in those). One small real ticket has run end to end with live Claude, from a pasted ticket to a merged PR (see [Live end-to-end run](#live-end-to-end-run)). Larger tickets, review findings, CI failures and Jira have not been exercised live. Expect rough edges, and please report them.
 
 ## What it does
 
@@ -80,7 +58,7 @@ Key points:
 - **Dashboard:** single-user password login, live logs, queue, approvals, support queries, settings, guideline editing and minimal charts.
 - **Jira integration:** REST polling with a configurable JQL per project (default), or an optional Jira MCP mode for organisations that block API access. Pasting tickets works in every mode. Ticket states can be mapped to Jira statuses.
 
-The full flow, state machine and acceptance criteria are in [`BUILD_PLAN.md`](./BUILD_PLAN.md).
+The full flow, state machine and acceptance criteria are in [`BUILD_PLAN.md`](./BUILD_PLAN.md). For how the pieces fit together (services, trust boundaries, ticket lifecycle, worker loop, data model) and how that has changed over time, see [`docs/architecture`](./docs/architecture/README.md).
 
 ## Design principles
 
@@ -118,6 +96,12 @@ The full flow, state machine and acceptance criteria are in [`BUILD_PLAN.md`](./
 | Tests | Vitest, Testcontainers, Playwright |
 
 Supported target stacks: TypeScript/Node, NestJS and Next.js.
+
+## Architecture
+
+![System diagram](./docs/architecture/v1.0.0/diagrams/system.svg)
+
+The architecture is documented per version in [`docs/architecture`](./docs/architecture/README.md); the current one is [1.0.0](./docs/architecture/v1.0.0/README.md), with diagrams that GitHub renders: the system and its containers, trust boundaries (which secret lives where), the ticket lifecycle, the subtask loop, the worker loop, stages and models, and the data model. It ends with a change log. The folder also holds the architecture change log. **If you change the structure, add a new version folder in the same pull request** (the rules are in the index).
 
 ## Setup
 
@@ -208,12 +192,14 @@ Per-project settings (stages, models, turn limits, gates, limits, Jira status ma
 apps/
   api/            NestJS API and worker (Prisma, state machine, agent runner, Git/GitHub/Jira clients)
   dashboard/      Next.js dashboard
+  e2e/            Playwright browser tests (own Postgres, built API, dashboard)
 packages/
   shared/         Zod schemas, enums and constants
 docker/
   agent/          Agent image (Claude Code CLI, run-stage, run-cmd)
   worker/         Worker image (git, gh)
   proxy/          Squid egress proxy
+docs/architecture/ Architecture per version (v1.0.0/), diagrams and change log
 guidelines/       Default CLAUDE.md, stage prompts, stack guidelines, review checklist
 test/fake-claude/ Claude CLI stub used by tests
 ```
@@ -233,7 +219,7 @@ The end-to-end suite starts its own Postgres container and the API and dashboard
 
 ## Roadmap
 
-Development followed 14 milestones, defined in [`BUILD_PLAN.md`](./BUILD_PLAN.md) and split into sub-tasks in [`SUB_TASKS.md`](./SUB_TASKS.md):
+Version 1 was built in 14 milestones, defined in [`BUILD_PLAN.md`](./BUILD_PLAN.md) and split into sub-tasks in [`SUB_TASKS.md`](./SUB_TASKS.md):
 
 | # | Milestone | State |
 | --- | --- | --- |
@@ -250,7 +236,7 @@ Development followed 14 milestones, defined in [`BUILD_PLAN.md`](./BUILD_PLAN.md
 | 10 | Usage gate | done |
 | 11 | Jira MCP mode | done (tested against a stand-in, not a live MCP server) |
 | 12 | Metrics and charts | done |
-| 13 | Hardening, documentation and a live end-to-end run | hardening and docs done; live run pending |
+| 13 | Hardening, documentation and a live end-to-end run | done (one small live run, see below) |
 
 ## Live end-to-end run
 
@@ -262,14 +248,16 @@ Result: **it reached `DONE`**. The pipeline went NEW → PLANNING → plan appro
 
 Tokens (all stages, 24 h window): about **184,000** in total. kbBuild 20k, plan 20k, breakdown 23k, tests 54k (three rounds, see below), implement 22k, review 21k, kbUpdate 23k. Models were the defaults (Opus for the plan, Sonnet for the rest, Haiku for the breakdown).
 
-What went wrong (and was fixed on this branch):
+What went wrong (the first two are fixed, the last two remain):
 
 - **npm cache volume was root-owned**, so every dependency install in an agent container failed (`EACCES` on `/npm-cache`). The agent Dockerfile now creates `/npm-cache` owned by `node`. An *existing* volume needs a one-off `chown`.
 - **The worker refused the workspace** ("dubious ownership"): workspaces are written by the agent user (uid 1000), the worker is root. The worker image now sets `safe.directory '*'`, and every worker git call also passes `core.fsmonitor=false` (hooks were already disabled), so a workspace's own git config cannot run code in the worker.
 - **A failed first install left a half-installed `node_modules`**, and a retry skips the install when `node_modules` exists, so the tests stage held twice ("Cannot find module"). I reinstalled by hand and pressed Retry. Not fixed: a failed install should remove `node_modules`. Until then, delete the workspace's `node_modules` *and* reinstall, or delete the workspace.
 - A held ticket's **Retry restarts only the subtask loop**; it does not redo the workspace install.
 
-Not exercised in this run: a review that finds issues, CI failures, support queries, Jira (REST or MCP), the usage gate pausing a run, and a multi-subtask ticket.
+A second run on a two-function ticket (`slugify` and `truncate`) produced a ready PR with six commits, 17 passing tests and a clean typecheck. It also showed two problems that are now fixed: the ticket text was sent under the wrong field name and silently dropped (the API now rejects unknown fields), and the knowledge-base doc kept "does not exist yet" notes (the `kbUpdate` stage now rewrites them).
+
+Not exercised in these runs: a review that finds issues, CI failures, support queries, Jira (REST or MCP), the usage gate pausing a run, and a multi-subtask ticket.
 
 ## Scope and known limitations
 
@@ -282,7 +270,9 @@ Known limitations:
 - Jira MCP mode works headlessly with a scoped Atlassian API token (SPIKE.md 0.7), but the organisation must allow API-token access to the Rovo MCP server. It has only been tested against a stand-in, and every MCP read or write is a stage run (about 50-70k tokens), so use REST mode where it works.
 - Only one stage runs at a time, system-wide, and a ticket's whole run is sequential.
 - The first-pass rate on the Overview is approximate: a subtask has no completion time of its own, so it counts in the range where its last stage run ended.
-- Untested against a real GitHub repository and real Claude until sub-task 13.5 is done.
+- Only one small ticket (one subtask, then two) has run with live Claude. Review fixes, CI fixes, support queries, Jira and larger tickets have only been tested against the stand-in.
+- A failed first dependency install leaves a half-installed `node_modules`, and Retry skips the reinstall. Delete the workspace's `node_modules` and reinstall, or delete the workspace (see the live run notes).
+- Creating a ticket through the API requires the text in `body`; unknown fields are rejected.
 
 ## Contributing
 
