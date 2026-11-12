@@ -55,8 +55,10 @@ export async function makeWritableForAgent(workspacePath: string): Promise<'chow
     await exec('chown', ['-R', '1000:1000', workspacePath]);
     return 'chown';
   } catch {
-    await exec('chmod', ['-R', 'a+rwX', workspacePath]);
-    await chmod(workspacePath, 0o777);
+    // Not root. Only entries owned by this user can be chmod-ed: the agent (uid 1000) owns what it created, and on Linux another user's
+    // files cannot be changed (chmod -R would fail on them). The agent scripts use umask 000, so those are already open to everyone.
+    await exec('find', [workspacePath, '-user', String(process.getuid?.() ?? 0), '-exec', 'chmod', 'a+rwX', '{}', '+']);
+    await chmod(workspacePath, 0o777).catch(() => undefined);
     return 'chmod';
   }
 }

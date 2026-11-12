@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -98,5 +98,17 @@ describe('makeWritableForAgent', () => {
     const how = await makeWritableForAgent(s.workspacePath);
     expect(['chown', 'chmod']).toContain(how);
     if (how === 'chmod') expect(statSync(path.join(s.workspacePath, 'README.md')).mode & 0o006).toBe(0o006);
+  });
+
+  it('without root it opens up the files it owns, nested ones included, and does not fail on the rest', async () => {
+    const s = spec('i');
+    await prepareWorkspace(git, s);
+    mkdirSync(path.join(s.workspacePath, 'deep/er'), { recursive: true, mode: 0o700 });
+    writeFileSync(path.join(s.workspacePath, 'deep/er/file.txt'), 'x', { mode: 0o400 });
+    if ((await makeWritableForAgent(s.workspacePath)) === 'chmod') {
+      expect(statSync(path.join(s.workspacePath, 'deep/er/file.txt')).mode & 0o666).toBe(0o666);
+      expect(statSync(path.join(s.workspacePath, 'deep/er')).mode & 0o777).toBe(0o777);
+      expect(statSync(s.workspacePath).mode & 0o777).toBe(0o777);
+    }
   });
 });

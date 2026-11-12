@@ -117,7 +117,7 @@ describe('kbUpdate stage (F11)', () => {
     expect(sh(ws, 'rev-parse', 'HEAD')).toBe(sh(path.join(tmp, 'source'), 'rev-parse', t.branch as string));
     expect(lastRequest).toMatchObject({ stage: 'kbUpdate', inputs: { kbDir: 'docs/kb', kbDocMaxLines: 300, existingDoc: '# Bookings\noriginal doc\n' } });
     expect((lastRequest?.inputs as { diff: string }).diff).toContain('src/app.ts');
-    expect((lastRequest?.inputs as { docTemplate: string }).docTemplate).toContain('Knowledge-base doc template');
+    expect((lastRequest?.inputs as { docTemplate: string }).docTemplate).toContain('## Entry points'); // the shipped template (guidelines/kb-doc-template.md)
   });
 
   it('makes no commit when the change does not affect the doc', async () => {

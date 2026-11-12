@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -58,6 +58,12 @@ beforeAll(() => {
   chmodSync(path.join(bin, 'timeout'), 0o755);
 });
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
+
+describe('run-stage umask', () => {
+  it('sets umask 000 before it starts the agent, for the same reason as run-cmd', () => {
+    expect(readFileSync(RUN_STAGE, 'utf8')).toMatch(/^umask 000$/m);
+  });
+});
 
 describe('run-stage (BUILD_PLAN 6.4)', () => {
   it('builds the documented claude command from stage.json and feeds the prompt on stdin', () => {
@@ -127,6 +133,14 @@ describe('run-cmd (BUILD_PLAN 6.4)', () => {
     expect(ok.status).toBe(0);
     expect(ok.stdout).toBe('heredone\n');
     expect(run('echo oops >&2; exit 3').status).toBe(3);
+  });
+
+  it('creates files and folders open to everyone (umask 000), so the worker, a different user, can still change and delete them', () => {
+    const res = run('mkdir made-dir && touch made-file && mkdir made-dir/inner');
+    expect(res.status).toBe(0);
+    expect(statSync(path.join(tmp, 'made-file')).mode & 0o777).toBe(0o666);
+    expect(statSync(path.join(tmp, 'made-dir')).mode & 0o777).toBe(0o777);
+    expect(statSync(path.join(tmp, 'made-dir/inner')).mode & 0o777).toBe(0o777);
   });
 
   it('kills the command at the timeout with exit code 124', () => {
