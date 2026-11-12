@@ -12,6 +12,11 @@ describe('PasteTicketSchema', () => {
   it('treats a blank feature key as absent', () => {
     expect(PasteTicketSchema.parse({ projectId: 'p1', title: 't', featureKey: '  ' }).featureKey).toBeUndefined();
   });
+  it('rejects an unknown field by name instead of dropping it', () => {
+    const r = PasteTicketSchema.safeParse({ projectId: 'p', title: 'T', description: 'typo for body' });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(zodFields(r.error)).toEqual({ description: 'unknown field' });
+  });
   it('reports field-level errors', () => {
     const f = zodFields(PasteTicketSchema.safeParse({ title: '', type: 'epic', featureKey: 'Not Valid' }).error!);
     expect(Object.keys(f).sort()).toEqual(['featureKey', 'projectId', 'title', 'type']);

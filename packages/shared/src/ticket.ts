@@ -13,7 +13,8 @@ const featureKey = z
   .transform((v) => (v === '' ? undefined : v));
 
 /** Body of POST /tickets (BUILD_PLAN 8 Tickets, paste). */
-export const PasteTicketSchema = z.object({
+/** Strict: an unknown field (a typo such as `description` for `body`) is an error, not silently dropped. */
+export const PasteTicketSchema = z.strictObject({
   projectId: z.string({ error: 'required' }).min(1, 'required'),
   title: z.string({ error: 'required' }).trim().min(1, 'required').max(200, 'must be at most 200 characters'),
   body: z.string().max(100_000, 'must be at most 100000 characters').default(''),

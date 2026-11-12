@@ -17,6 +17,12 @@ const collect = (file: string, getStatus: () => Promise<string | null>, signal?:
   return { lines, done, end: () => end };
 };
 
+/** Waits for a condition instead of a fixed time, so a busy machine cannot make the test flaky. */
+const until = async (condition: () => boolean, ms = 3000) => {
+  const stop = Date.now() + ms;
+  while (!condition() && Date.now() < stop) await new Promise((r) => setTimeout(r, 10));
+};
+
 describe('streamLog', () => {
   it('sends what is on disk and then ends when the run is already finished', async () => {
     const file = path.join(tmp, 'a.log');
@@ -32,11 +38,11 @@ describe('streamLog', () => {
     writeFileSync(file, 'first\n');
     let status = 'running';
     const s = collect(file, async () => status);
-    await new Promise((r) => setTimeout(r, 40));
+    await until(() => s.lines.length >= 1);
     expect(s.lines).toEqual(['first']);
     expect(s.end()).toBeUndefined();
     appendFileSync(file, 'second\nthird\n');
-    await new Promise((r) => setTimeout(r, 40));
+    await until(() => s.lines.length >= 3);
     expect(s.lines).toEqual(['first', 'second', 'third']);
     status = 'failed';
     await s.done;

@@ -38,7 +38,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
       {summary && <NumberCards summary={summary} />}
       <div className="grid gap-4 lg:grid-cols-2">
         {usage && <UsageChart data={usage} />}
-        {tokens && <TokensChart data={tokens} hrefFor={(g) => `/?range=${range}&groupBy=${g}`} />}
+        {tokens && <TokensChart data={tokens} />}
         {states && (
           <BarListChart
             title="Tickets by state"
@@ -55,7 +55,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
             summary="Median time of a successful run, per stage."
             emptyText="No stage has finished in this range."
             valueLabel="Median"
-            format={(s) => (s < 60 ? `${Math.round(s)}s` : `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`)}
+            unit="duration"
             rows={durations.stages.map((d) => ({ name: d.stage, value: d.medianSeconds }))}
           />
         )}

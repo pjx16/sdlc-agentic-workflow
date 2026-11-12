@@ -9,7 +9,7 @@ import { AXIS_PROPS, GRID, tone, tooltipStyle } from './theme';
 const compact = (n: number) => new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
 
 /** Stacked bars per day, by stage or by model (F17). The switch is a link, so the choice survives a reload. */
-export function TokensChart({ data, hrefFor }: { data: MetricsTokens; hrefFor: (groupBy: 'stage' | 'model') => string }) {
+export function TokensChart({ data }: { data: MetricsTokens }) {
   const rows = data.days.map((d) => ({ day: d.day.slice(5), ...d.groups }));
   const total = data.days.reduce((a, d) => a + d.total, 0);
   return (
@@ -22,7 +22,7 @@ export function TokensChart({ data, hrefFor }: { data: MetricsTokens; hrefFor: (
     >
       <div className="mb-2 flex items-center gap-3 text-xs">
         {(['stage', 'model'] as const).map((g) => (
-          <Link key={g} href={hrefFor(g)} aria-current={data.groupBy === g ? 'true' : undefined} className={data.groupBy === g ? 'font-medium underline' : 'text-muted hover:underline'}>
+          <Link key={g} href={`/?range=${data.range}&groupBy=${g}`} aria-current={data.groupBy === g ? 'true' : undefined} className={data.groupBy === g ? 'font-medium underline' : 'text-muted hover:underline'}>
             By {g}
           </Link>
         ))}

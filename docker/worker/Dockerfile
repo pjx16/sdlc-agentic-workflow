@@ -9,6 +9,9 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 COPY docker/worker/git-askpass-token /usr/local/bin/git-askpass-token
 RUN chmod +x /usr/local/bin/git-askpass-token
+# Workspaces are written by the agent user (uid 1000) while the worker runs as root; without this git refuses them as 'dubious ownership'.
+# Hooks and fsmonitor are disabled on every git call (git-runner.ts), so a workspace's own config cannot run code here.
+RUN git config --system --add safe.directory '*'
 ENV GIT_ASKPASS=/usr/local/bin/git-askpass-token GIT_TERMINAL_PROMPT=0
 
 WORKDIR /app

@@ -58,16 +58,16 @@ describe('UsageChart', () => {
 
 describe('TokensChart', () => {
   it('names the grouping, offers the other one as a link, and shows the data', async () => {
-    render(<TokensChart data={tokens} hrefFor={(g) => `/?groupBy=${g}`} />);
+    render(<TokensChart data={tokens} />);
     expect(screen.getByText('Tokens by stage')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'By model' })).toHaveAttribute('href', '/?groupBy=model');
+    expect(screen.getByRole('link', { name: 'By model' })).toHaveAttribute('href', '/?range=7d&groupBy=model');
     expect(screen.getByRole('link', { name: 'By stage' })).toHaveAttribute('aria-current', 'true');
     await userEvent.click(screen.getByRole('button', { name: 'View data' }));
     expect(screen.getByRole('columnheader', { name: 'implement' })).toBeInTheDocument();
     expect(screen.getByText('1500')).toBeInTheDocument();
   });
   it('is empty when no tokens were used, even though the days exist', () => {
-    render(<TokensChart data={{ ...tokens, keys: [], days: [{ day: '2026-11-12', total: 0, groups: {} }] }} hrefFor={() => '/'} />);
+    render(<TokensChart data={{ ...tokens, keys: [], days: [{ day: '2026-11-12', total: 0, groups: {} }] }} />);
     expect(screen.getByText('No tokens used in this range.')).toBeInTheDocument();
   });
 });
@@ -80,7 +80,7 @@ describe('BarListChart', () => {
     expect(screen.getByText('No tickets yet.')).toBeInTheDocument();
   });
   it('formats values in the data table', async () => {
-    render(<BarListChart title="Durations" summary="s" emptyText="x" valueLabel="Median" format={(n) => `${n}s`} rows={[{ name: 'plan', value: 20 }]} />);
+    render(<BarListChart title="Durations" summary="s" emptyText="x" valueLabel="Median" unit="duration" rows={[{ name: 'plan', value: 20 }]} />);
     await userEvent.click(screen.getByRole('button', { name: 'View data' }));
     expect(screen.getByText('20s')).toBeInTheDocument();
   });

@@ -1,6 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import { ErrorFilter } from './common/error.filter';
+import { RedactInterceptor, apiSecrets } from './common/redact-interceptor';
 
 /** Shared by main.ts and the tests so both behave the same. */
 export function configureApp(app: INestApplication): void {
@@ -8,4 +9,5 @@ export function configureApp(app: INestApplication): void {
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
   app.use(cookieParser());
   app.useGlobalFilters(new ErrorFilter());
+  app.useGlobalInterceptors(new RedactInterceptor(apiSecrets()));
 }

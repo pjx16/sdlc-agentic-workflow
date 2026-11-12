@@ -73,6 +73,12 @@ describe('Pasted tickets (F3)', () => {
     expect((await t.agent.post('/tickets').send({}).expect(400)).body.fields.projectId).toBe('required');
   });
 
+  it('rejects an unknown field (a typo for body) and saves nothing', async () => {
+    const res = await t.agent.post('/tickets').send({ projectId, title: 'x', description: 'meant body' }).expect(400);
+    expect(res.body.fields).toEqual({ description: 'unknown field' });
+    expect(await t.prisma.ticket.count()).toBe(0);
+  });
+
   it('rejects an unknown, disabled or paste-disabled project', async () => {
     expect((await t.agent.post('/tickets').send({ projectId: 'nope', title: 'x' }).expect(400)).body.fields.projectId).toBe('unknown project');
     const disabled = await makeProject({ enabled: false });

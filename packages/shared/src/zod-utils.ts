@@ -4,6 +4,10 @@ import type { z } from 'zod';
 export function zodFields(error: z.ZodError): Record<string, string> {
   const fields: Record<string, string> = {};
   for (const issue of error.issues) {
+    if (issue.code === 'unrecognized_keys') {
+      for (const k of issue.keys) fields[[...issue.path, k].map(String).join('.')] ??= 'unknown field';
+      continue;
+    }
     const key = issue.path.length > 0 ? issue.path.map(String).join('.') : 'body';
     if (!(key in fields)) fields[key] = issue.message;
   }
