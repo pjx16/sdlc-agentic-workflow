@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
@@ -239,10 +238,11 @@ export class AgentRunner {
   /** An empty file used to hide the repository's CLAUDE.md (mode ours). */
   private async emptyFile(): Promise<string> {
     const file = path.join(this.config.dataDir, 'empty-file');
-    if (!existsSync(file)) {
-      await mkdir(this.config.dataDir, { recursive: true });
-      await writeFile(file, '');
-    }
+    await mkdir(this.config.dataDir, { recursive: true });
+    // 'wx' creates it only if it is not there yet, in one step (no check-then-write race).
+    await writeFile(file, '', { flag: 'wx' }).catch((err: NodeJS.ErrnoException) => {
+      if (err.code !== 'EEXIST') throw err;
+    });
     return file;
   }
 }

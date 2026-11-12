@@ -1,4 +1,4 @@
-import { open, stat } from 'node:fs/promises';
+import { open } from 'node:fs/promises';
 
 export const TERMINAL_STATUSES: ReadonlySet<string> = new Set(['succeeded', 'failed', 'needs_input', 'killed']);
 
@@ -14,10 +14,12 @@ export interface StreamLogOptions {
 }
 
 async function readFrom(file: string, offset: number): Promise<Buffer | null> {
-  const size = await stat(file).then((s) => s.size, () => -1);
-  if (size < 0 || size <= offset) return null; // no file yet, or nothing new
-  const handle = await open(file, 'r');
+  // Open first and size the open handle: checking the file and opening it separately could race with the file being replaced.
+  const handle = await open(file, 'r').catch(() => null);
+  if (!handle) return null; // no file yet
   try {
+    const size = (await handle.stat()).size;
+    if (size <= offset) return null; // nothing new
     const buffer = Buffer.alloc(size - offset);
     await handle.read(buffer, 0, buffer.length, offset);
     return buffer;
