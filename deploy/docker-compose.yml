@@ -1,0 +1,106 @@
+# Release install: runs the published images. Set SDLC_VERSION in .env. The worker pulls the agent image on first start.
+# The services and security properties match the root docker-compose.yml, which builds from source.
+name: sdlc-agent
+
+services:
+  postgres:
+    image: postgres:17.11@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sdlc
+      POSTGRES_DB: sdlc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Loopback only: lets `npm run dev` on the host reach the database. Not reachable from agent containers.
+    ports:
+      - "127.0.0.1:5432:5432"
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sdlc -d sdlc"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    image: ${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-api:${SDLC_VERSION:?set SDLC_VERSION in .env}
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://sdlc:${POSTGRES_PASSWORD}@postgres:5432/sdlc
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?set DASHBOARD_PASSWORD in .env}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      JIRA_BASE_URL: ${JIRA_BASE_URL:-}
+      JIRA_EMAIL: ${JIRA_EMAIL:-}
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
+      DATA_DIR: ${DATA_DIR:?set DATA_DIR in .env}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ./guidelines:/app/guidelines
+      - ${DATA_DIR}:${DATA_DIR}:ro
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  worker:
+    image: ${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-worker:${SDLC_VERSION:?set SDLC_VERSION in .env}
+    restart: unless-stopped
+    user: root
+    depends_on:
+      api: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://sdlc:${POSTGRES_PASSWORD}@postgres:5432/sdlc
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GIT_AUTHOR_NAME: ${GIT_AUTHOR_NAME:-}
+      GIT_AUTHOR_EMAIL: ${GIT_AUTHOR_EMAIL:-}
+      JIRA_BASE_URL: ${JIRA_BASE_URL:-}
+      JIRA_EMAIL: ${JIRA_EMAIL:-}
+      JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
+      JIRA_MCP_CONFIG_PATH: ${JIRA_MCP_CONFIG_PATH:-}
+      # Any variable the MCP config refers to as ${NAME} must be listed here; only those reach the two Jira stages.
+      JIRA_MCP_AUTH: ${JIRA_MCP_AUTH:-}
+      DATA_DIR: ${DATA_DIR:?set DATA_DIR in .env}
+      AGENT_IMAGE: ${AGENT_IMAGE:-${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-agent:${SDLC_VERSION}}
+      AGENT_MEMORY: ${AGENT_MEMORY:-4g}
+      AGENT_CPUS: ${AGENT_CPUS:-2}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DATA_DIR}:${DATA_DIR}
+      - ./guidelines:/app/guidelines:ro
+      # Jira MCP mode: the MCP server description (see docker/jira-mcp.example.json); JIRA_MCP_CONFIG_PATH=/config/jira-mcp.json
+      - ${JIRA_MCP_CONFIG_FILE:-./docker/jira-mcp.example.json}:/config/jira-mcp.json:ro
+    networks: [internal, egress]
+
+  dashboard:
+    image: ${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-dashboard:${SDLC_VERSION:?set SDLC_VERSION in .env}
+    restart: unless-stopped
+    ports:
+      - "${DASHBOARD_BIND:-127.0.0.1}:3000:3000"
+    networks: [internal]
+
+  proxy:
+    image: ${SDLC_REGISTRY:-ghcr.io/pjx16}/sdlc-agent-proxy:${SDLC_VERSION:?set SDLC_VERSION in .env}
+    restart: unless-stopped
+    environment:
+      JIRA_MCP_HOST: ${JIRA_MCP_HOST:-}
+    networks: [agent_net, egress]
+
+networks:
+  internal: {}
+  # Agent containers attach only to this network, so they can reach nothing except the proxy.
+  agent_net:
+    name: sdlc_agent_net
+    internal: true
+  egress: {}
+
+volumes:
+  pgdata: {}
+  # Shared npm cache for agent containers (mounted at /npm-cache); created now, used from milestone 3.
+  npm_cache:
+    name: sdlc_npm_cache
