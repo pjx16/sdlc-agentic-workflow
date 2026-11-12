@@ -72,3 +72,41 @@ export function firstPassRate(subtasks: readonly SubtaskRuns[]): number | null {
   if (subtasks.length === 0) return null;
   return round2(subtasks.filter((s) => s.testFixRuns === 0).length / subtasks.length);
 }
+
+export interface MergedTicket {
+  mergedAt: Date;
+  prAdditions: number | null;
+  prDeletions: number | null;
+}
+
+export interface MergedDay {
+  day: string;
+  merged: number;
+  additions: number;
+  deletions: number;
+}
+
+/** PRs merged and lines added and deleted per UTC day. Days without a merge are included (as zero). Tickets with no line counts still count as merged. */
+export function mergedPerDay(tickets: readonly MergedTicket[], since: Date, now: Date): { days: MergedDay[]; totals: { merged: number; additions: number; deletions: number; withoutLineData: number } } {
+  const dayOf = (d: Date) => d.toISOString().slice(0, 10);
+  const days = new Map<string, MergedDay>();
+  for (let t = Date.UTC(since.getUTCFullYear(), since.getUTCMonth(), since.getUTCDate()); t <= now.getTime(); t += 86_400_000) {
+    const day = dayOf(new Date(t));
+    days.set(day, { day, merged: 0, additions: 0, deletions: 0 });
+  }
+  const totals = { merged: 0, additions: 0, deletions: 0, withoutLineData: 0 };
+  for (const t of tickets) {
+    const entry = days.get(dayOf(t.mergedAt));
+    if (!entry) continue;
+    entry.merged += 1;
+    totals.merged += 1;
+    if (t.prAdditions === null || t.prDeletions === null) totals.withoutLineData += 1;
+    else {
+      entry.additions += t.prAdditions;
+      entry.deletions += t.prDeletions;
+      totals.additions += t.prAdditions;
+      totals.deletions += t.prDeletions;
+    }
+  }
+  return { days: [...days.values()], totals };
+}

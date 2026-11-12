@@ -174,6 +174,12 @@ export interface MetricsTokens {
   days: { day: string; total: number; groups: Record<string, number> }[];
 }
 
+export interface MetricsMerged {
+  range: MetricsRange;
+  days: { day: string; merged: number; additions: number; deletions: number }[];
+  totals: { merged: number; additions: number; deletions: number; withoutLineData: number };
+}
+
 export interface MetricsQuality {
   range: MetricsRange;
   firstPassRate: number | null;

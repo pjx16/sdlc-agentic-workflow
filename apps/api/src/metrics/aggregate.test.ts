@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { firstPassRate, mean, median, parseRange, tokensOf, tokensPerDay } from './aggregate';
+import { firstPassRate, mergedPerDay, mean, median, parseRange, tokensOf, tokensPerDay } from './aggregate';
 
 const NOW = new Date('2026-11-12T12:00:00Z');
 const run = (day: string, stage: string, model: string, input: number, output = 0, cacheWrite = 0) => ({ startedAt: new Date(`${day}T10:00:00Z`), stage, model, inputTokens: input, outputTokens: output, cacheWriteTokens: cacheWrite });
@@ -54,5 +54,28 @@ describe('firstPassRate', () => {
     expect(firstPassRate([{ testFixRuns: 0 }, { testFixRuns: 2 }, { testFixRuns: 0 }, { testFixRuns: 1 }])).toBe(0.5);
     expect(firstPassRate([{ testFixRuns: 0 }])).toBe(1);
     expect(firstPassRate([])).toBeNull();
+  });
+});
+
+describe('mergedPerDay', () => {
+  const since = new Date('2026-11-10T08:00:00Z');
+  const NOW2 = new Date('2026-11-12T12:00:00Z');
+  const m = (at: string, a: number | null, d: number | null) => ({ mergedAt: new Date(at), prAdditions: a, prDeletions: d });
+  it('counts merged PRs and sums lines per UTC day, with empty days as zero', () => {
+    const { days, totals } = mergedPerDay([m('2026-11-10T23:00:00Z', 100, 20), m('2026-11-10T01:00:00Z', 5, 1), m('2026-11-12T00:30:00Z', 7, 7)], since, NOW2);
+    expect(days).toEqual([
+      { day: '2026-11-10', merged: 2, additions: 105, deletions: 21 },
+      { day: '2026-11-11', merged: 0, additions: 0, deletions: 0 },
+      { day: '2026-11-12', merged: 1, additions: 7, deletions: 7 },
+    ]);
+    expect(totals).toEqual({ merged: 3, additions: 112, deletions: 28, withoutLineData: 0 });
+  });
+  it('a PR with no line counts still counts as merged, and is reported', () => {
+    const { days, totals } = mergedPerDay([m('2026-11-11T10:00:00Z', null, null)], since, NOW2);
+    expect(days[1]).toEqual({ day: '2026-11-11', merged: 1, additions: 0, deletions: 0 });
+    expect(totals).toEqual({ merged: 1, additions: 0, deletions: 0, withoutLineData: 1 });
+  });
+  it('ignores merges outside the days of the range', () => {
+    expect(mergedPerDay([m('2026-01-01T00:00:00Z', 9, 9)], since, NOW2).totals.merged).toBe(0);
   });
 });

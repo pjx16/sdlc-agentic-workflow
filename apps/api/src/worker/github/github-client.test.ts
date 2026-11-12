@@ -106,11 +106,11 @@ describe('GhCliClient (BUILD_PLAN 6.3)', () => {
   });
 
   it('reads the PR state and merge time', async () => {
-    reply({ 'pr view': { stdout: JSON.stringify({ state: 'MERGED', mergedAt: '2026-11-12T10:00:00Z' }) } });
-    expect(await client.prState('acme/billing', 42)).toEqual({ state: 'MERGED', mergedAt: '2026-11-12T10:00:00Z' });
+    reply({ 'pr view': { stdout: JSON.stringify({ state: 'MERGED', mergedAt: '2026-11-12T10:00:00Z', additions: 120, deletions: 30, changedFiles: 4 }) } });
+    expect(await client.prState('acme/billing', 42)).toEqual({ state: 'MERGED', mergedAt: '2026-11-12T10:00:00Z', additions: 120, deletions: 30, changedFiles: 4 });
     reply({ 'pr view': { stdout: JSON.stringify({ state: 'OPEN', mergedAt: null }) } });
-    expect(await client.prState('acme/billing', 42)).toEqual({ state: 'OPEN', mergedAt: null });
-    expect(calls().at(-1)?.args).toEqual(['pr', 'view', '42', '-R', 'acme/billing', '--json', 'state,mergedAt']);
+    expect(await client.prState('acme/billing', 42)).toEqual({ state: 'OPEN', mergedAt: null, additions: null, deletions: null, changedFiles: null });
+    expect(calls().at(-1)?.args).toEqual(['pr', 'view', '42', '-R', 'acme/billing', '--json', 'state,mergedAt,additions,deletions,changedFiles']);
   });
 
   it('returns the last 60 lines of the latest failed run, found with gh run list', async () => {

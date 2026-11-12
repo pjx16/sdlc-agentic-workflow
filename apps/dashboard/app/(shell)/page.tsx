@@ -1,3 +1,4 @@
+import { LinesChart, MergedChart } from '@/components/charts/merged-charts';
 import { BarListChart } from '@/components/charts/bar-list-chart';
 import { TokensChart } from '@/components/charts/tokens-chart';
 import { UsageChart } from '@/components/charts/usage-chart';
@@ -5,7 +6,7 @@ import { ActivityCard, NumberCards, QueueList, RangeSwitch, queueStatuses } from
 import { QualityPanel } from '@/components/quality-panel';
 import { apiGet } from '@/lib/server-api';
 import { humanizeStatus } from '@/lib/ticket-status';
-import type { MetricsDurations, MetricsQuality, MetricsRange, MetricsSummary, MetricsTokens, MetricsUsage, StateCount, SystemView, TicketListItem } from '@/lib/types';
+import type { MetricsDurations, MetricsMerged, MetricsQuality, MetricsRange, MetricsSummary, MetricsTokens, MetricsUsage, StateCount, SystemView, TicketListItem } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,11 +17,12 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const range = pickRange(params.range);
   const groupBy = params.groupBy === 'model' ? 'model' : 'stage';
   const q = `range=${range}`;
-  const [system, summary, usage, tokens, states, quality, durations, tickets] = await Promise.all([
+  const [system, summary, usage, tokens, merged, states, quality, durations, tickets] = await Promise.all([
     apiGet<SystemView>('/system').catch(() => null),
     apiGet<MetricsSummary>(`/metrics/summary?${q}`),
     apiGet<MetricsUsage>(`/metrics/usage?${q}`),
     apiGet<MetricsTokens>(`/metrics/tokens?${q}&groupBy=${groupBy}`),
+    apiGet<MetricsMerged>(`/metrics/merged?${q}`),
     apiGet<StateCount[]>('/metrics/tickets-by-state'),
     apiGet<MetricsQuality>(`/metrics/quality?${q}`),
     apiGet<MetricsDurations>(`/metrics/durations?${q}`),
@@ -39,6 +41,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
       <div className="grid gap-4 lg:grid-cols-2">
         {usage && <UsageChart data={usage} />}
         {tokens && <TokensChart data={tokens} />}
+        {merged && <MergedChart data={merged} />}
+        {merged && <LinesChart data={merged} />}
         {states && (
           <BarListChart
             title="Tickets by state"

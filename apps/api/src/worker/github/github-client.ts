@@ -16,6 +16,10 @@ export interface PrCheck {
 export interface PrState {
   state: 'OPEN' | 'CLOSED' | 'MERGED';
   mergedAt: string | null;
+  /** Size of the PR; present when GitHub reports it. */
+  additions?: number | null;
+  deletions?: number | null;
+  changedFiles?: number | null;
 }
 
 export interface OpenedPr {
@@ -135,8 +139,14 @@ export class GhCliClient implements GitHubClient {
   }
 
   async prState(repo: string, number: number): Promise<PrState> {
-    const parsed = JSON.parse(await this.gh(['pr', 'view', String(number), '-R', repo, '--json', 'state,mergedAt'])) as { state: PrState['state']; mergedAt: string | null };
-    return { state: parsed.state, mergedAt: parsed.mergedAt ?? null };
+    const parsed = JSON.parse(await this.gh(['pr', 'view', String(number), '-R', repo, '--json', 'state,mergedAt,additions,deletions,changedFiles'])) as {
+      state: PrState['state'];
+      mergedAt: string | null;
+      additions?: number;
+      deletions?: number;
+      changedFiles?: number;
+    };
+    return { state: parsed.state, mergedAt: parsed.mergedAt ?? null, additions: parsed.additions ?? null, deletions: parsed.deletions ?? null, changedFiles: parsed.changedFiles ?? null };
   }
 
   async editBody(repo: string, number: number, body: string): Promise<void> {

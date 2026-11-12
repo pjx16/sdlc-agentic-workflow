@@ -12,7 +12,7 @@ async function login(page: Page) {
   await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
 }
 
-const CHARTS = ['Usage over time', 'Tokens by stage', 'Tickets by state', 'Findings by severity', 'Stage duration'];
+const CHARTS = ['Usage over time', 'Tokens by stage', 'Pull requests merged', 'Lines changed', 'Tickets by state', 'Findings by severity', 'Stage duration'];
 const figure = (page: Page, title: string) => page.locator('figure', { has: page.getByText(title, { exact: true }) });
 
 test('with data: every chart renders, has a text alternative, and its data as a table', async ({ page }) => {
@@ -67,7 +67,7 @@ test('without data: every chart shows an empty state instead of a chart', async 
   });
   await login(page);
   const expected: Record<string, RegExp> = {
-    'Usage over time': /No usage recorded/, 'Tokens by stage': /No tokens used/, 'Tickets by state': /No tickets yet/, 'Findings by severity': /No review findings/, 'Stage duration': /No stage has finished/,
+    'Usage over time': /No usage recorded/, 'Tokens by stage': /No tokens used/, 'Pull requests merged': /No pull request was merged/, 'Lines changed': /No merged pull request with line counts/, 'Tickets by state': /No tickets yet/, 'Findings by severity': /No review findings/, 'Stage duration': /No stage has finished/,
   };
   for (const title of CHARTS) {
     const fig = figure(page, title);
