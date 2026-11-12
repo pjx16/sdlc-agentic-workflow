@@ -111,6 +111,16 @@ describe('prompt.md (BUILD_PLAN 6.4)', () => {
     expect(read(off.runDir, 'prompt.md')).toContain('write tests for your change');
   });
 
+  it('for a very large diff, gives the stat and tells the review to read it file by file', async () => {
+    const big = await build('review', {}, { diffStat: ' src/a.ts | 900 ++++\n 1 file changed', diffRange: 'origin/dev...HEAD', diffLines: 5200, diff: undefined });
+    expect(readdirSync(big.runDir)).not.toContain('diff.patch');
+    const prompt = read(big.runDir, 'prompt.md');
+    expect(prompt).toContain('The diff is large (5200 lines)');
+    expect(prompt).toContain('git diff origin/dev...HEAD -- <file>');
+    expect(prompt).toContain('src/a.ts | 900');
+    expect(readdirSync((await build('review')).runDir)).toContain('diff.patch');
+  });
+
   it('omits the previous-findings section unless there are findings, and the subtask for fix when absent', async () => {
     const withFindings = await build('review', {}, { previousFindings: [{ id: 'f1', severity: 'high', file: 'a.ts', line: 3, issue: 'bad', rule: 'r', fix: 'fix it' }] });
     expect(headings(read(withFindings.runDir, 'prompt.md'))).toContain('Previous findings');

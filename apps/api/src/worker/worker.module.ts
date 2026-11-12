@@ -20,19 +20,26 @@ import { WorkspaceService } from './git/workspace.service';
 import { VerifyService } from './verify/verify.service';
 import { IntakePoller } from './intake/intake-poller';
 import { BreakdownHandler } from './pipeline/breakdown.handler';
-import { GITHUB_CLIENT, GhCliClient } from './github/github-client';
+import { GITHUB_CLIENT, GhCliClient, type GitHubClient } from './github/github-client';
 import { InProgressHandler, SUBTASK_STEPS } from './pipeline/in-progress.handler';
 import { PrService } from './pipeline/pr.service';
 import { SubtaskStepsService } from './pipeline/subtask-steps.service';
 import { PlanHandler } from './pipeline/plan.handler';
 import { KB_BUILDER, KbHandler } from './pipeline/kb.handler';
 import { KbBuildService } from './pipeline/kb-build.service';
+import { KbUpdateService } from './pipeline/kb-update.service';
+import { HumanReviewHandler, KbUpdateHandler } from './pipeline/kb-update.handler';
+import { ReviewHandler } from './review/review.handler';
+import { ReviewService } from './review/review.service';
 import { StageLauncher } from './pipeline/stage-launcher';
 import { NewTicketHandler } from './pipeline/new-ticket.handler';
 import { STEP_HANDLERS, type StepHandler } from './pipeline/step-handler';
 import { StageOutcomes } from './pipeline/stage-outcomes';
 import { RestartRecovery } from './loop/restart-recovery';
-import { WorkerLoop } from './loop/worker-loop';
+import { HOUSEKEEPERS, type Housekeeper, WorkerLoop } from './loop/worker-loop';
+import { CiPoller } from './ci/ci-poller';
+import { MergePoller } from './ci/merge-poller';
+import { CiFixHandler } from './ci/ci-fix.handler';
 import { WorkerConfig } from './worker-config';
 import { WorkerRunner } from './worker-runner';
 
@@ -63,14 +70,23 @@ import { WorkerRunner } from './worker-runner';
     { provide: SUBTASK_STEPS, useExisting: SubtaskStepsService },
     InProgressHandler,
     { provide: KB_BUILDER, useExisting: KbBuildService },
+    KbUpdateService,
+    KbUpdateHandler,
+    HumanReviewHandler,
+    ReviewService,
+    ReviewHandler,
+    CiFixHandler,
+    { provide: CiPoller, useFactory: (p: PrismaService, st: StateMachine, pr: PrService, gh: GitHubClient) => new CiPoller(p, st, pr, gh), inject: [PrismaService, StateMachine, PrService, GITHUB_CLIENT] },
+    { provide: MergePoller, useFactory: (p: PrismaService, st: StateMachine, gh: GitHubClient) => new MergePoller(p, st, gh), inject: [PrismaService, StateMachine, GITHUB_CLIENT] },
+    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller): Housekeeper[] => [ci, merge], inject: [CiPoller, MergePoller] },
     NewTicketHandler,
     KbHandler,
-    { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler, InProgressHandler] },
+    { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler, InProgressHandler, ReviewHandler, KbUpdateHandler, HumanReviewHandler, CiFixHandler] },
     RestartRecovery,
     {
       provide: WorkerLoop,
-      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine, handlers: StepHandler[]) => new WorkerLoop(prisma, mirrors, intake, approvals, states, handlers),
-      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine, STEP_HANDLERS],
+      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine, handlers: StepHandler[], housekeepers: Housekeeper[]) => new WorkerLoop(prisma, mirrors, intake, approvals, states, handlers, undefined, housekeepers),
+      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine, STEP_HANDLERS, HOUSEKEEPERS],
     },
     WorkerRunner,
   ],
