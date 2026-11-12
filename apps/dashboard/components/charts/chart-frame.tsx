@@ -24,9 +24,9 @@ export function ChartFrame({ title, summary, empty, emptyText, table, children }
   const [showData, setShowData] = useState(false);
   const id = useId();
   return (
-    <figure className="rounded-lg border border-border bg-surface p-4">
+    <figure className="panel p-4">
       <figcaption className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium">{title}</span>
+        <span className="eyebrow text-text">{title}</span>
         {!empty && (
           <button type="button" aria-pressed={showData} aria-controls={id} onClick={() => setShowData((v) => !v)} className="text-xs text-muted underline">
             {showData ? 'View chart' : 'View data'}

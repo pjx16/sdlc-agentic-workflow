@@ -11,7 +11,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   if (!project) notFound();
   return (
     <section>
-      <h1 className="mb-6 text-xl font-semibold">{project.name}</h1>
+      <h1 className="mb-6 text-2xl font-semibold">{project.name}</h1>
       <ProjectForm project={project} />
     </section>
   );

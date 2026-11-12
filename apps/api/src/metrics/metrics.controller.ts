@@ -20,6 +20,11 @@ export class MetricsController {
     return this.metrics.tokens(range, groupBy);
   }
 
+  @Get('merged')
+  merged(@Query('range') range?: string) {
+    return this.metrics.merged(range);
+  }
+
   @Get('tickets-by-state')
   ticketsByState() {
     return this.metrics.ticketsByState();

@@ -52,7 +52,7 @@ export function PlanPanel({ ticketId, status, planMarkdown }: Props) {
 
   if (!awaiting) {
     return planMarkdown ? (
-      <pre className="whitespace-pre-wrap rounded-lg border border-border bg-surface p-4 font-sans text-sm">{planMarkdown}</pre>
+      <pre className="whitespace-pre-wrap panel p-4 font-sans text-sm">{planMarkdown}</pre>
     ) : (
       <p className="text-sm text-muted">No plan yet. It appears here once the plan stage has run.</p>
     );

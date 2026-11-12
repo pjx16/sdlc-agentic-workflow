@@ -82,7 +82,7 @@ export function BreakdownPanel({ ticketId, status, draft, subtasks, maxSubtasks 
     return (
       <ol className="space-y-3">
         {subtasks.map((s) => (
-          <li key={s.id} className="rounded-lg border border-border bg-surface p-4 text-sm">
+          <li key={s.id} className="panel p-4 text-sm">
             <div className="flex items-center justify-between">
               <span className="font-medium">
                 {s.seq}. {s.title}
@@ -113,7 +113,7 @@ export function BreakdownPanel({ ticketId, status, draft, subtasks, maxSubtasks 
 
       <ol className="space-y-4">
         {items.map((item, i) => (
-          <li key={i} className="rounded-lg border border-border bg-surface p-4">
+          <li key={i} className="panel p-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium">Subtask {item.seq}</h3>
               <span className="flex gap-2">

@@ -32,6 +32,7 @@ export async function seed(databaseUrl: string): Promise<void> {
     const review = await ticket(SEED.review.key, SEED.review.title, 'IN_HUMAN_REVIEW', { prNumber: 7, prUrl: 'https://github.com/acme/billing/pull/7', reviewRound: 1 });
     const asking = await ticket('BIL-4', 'Currency handling', 'ON_HOLD', { holdReason: 'awaiting_answer', holdFromStatus: 'PLANNING' });
     await ticket('BIL-5', 'Queued ticket', 'NEW');
+    await ticket('BIL-6', 'Shipped ticket', 'DONE', { prNumber: 3, prUrl: 'https://github.com/acme/billing/pull/3', mergedAt: new Date(), prAdditions: 240, prDeletions: 60, prChangedFiles: 5 });
 
     const run = (over: Record<string, unknown>) =>
       prisma.stageRun.create({ data: { projectId: project.id, ticketId: review.id, stage: 'plan', model: 'opus', attempt: 1, status: 'succeeded', startedAt: hoursAgo(3), endedAt: hoursAgo(2.9), inputTokens: 4000, outputTokens: 900, cacheWriteTokens: 300, ...over } as never });

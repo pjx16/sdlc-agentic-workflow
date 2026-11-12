@@ -8,6 +8,8 @@ const config: NextConfig = {
   output: 'standalone',
   // Compression buffers server-sent events (the live run log), so the dashboard server does not compress.
   compress: false,
+  // Keeps the development badge off the sidebar's collapse button.
+  devIndicators: { position: 'bottom-right' },
   outputFileTracingRoot: path.join(__dirname, '../../'),
   async rewrites() {
     return [{ source: '/api/:path*', destination: `${API_URL}/:path*` }];

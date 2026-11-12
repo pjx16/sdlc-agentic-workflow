@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { TICKET_STATUSES, ACTIONABLE_STATUSES } from '@sdlc/shared';
 import { PrismaService } from '../prisma/prisma.service';
-import { firstPassRate, mean, median, parseRange, round2, tokensOf, tokensPerDay } from './aggregate';
+import { firstPassRate, mean, median, mergedPerDay, parseRange, round2, tokensOf, tokensPerDay } from './aggregate';
 
 const SEVERITIES = ['critical', 'high', 'medium', 'low'] as const;
 
@@ -66,6 +66,15 @@ export class MetricsService {
     });
     const { days, keys } = tokensPerDay(runs.map((r) => ({ ...r, startedAt: r.startedAt as Date })), by, since, now);
     return { range, groupBy: by, keys, days };
+  }
+
+  /** PRs merged and lines added and deleted per day (F17). Lines are recorded when the worker sees the merge. */
+  async merged(rangeInput?: string) {
+    const now = this.now();
+    const { range, since } = parseRange(rangeInput, now);
+    const tickets = await this.prisma.ticket.findMany({ where: { mergedAt: { gte: since } }, select: { mergedAt: true, prAdditions: true, prDeletions: true } });
+    const { days, totals } = mergedPerDay(tickets.map((t) => ({ ...t, mergedAt: t.mergedAt as Date })), since, now);
+    return { range, days, totals };
   }
 
   async ticketsByState() {

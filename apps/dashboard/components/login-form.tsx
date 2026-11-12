@@ -1,5 +1,6 @@
 'use client';
 
+import { BrandMark } from './brand-mark';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useState } from 'react';
 
@@ -35,9 +36,15 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={submit} className="w-full max-w-sm rounded-lg border border-border bg-surface p-8">
-      <h1 className="text-lg font-semibold">SDLC Agent</h1>
-      <p className="mt-1 text-sm text-muted">Enter the dashboard password.</p>
+    <form onSubmit={submit} className="w-full max-w-sm panel p-8">
+      <div className="flex items-center gap-3">
+        <BrandMark />
+        <div>
+          <h1 className="text-lg font-semibold leading-tight tracking-wide">SDLC AGENT</h1>
+          <div className="eyebrow">Control deck</div>
+        </div>
+      </div>
+      <p className="mt-6 text-sm text-muted">Enter the dashboard password to continue.</p>
       <label htmlFor="password" className="mt-6 block text-sm">
         Password
       </label>

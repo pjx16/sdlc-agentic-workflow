@@ -141,7 +141,7 @@ export function Check(props: BaseProps) {
 
 export function Section({ title, children, description }: { title: string; description?: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={`section-${title}`} className="rounded-lg border border-border bg-surface p-6">
+    <section aria-labelledby={`section-${title}`} className="panel p-6">
       <h2 id={`section-${title}`} className="text-base font-semibold">
         {title}
       </h2>

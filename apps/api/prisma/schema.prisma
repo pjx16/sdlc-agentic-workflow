@@ -191,6 +191,11 @@ model Ticket {
   branch          String?
   prNumber        Int?
   prUrl           String?
+  /// Set when the worker sees the PR merged: GitHub's merge time and the PR's size (lines added and deleted, files changed).
+  mergedAt        DateTime?     @db.Timestamptz(6)
+  prAdditions     Int?
+  prDeletions     Int?
+  prChangedFiles  Int?
   planMarkdown    String?
   /// The proposed subtasks while the ticket waits at the breakdown gate (validated by shared validateBreakdown).
   breakdownDraft  Json?
@@ -215,6 +220,7 @@ model Ticket {
   @@unique([projectId, key])
   @@unique([projectId, externalKey])
   @@index([status, createdAt])
+  @@index([mergedAt])
 }
 
 model StateTransition {

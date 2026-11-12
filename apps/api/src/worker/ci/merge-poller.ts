@@ -5,7 +5,7 @@ import { GITHUB_CLIENT, type GitHubClient, parseRepo } from '../github/github-cl
 import type { Housekeeper } from '../loop/worker-loop';
 
 /**
- * Every `pollIntervalSec`, looks at the PRs of tickets in IN_HUMAN_REVIEW (F12): merged -> DONE, closed without a merge -> hold
+ * Every `pollIntervalSec`, looks at the PRs of tickets in IN_HUMAN_REVIEW (F12): merged -> DONE (recording when and how big the PR was), closed without a merge -> hold
  * (`pr_closed`). A GitHub problem is logged and tried again at the next poll.
  */
 @Injectable()
@@ -25,7 +25,13 @@ export class MergePoller implements Housekeeper {
     for (const ticket of tickets) {
       try {
         const pr = await this.github.prState(parseRepo(ticket.project.repoUrl), ticket.prNumber as number);
-        if (pr.state === 'MERGED') await this.states.transition(ticket.id, 'DONE', 'system', `PR #${ticket.prNumber} was merged`);
+        if (pr.state === 'MERGED') {
+          await this.prisma.ticket.update({
+            where: { id: ticket.id },
+            data: { mergedAt: pr.mergedAt ? new Date(pr.mergedAt) : new Date(), prAdditions: pr.additions ?? null, prDeletions: pr.deletions ?? null, prChangedFiles: pr.changedFiles ?? null },
+          });
+          await this.states.transition(ticket.id, 'DONE', 'system', `PR #${ticket.prNumber} was merged`);
+        }
         else if (pr.state === 'CLOSED') await this.states.hold(ticket.id, 'pr_closed', 'system', `PR #${ticket.prNumber} was closed without being merged`);
       } catch (err) {
         this.logger.warn(`PR state of ${ticket.key} could not be read: ${err instanceof Error ? err.message : String(err)}`);

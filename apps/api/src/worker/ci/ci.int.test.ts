@@ -159,11 +159,12 @@ describe('CI polling and the CI fix round (F12)', () => {
     });
     const inReview = async () => (await awaitingCi({ status: 'IN_HUMAN_REVIEW' }));
 
-    it('a merged PR moves the ticket to DONE', async () => {
+    it('a merged PR moves the ticket to DONE and records when it merged and how big it was', async () => {
       const t = await inReview();
-      h.github.state = { state: 'MERGED', mergedAt: '2026-11-11T10:00:00Z' };
+      h.github.state = { state: 'MERGED', mergedAt: '2026-11-11T10:00:00Z', additions: 120, deletions: 30, changedFiles: 4 };
       await merge.check();
       expect(await status(t.id)).toBe('DONE');
+      expect(await h.reloadTicket(t.id)).toMatchObject({ mergedAt: new Date('2026-11-11T10:00:00Z'), prAdditions: 120, prDeletions: 30, prChangedFiles: 4 });
     });
 
     it('a PR closed without a merge puts the ticket on hold (pr_closed)', async () => {

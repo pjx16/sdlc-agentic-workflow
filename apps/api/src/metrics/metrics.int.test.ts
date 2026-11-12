@@ -37,8 +37,19 @@ describe('Metrics API (BUILD_PLAN 8, F17)', () => {
     await t.prisma.event.deleteMany();
   });
 
+  it('merged: PRs and lines per day, from the merge time recorded on the ticket', async () => {
+    await ticket({ status: 'DONE', mergedAt: ago(30), prAdditions: 100, prDeletions: 40 });
+    await ticket({ status: 'DONE', mergedAt: ago(1), prAdditions: 10, prDeletions: 2 });
+    await ticket({ status: 'DONE', mergedAt: ago(2) }); // merged before line counts were recorded
+    await ticket({ status: 'IN_HUMAN_REVIEW' }); // not merged
+    const body = (await t.agent.get('/metrics/merged?range=7d').expect(200)).body;
+    expect(body.totals).toEqual({ merged: 3, additions: 110, deletions: 42, withoutLineData: 1 });
+    expect(body.days.at(-1)).toEqual({ day: '2026-11-12', merged: 2, additions: 10, deletions: 2 });
+    expect((await t.agent.get('/metrics/merged?range=24h').expect(200)).body.totals.merged).toBe(2);
+  });
+
   it('requires a session', async () => {
-    for (const p of ['summary', 'usage', 'tokens', 'tickets-by-state', 'quality', 'durations']) await t.anonymous.get(`/metrics/${p}`).expect(401);
+    for (const p of ['summary', 'usage', 'tokens', 'merged', 'tickets-by-state', 'quality', 'durations']) await t.anonymous.get(`/metrics/${p}`).expect(401);
   });
 
   describe('with no data every endpoint answers with empty values, not errors', () => {

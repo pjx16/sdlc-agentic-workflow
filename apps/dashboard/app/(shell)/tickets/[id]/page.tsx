@@ -46,7 +46,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
         <span className="text-muted">Updated {formatDateTime(ticket.updatedAt)}</span>
       </div>
       <TicketActions ticketId={ticket.id} status={ticket.status} />
-      {ticket.body && <pre className="mt-6 whitespace-pre-wrap rounded-lg border border-border bg-surface p-4 font-sans text-sm">{ticket.body}</pre>}
+      {ticket.body && <pre className="mt-6 whitespace-pre-wrap panel p-4 font-sans text-sm">{ticket.body}</pre>}
 
       <nav aria-label="Ticket sections" className="mt-8 flex gap-1 border-b border-border">
         {TABS.map((t) => (

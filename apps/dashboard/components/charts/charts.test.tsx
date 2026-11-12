@@ -3,9 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ActivityCard, NumberCards, QueueList, RangeSwitch } from '../overview-parts';
 import { QualityPanel } from '../quality-panel';
-import type { MetricsQuality, MetricsTokens, MetricsUsage, SystemView, TicketListItem } from '@/lib/types';
+import type { MetricsMerged, MetricsQuality, MetricsTokens, MetricsUsage, SystemView, TicketListItem } from '@/lib/types';
 import { BarListChart } from './bar-list-chart';
 import { ChartFrame } from './chart-frame';
+import { LinesChart, MergedChart } from './merged-charts';
 import { TokensChart } from './tokens-chart';
 import { UsageChart } from './usage-chart';
 
@@ -69,6 +70,36 @@ describe('TokensChart', () => {
   it('is empty when no tokens were used, even though the days exist', () => {
     render(<TokensChart data={{ ...tokens, keys: [], days: [{ day: '2026-11-12', total: 0, groups: {} }] }} />);
     expect(screen.getByText('No tokens used in this range.')).toBeInTheDocument();
+  });
+});
+
+const merged: MetricsMerged = {
+  range: '7d',
+  days: [{ day: '2026-11-11', merged: 0, additions: 0, deletions: 0 }, { day: '2026-11-12', merged: 2, additions: 1500, deletions: 320 }],
+  totals: { merged: 2, additions: 1500, deletions: 320, withoutLineData: 1 },
+};
+
+describe('MergedChart and LinesChart', () => {
+  it('MergedChart describes the count and lists the days as a table', async () => {
+    render(<MergedChart data={merged} />);
+    expect(screen.getByRole('img', { name: /Pull requests merged\. 2 PRs merged per day/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'View data' }));
+    const table = screen.getByRole('table');
+    expect(within(table).getByRole('cell', { name: '2026-11-12' })).toBeInTheDocument();
+    expect(within(table).getAllByRole('row')).toHaveLength(3);
+  });
+  it('LinesChart gives the totals, says when a PR has no line counts, and tables added and deleted', async () => {
+    render(<LinesChart data={merged} />);
+    expect(screen.getByText(/\+1,500 added, -320 deleted/)).toBeInTheDocument();
+    expect(screen.getByText(/1 merged PR has no line counts/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'View data' }));
+    expect(screen.getByRole('columnheader', { name: 'Deleted' })).toBeInTheDocument();
+  });
+  it('both are empty when nothing merged', () => {
+    const none: MetricsMerged = { range: '7d', days: [{ day: '2026-11-12', merged: 0, additions: 0, deletions: 0 }], totals: { merged: 0, additions: 0, deletions: 0, withoutLineData: 0 } };
+    render(<><MergedChart data={none} /><LinesChart data={none} /></>);
+    expect(screen.getByText('No pull request was merged in this range.')).toBeInTheDocument();
+    expect(screen.getByText('No merged pull request with line counts in this range.')).toBeInTheDocument();
   });
 });
 

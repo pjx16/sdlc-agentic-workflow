@@ -9,7 +9,7 @@ export default async function SettingsPage() {
   if (!system) throw new Error('GET /system returned 404');
   return (
     <section>
-      <h1 className="mb-6 text-xl font-semibold">Settings</h1>
+      <h1 className="mb-6 text-2xl font-semibold">Settings</h1>
       <SettingsForm settings={system.settings} />
     </section>
   );

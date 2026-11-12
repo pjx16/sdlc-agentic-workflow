@@ -57,7 +57,7 @@ export function RunLogViewer({ runId }: { runId: string }) {
   const dot = { connecting: 'bg-grey', live: 'bg-green', finished: 'bg-grey', lost: 'bg-red' }[phase];
 
   return (
-    <div className="rounded-lg border border-border bg-surface">
+    <div className="panel">
       <div className="flex items-center justify-between border-b border-border px-4 py-2 text-sm">
         <span className="flex items-center gap-2" role="status">
           <span aria-hidden className={`inline-block h-2 w-2 rounded-full ${dot}`} />
