@@ -153,6 +153,17 @@ describe('GlobalSettings', () => {
   });
 });
 
+describe('deepMerge ignores prototype keys from request data', () => {
+  it('does not let __proto__, constructor or prototype change the result or its prototype', () => {
+    const patch = JSON.parse('{"__proto__":{"polluted":true},"constructor":{"x":1},"prototype":{"y":1},"ok":2}');
+    const merged = deepMerge({ a: 1 } as Record<string, unknown>, patch);
+    expect(merged).toEqual({ a: 1, ok: 2 });
+    expect(Object.getPrototypeOf(merged)).toBe(Object.prototype);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect((merged as Record<string, unknown>).polluted).toBeUndefined();
+  });
+});
+
 describe('deepMerge', () => {
   it('merges objects recursively and replaces arrays and scalars', () => {
     expect(deepMerge({ a: { b: 1, c: 2 }, d: [1, 2], e: 1 }, { a: { b: 9 }, d: [3], e: undefined })).toEqual({ a: { b: 9, c: 2 }, d: [3], e: 1 });

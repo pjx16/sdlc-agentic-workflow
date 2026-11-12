@@ -2,8 +2,8 @@ import { SEVERITY_ORDER, type StoredFinding } from './review-findings';
 
 const HEADINGS: Record<string, string> = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' };
 
-/** A value inside a markdown table cell: no pipes, no line breaks. */
-const cell = (text: string): string => text.replace(/\|/g, '\\|').replace(/\r?\n+/g, ' ').trim() || '—';
+/** A value inside a markdown table cell: no pipes, no line breaks. Backslashes are escaped first, so `\\|` in the text cannot turn into an unescaped pipe. */
+const cell = (text: string): string => text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n+/g, ' ').trim() || '—';
 
 const location = (f: Pick<StoredFinding, 'file' | 'line'>): string => (f.line === null ? `\`${f.file}\`` : `\`${f.file}:${f.line}\``);
 
