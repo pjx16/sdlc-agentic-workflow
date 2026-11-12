@@ -9,7 +9,8 @@ import { CredentialsService } from './credentials.service';
   controllers: [CredentialsController],
   providers: [
     CredentialsService,
-    { provide: TESTER_OPTIONS, useValue: {} },
+    // GITHUB_API_URL exists for the end-to-end tests, which point it at a local fake GitHub.
+    { provide: TESTER_OPTIONS, useFactory: () => ({ githubApiUrl: process.env.GITHUB_API_URL || undefined }) },
     { provide: CredentialTester, useFactory: (creds: CredentialsService, options: object) => new CredentialTester(creds, options), inject: [CredentialsService, TESTER_OPTIONS] },
   ],
   exports: [CredentialsService, CredentialTester],

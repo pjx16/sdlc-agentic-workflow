@@ -4,6 +4,8 @@ import type { SystemView } from '@/lib/types';
 import { LogoutButton } from './logout-button';
 import { Sidebar } from './sidebar';
 import { PauseBanner } from './pause-banner';
+import { SetupBanner } from './setup-banner';
+import type { SetupStatus } from '@sdlc/shared';
 
 /** What the top bar says about the pipeline (BUILD_PLAN 6.10): `Running <stage>`, `Idle` or `Paused`. */
 export function pipelineLabel(system: SystemView | null): { text: string; tone: 'green' | 'grey' | 'amber' } {
@@ -16,6 +18,7 @@ export function pipelineLabel(system: SystemView | null): { text: string; tone: 
 /** Left rail plus top bar with the pipeline state and, while paused, the banner. */
 export async function Shell({ children }: { children: ReactNode }) {
   const system = await apiGet<SystemView>('/system').catch(() => null);
+  const setup = await apiGet<SetupStatus>('/setup/status').catch(() => null);
   const label = pipelineLabel(system);
   return (
     <div className="flex min-h-screen">
@@ -25,6 +28,7 @@ export async function Shell({ children }: { children: ReactNode }) {
           <div className="eyebrow">Autonomous delivery pipeline</div>
           <LogoutButton />
         </header>
+        {setup && !setup.ready && <SetupBanner missing={setup.missing} adminCreated={setup.adminCreated} />}
         {system?.settings.pipelinePaused && <PauseBanner reason={system.settings.pausedReason} resetsAt={system.settings.resetsAt} />}
         <main className="flex-1 p-8">{children}</main>
       </div>

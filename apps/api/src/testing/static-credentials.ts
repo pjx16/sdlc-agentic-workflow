@@ -11,6 +11,6 @@ export function staticCredentials(values: Partial<ResolvedCredentials> = {}): Cr
     secretsSnapshot: () => secrets,
     invalidate: () => undefined,
     markVerified: async () => undefined,
-    status: async () => ({ adminCreated: true, ready: true, missing: [], encryptionKeyOk: true }),
+    status: async () => ({ adminCreated: true, ready: true, missing: [], encryptionKeyOk: true, passwordFromEnv: false }),
   } as unknown as CredentialsService;
 }

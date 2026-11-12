@@ -43,6 +43,8 @@ export interface SetupStatus {
   ready: boolean;
   missing: CredentialKey[];
   encryptionKeyOk: boolean;
+  /** True when DASHBOARD_PASSWORD in .env sets the password: the admin step and password change are disabled. */
+  passwordFromEnv: boolean;
 }
 
 export const SetupAdminBodySchema = z.object({ setupCode: z.string().min(1), password: z.string().min(12, 'must be at least 12 characters').max(256) }).strict();

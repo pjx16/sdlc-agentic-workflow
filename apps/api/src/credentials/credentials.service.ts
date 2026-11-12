@@ -133,6 +133,6 @@ export class CredentialsService implements OnModuleInit {
         return false;
       }
     })();
-    return { adminCreated, ready: adminCreated && missing.length === 0, missing, encryptionKeyOk };
+    return { adminCreated, ready: adminCreated && missing.length === 0, missing, encryptionKeyOk, passwordFromEnv: Boolean(process.env.DASHBOARD_PASSWORD?.trim()) };
   }
 }
