@@ -7,6 +7,7 @@ const CODE_BY_STATUS: Record<number, string> = {
   [HttpStatus.BAD_REQUEST]: ErrorCodes.validation,
   [HttpStatus.UNAUTHORIZED]: ErrorCodes.unauthorized,
   [HttpStatus.NOT_FOUND]: ErrorCodes.notFound,
+  [HttpStatus.CONFLICT]: ErrorCodes.conflict,
   [HttpStatus.TOO_MANY_REQUESTS]: ErrorCodes.tooManyRequests,
 };
 

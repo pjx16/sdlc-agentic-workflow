@@ -8,13 +8,344 @@ datasource db {
   provider = "postgresql"
 }
 
+// ---------------------------------------------------------------- enums
+
+enum ProjectStack {
+  ts_node
+  nestjs
+  nextjs
+}
+
+enum ClaudeMdMode {
+  ours
+  theirs
+  both
+}
+
+enum JiraMode {
+  rest
+  mcp
+  off
+}
+
+enum MirrorStatus {
+  pending
+  ok
+  failed
+}
+
+enum TicketSource {
+  jira
+  paste
+}
+
+enum TicketType {
+  story
+  bug
+  tech
+}
+
+enum TicketStatus {
+  NEW
+  KB
+  PLANNING
+  AWAITING_PLAN_APPROVAL
+  BREAKDOWN
+  AWAITING_BREAKDOWN_APPROVAL
+  IN_PROGRESS
+  REVIEW
+  KB_UPDATE
+  AWAITING_CI
+  IN_HUMAN_REVIEW
+  DONE
+  ON_HOLD
+  FAILED
+}
+
+enum HoldReason {
+  awaiting_answer
+  needs_help
+  manual
+  pr_closed
+}
+
+enum Actor {
+  system
+  user
+  jira
+}
+
+enum JiraSyncResult {
+  none
+  applied
+  failed
+}
+
+enum SubtaskStatus {
+  PENDING
+  TESTS
+  VERIFY_RED
+  IMPLEMENT
+  VERIFY_GREEN
+  FIXING
+  DONE
+}
+
+enum StageRunStatus {
+  queued
+  running
+  succeeded
+  failed
+  needs_input
+  killed
+}
+
+enum FixReason {
+  tests
+  review
+  ci
+}
+
+enum FindingStatus {
+  open
+  fixed
+  accepted
+}
+
+enum SupportQueryStatus {
+  open
+  answered
+}
+
+enum UsageSource {
+  event
+  estimate
+}
+
+// ---------------------------------------------------------------- models
+
+model Project {
+  id              String       @id @default(uuid())
+  name            String       @unique
+  repoUrl         String
+  baseBranch      String       @default("dev")
+  stack           ProjectStack
+  installCmd      String       @default("")
+  typecheckCmd    String       @default("")
+  testCmdTemplate String
+  kbDir           String       @default("docs/kb")
+  claudeMdMode    ClaudeMdMode @default(both)
+  jiraMode        JiraMode     @default(off)
+  jiraProjectKey  String?
+  jiraJql         String?
+  localKeyPrefix  String
+  nextLocalNumber Int          @default(1)
+  mirrorStatus    MirrorStatus @default(pending)
+  mirrorError     String?
+  enabled         Boolean      @default(true)
+  /// ProjectSettings (validated by Zod in packages/shared)
+  settings        Json         @default("{}")
+  createdAt       DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @db.Timestamptz(6)
+
+  tickets   Ticket[]
+  stageRuns StageRun[]
+}
+
+/// One row (id "global").
+model GlobalSettings {
+  id                      String    @id @default("global")
+  usageThresholdPct       Int       @default(50)
+  usageThresholdWeeklyPct Int       @default(80)
+  calibratedWindowTokens  BigInt?
+  usageIgnoredUntil       DateTime? @db.Timestamptz(6)
+  pipelinePaused          Boolean   @default(false)
+  pausedReason            String?
+  resetsAt                DateTime? @db.Timestamptz(6)
+  intakePaused            Boolean   @default(false)
+  pollIntervalSec         Int       @default(120)
+  stageTimeoutMin         Int       @default(20)
+  verifyTimeoutSec        Int       @default(600)
+  workspaceRetentionDays  Int       @default(7)
+  logRetentionDays        Int       @default(30)
+  modelAliases            Json      @default("{\"haiku\":\"haiku\",\"sonnet\":\"sonnet\",\"opus\":\"opus\"}")
+  jiraMcp                 Json      @default("{\"readTools\":[],\"writeTools\":[]}")
+  updatedAt               DateTime  @updatedAt @db.Timestamptz(6)
+}
+
+model Ticket {
+  id              String        @id @default(uuid())
+  projectId       String
+  project         Project       @relation(fields: [projectId], references: [id])
+  key             String
+  source          TicketSource
+  externalKey     String?
+  type            TicketType    @default(story)
+  title           String
+  body            String        @default("")
+  featureKey      String?
+  labels          Json          @default("[]")
+  status          TicketStatus  @default(NEW)
+  holdReason      HoldReason?
+  holdFromStatus  TicketStatus?
+  branch          String?
+  prNumber        Int?
+  prUrl           String?
+  planMarkdown    String?
+  reviewRound     Int           @default(0)
+  lastReviewedSha String?
+  ciFixPending    Boolean       @default(false)
+  ciFixDone       Boolean       @default(false)
+  createdAt       DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @db.Timestamptz(6)
+
+  transitions StateTransition[]
+  subtasks    Subtask[]
+  stageRuns   StageRun[]
+  findings    ReviewFinding[]
+  queries     SupportQuery[]
+  events      Event[]
+
+  @@unique([projectId, key])
+  @@unique([projectId, externalKey])
+  @@index([status, createdAt])
+}
+
+model StateTransition {
+  id                String         @id @default(uuid())
+  ticketId          String
+  ticket            Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromStatus        TicketStatus
+  toStatus          TicketStatus
+  at                DateTime       @default(now()) @db.Timestamptz(6)
+  actor             Actor
+  reason            String?
+  stageRunId        String?
+  jiraStatusApplied String?
+  jiraSyncResult    JiraSyncResult @default(none)
+  jiraSyncError     String?
+
+  @@index([ticketId, at])
+}
+
+model Subtask {
+  id                 String        @id @default(uuid())
+  ticketId           String
+  ticket             Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  seq                Int
+  externalKey        String?
+  title              String
+  description        String        @default("")
+  acceptanceCriteria Json          @default("[]")
+  files              Json          @default("[]")
+  dependsOn          Json          @default("[]")
+  status             SubtaskStatus @default(PENDING)
+  fixRounds          Int           @default(0)
+  testFiles          Json          @default("[]")
+  testCommit         String?
+  featCommit         String?
+
+  stageRuns StageRun[]
+
+  @@unique([ticketId, seq])
+}
+
+model StageRun {
+  id               String         @id @default(uuid())
+  ticketId         String?
+  ticket           Ticket?        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  projectId        String
+  project          Project        @relation(fields: [projectId], references: [id])
+  subtaskId        String?
+  subtask          Subtask?       @relation(fields: [subtaskId], references: [id], onDelete: SetNull)
+  stage            String
+  model            String
+  attempt          Int            @default(1)
+  round            Int            @default(0)
+  reason           FixReason?
+  status           StageRunStatus @default(queued)
+  startedAt        DateTime?      @db.Timestamptz(6)
+  endedAt          DateTime?      @db.Timestamptz(6)
+  killRequested    Boolean        @default(false)
+  containerId      String?
+  cliVersion       String?
+  inputTokens      Int            @default(0)
+  outputTokens     Int            @default(0)
+  cacheReadTokens  Int            @default(0)
+  cacheWriteTokens Int            @default(0)
+  costUsd          Decimal        @default(0) @db.Decimal(12, 6)
+  numTurns         Int            @default(0)
+  sessionId        String?
+  resultJson       Json?
+  logPath          String?
+  error            String?
+
+  queries SupportQuery[]
+
+  @@index([status])
+  @@index([ticketId, startedAt])
+}
+
+model ReviewFinding {
+  id       String        @id @default(uuid())
+  ticketId String
+  ticket   Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  round    Int
+  severity String
+  file     String
+  line     Int?
+  issue    String
+  rule     String
+  fix      String
+  status   FindingStatus @default(open)
+}
+
+model SupportQuery {
+  id         String             @id @default(uuid())
+  ticketId   String
+  ticket     Ticket             @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  stageRunId String
+  stageRun   StageRun           @relation(fields: [stageRunId], references: [id], onDelete: Cascade)
+  stage      String
+  question   String
+  answer     String?
+  status     SupportQueryStatus @default(open)
+  createdAt  DateTime           @default(now()) @db.Timestamptz(6)
+  answeredAt DateTime?          @db.Timestamptz(6)
+
+  @@index([status])
+}
+
+model UsageSnapshot {
+  id           String      @id @default(uuid())
+  at           DateTime    @default(now()) @db.Timestamptz(6)
+  fiveHourPct  Float?
+  sevenDayPct  Float?
+  status       String?
+  resetsAt     DateTime?   @db.Timestamptz(6)
+  source       UsageSource
+  windowTokens Int         @default(0)
+}
+
+/// Audit log. type: intake | state | stage | usage | jira | git | settings | support | error
+model Event {
+  id       String   @id @default(uuid())
+  ticketId String?
+  ticket   Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  type     String
+  message  String
+  at       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([ticketId, at])
+}
+
 /// Dashboard login session. Only the SHA-256 of the token is stored.
 model Session {
   id        String   @id @default(uuid())
   tokenHash String   @unique
-  expiresAt DateTime
+  expiresAt DateTime @db.Timestamptz(6)
   ip        String
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([expiresAt])
 }
