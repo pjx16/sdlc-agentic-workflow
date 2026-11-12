@@ -7,3 +7,6 @@ dist/
 coverage/
 data/
 apps/api/src/generated/
+*.tsbuildinfo
+test-results/
+playwright-report/
