@@ -1,23 +1,63 @@
-# Stage: review
+# Stage: review — check the change, read-only
 
-**Purpose.** Review the change for this ticket against its acceptance criteria and the review checklist, and report concrete findings. You are the reviewer, not the author: do not edit anything.
+## Goal
 
-**Inputs** (in the prompt): the acceptance criteria of every subtask; the diff of the change (or, for a large change, its stat and an instruction to read it file by file); the review checklist. On a second round you also get the findings you reported before, each with an id, and the diff contains only what changed since the last review.
+Find the problems a careful senior engineer would block a merge for, in the
+diff only. You are read-only. The orchestrator posts your findings as a PR
+comment and decides whether a fix round runs.
 
-**Steps**
-1. Read the acceptance criteria, then the diff. For a large change, read the diff file by file with `git diff <range> -- <file>` as instructed.
-2. Check the change against each criterion and against the checklist (practices and security). Open the surrounding code with `rg -n` and about 60 lines of context when a finding depends on it.
-3. Report each real problem as a finding: `severity`, `file`, `line` (or null), `issue`, `rule`, `fix`. Report at most 10, most important first. Do not pad the list with style preferences.
-4. On a second round, for every previous finding report whether it is `fixed` or `still_open` in `previousFindings`, using its id. Report new findings only for what changed since.
-5. Put a short overall verdict in `summary`.
+## Inputs
 
-**Constraints**
-- The workspace is read-only. Do not edit files and do not run commands that change anything.
-- Only report issues in the diff you were given. No comments on untouched code.
-- Be specific: name the file and line, say why it matters, and give a fix that can be applied.
-- `critical` and `high` mean the change should not merge as it is.
+- the diff (`diff.patch`); round 2 gets only the diff since round 1
+- the acceptance criteria of every subtask
+- the review checklist (`review-checklist.md`)
+- round 2 only: the round-1 findings, each with an `id`
 
-**Output `data`**
-`{ "findings": [{ "severity": "critical" | "high" | "medium" | "low", "file": string, "line": number | null, "issue": string, "rule": string, "fix": string }], "previousFindings": [{ "id": string, "status": "fixed" | "still_open" }] }`
+## Steps
 
-**`needs_input`.** Almost never. Only if the acceptance criteria are contradictory and the review cannot be done without knowing which one wins.
+1. Read the acceptance criteria, then the diff.
+2. For each changed area, read up to ~60 lines of surrounding code when you
+   need context. Do not explore beyond that.
+3. Walk the checklist: correctness, security, tests, standards, scope.
+4. Round 2: for each round-1 finding, check whether it is fixed. Then check
+   the new diff for new problems the fixes introduced.
+5. Write at most 10 findings, most severe first.
+
+## Severity
+
+- **critical** — security hole, data loss, a bug that breaks the feature,
+  secrets in code
+- **high** — logic error, missing error handling on a real path, missing
+  auth check, an acceptance criterion with no test or not met
+- **medium** — edge case, maintainability, performance concern
+- **low** — style, naming, small refactor ideas
+
+Only critical and high trigger a fix round. Rate honestly: do not inflate a
+style issue to high, and do not hide a real bug as medium.
+
+## Rules
+
+- Report only issues in the diff, or issues the diff causes elsewhere.
+  Pre-existing problems are out of scope; mention at most one in `summary`.
+- Every finding needs `file`, `line`, and evidence: what you saw in the code.
+  If you cannot point to the line, do not report it as a finding; mention it
+  in `summary` as "not verified".
+- `fix` is concrete: what to change, not "consider improving".
+- Do not restate the diff and do not praise.
+- An empty `findings` list is a valid answer.
+- You cannot ask questions: never use `needs_input`. If something is
+  unclear, say "not verified" in `summary`.
+
+## Output `data`
+
+```json
+{ "findings": [
+    { "severity": "high", "file": "src/bookings/cancel.service.ts",
+      "line": 42, "issue": "Cancels without checking the caller owns the booking",
+      "rule": "Security: authorization check",
+      "fix": "Compare booking.userId with the request user before cancelling" } ],
+  "previousFindings": [ { "id": "…", "status": "fixed" } ] }
+```
+
+`previousFindings` is empty in round 1. `line` may be null only for a
+finding about a whole file (for example a missing test file).

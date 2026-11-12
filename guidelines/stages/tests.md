@@ -1,23 +1,62 @@
-# Stage: tests
+# Stage: tests — write failing tests first
 
-**Purpose.** Write the tests for one subtask before the code exists (test-first). The orchestrator then runs them and expects them to fail for the right reason; the next stage makes them pass.
+## Goal
 
-**Inputs** (in the prompt): the ticket title and summary; the approved plan; the subtask (title, description, acceptance criteria, files); the KB doc; one example test file path to imitate. The stack guideline and general rules are in your system prompt.
+Write the tests for one subtask before any implementation exists. These
+tests are the specification the implement stage must satisfy, and it cannot
+change them. Weak tests let a wrong implementation pass.
 
-**Steps**
-1. Read the subtask and its acceptance criteria. Read the example test file and copy its structure, imports and naming.
-2. Inspect the code the subtask will touch (`rg -n`, about 60 lines around hits) so the tests call the real public interface.
-3. Write one test per acceptance criterion, plus a test for each edge case you can name from the subtask and plan. Test behaviour through the public interface, not private details.
-4. If the tests cannot even compile without something that does not exist yet (a new function, class or file), add the minimal stub: the right name and signature, with a body that does nothing useful (throw or return a neutral value). No real implementation.
-5. List every test file you created or changed in `testFiles`, and map each acceptance criterion to the test that covers it.
+## Inputs
 
-**Constraints**
-- Write tests and minimal stubs only. Do not implement the feature.
-- Tests must be able to fail for the right reason: they must compile and run, and fail because the behaviour is missing, not because of a syntax error, a missing import or a type error.
-- Test files must match the repository's patterns (`*.test.*`, `*.spec.*`, or under `__tests__/`, `test/`, `tests/`, `e2e/`). Every new or modified test file must be listed in `testFiles`.
-- Do not change existing tests unless the subtask requires it. No network calls, no sleeping, no dependence on test order.
+- the ticket title and summary, and the approved plan
+- the subtask: description, acceptance criteria, files
+- the feature doc, if any
+- the path of one existing test file to use as the style example
 
-**Output `data`**
-`{ "testFiles": string[], "criteriaCovered": [{ "criterion": string, "test": string }] }`
+## Steps
 
-**`needs_input`.** Only when an acceptance criterion cannot be turned into a test without a decision that the ticket, plan, KB and code do not settle.
+1. Read the example test file first. Copy its framework, imports, folder,
+   naming, setup, and mocking style.
+2. Find the function or component under test with `rg -n`. If it does not
+   exist yet, decide its signature from the plan.
+3. Write **one test per acceptance criterion**, plus one per edge case the
+   subtask names.
+4. Add the minimal stubs needed so the tests compile: the new function,
+   type, or export with the right signature, whose body throws
+   `new Error('Not implemented')` or returns a placeholder. No real logic.
+5. Run the targeted test command on your test files once. Confirm they fail
+   on assertions or "Not implemented", not on imports, syntax, or types.
+   Fix your tests if they fail for the wrong reason.
+
+## Rules
+
+- **Test behaviour through the public interface**: inputs and outputs,
+  returned values, thrown errors, rendered output. Do not assert on private
+  internals or on how many times a mock was called, unless the call itself is
+  the behaviour (for example "sends one email").
+- Mock only external boundaries (network, database, clock, file system),
+  using the repository's existing mocking approach.
+- Test names read as behaviour: `returns 404 when the booking does not
+  exist`.
+- No snapshot tests unless the repository already uses them for this kind of
+  code.
+- Test files only, plus the stubs. No implementation logic.
+- Every test file you create or change must be listed in `testFiles`.
+  Test files are those matching `*.test.*`, `*.spec.*`, or living under
+  `__tests__/`, `test/`, `tests/`, or `e2e/`.
+- If an acceptance criterion cannot be tested (for example "looks nice"),
+  say so in `summary` instead of writing an empty test.
+- Use `needs_input` only when a criterion cannot be turned into a test
+  without a decision that the ticket, plan, knowledge base, and code do not
+  settle.
+
+## Output `data`
+
+```json
+{ "testFiles": ["src/bookings/cancel.spec.ts"],
+  "criteriaCovered": [
+    { "criterion": "Rejects a cancellation after check-in",
+      "test": "throws when the booking has started" } ] }
+```
+
+Every acceptance criterion appears in `criteriaCovered` exactly once.

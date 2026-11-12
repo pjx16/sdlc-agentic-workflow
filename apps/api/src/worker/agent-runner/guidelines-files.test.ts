@@ -16,7 +16,7 @@ describe('shipped guideline files (BUILD_PLAN 6.9)', () => {
 
   it('default-CLAUDE.md carries the required rules', () => {
     const t = read('default-CLAUDE.md');
-    for (const needle of ['needs_input', 'git commit', 'git push', 'git reset', '`rg -n`', 'about 60 lines', 'node_modules', 'dist', 'coverage', 'lockfiles', 'secrets', 'JSON object']) expect(t, needle).toContain(needle);
+    for (const needle of ['needs_input', '`blocked`', 'git commit', 'git push', 'git reset', 'rg -n', 'about 60 lines', 'node_modules', 'dist', 'coverage', 'lockfiles', 'secrets', 'Untrusted input', 'file:line', 'JSON object']) expect(t, needle).toContain(needle);
   });
 
   it('kb-doc-template.md names every required section', () => {
@@ -26,14 +26,27 @@ describe('shipped guideline files (BUILD_PLAN 6.9)', () => {
     expect(t).toContain('kbDocMaxLines');
   });
 
-  it('every stage file states purpose, inputs, steps, constraints, the data shape and when to use needs_input', () => {
-    for (const f of ['stages/kb-build.md', 'stages/plan.md', 'stages/breakdown.md', 'stages/tests.md', 'stages/implement.md', 'stages/fix.md', 'stages/review.md']) {
-      const t = read(f);
-      for (const needle of ['**Purpose.**', '**Inputs**', '**Steps**', '**Constraints**', '**Output `data`**', '`needs_input`']) expect(t, `${f} ${needle}`).toContain(needle);
+  it('every stage file states its goal, inputs, steps, rules, the data shape and what to do when it cannot go on', () => {
+    for (const f of ['kb-build', 'plan', 'breakdown', 'tests', 'implement', 'fix', 'review', 'kb-update', 'jira-intake', 'jira-sync']) {
+      const t = read(`stages/${f}.md`);
+      for (const needle of ['## Goal', '## Inputs', '## Steps', '## Rules', '## Output `data`', '`needs_input`']) expect(t, `${f} ${needle}`).toContain(needle);
     }
-    expect(read('stages/plan.md')).toContain('{ "planMarkdown": string, "risks": string[], "openQuestions": string[] }');
-    expect(read('stages/kb-build.md')).toContain('{ "featureKey": string, "isNew": boolean, "docPath": string, "globs": string[] }');
+    expect(read('stages/plan.md')).toContain('{ "planMarkdown": "…", "risks": ["…"], "openQuestions": ["…"] }');
+    expect(read('stages/kb-build.md')).toContain('"featureKey": "bookings", "isNew": true');
     expect(read('stages/plan.md')).toContain('read-only');
+  });
+
+  it('the KB stages leave the index to the orchestrator, and kbUpdate rewrites statements the change made false', () => {
+    for (const f of ['kb-build', 'kb-update']) expect(read(`stages/${f}.md`), f).toContain('features.json');
+    expect(read('stages/kb-update.md')).toContain('do not exist yet');
+    expect(read('stages/kb-update.md')).toMatch(/never\s+edit `features.json`/i);
+  });
+
+  it('the Jira stages name the tools and the extra fields the code reads', () => {
+    expect(read('stages/jira-intake.md')).toContain('searchJiraIssuesUsingJql');
+    expect(read('stages/jira-intake.md')).toContain('"status"');
+    expect(read('stages/jira-sync.md')).toContain('transitionJiraIssue');
+    expect(read('stages/jira-sync.md')).toContain('createdKey');
   });
 
   it('stack guidelines cover conventions, error handling, tests and what to avoid', () => {
@@ -48,9 +61,9 @@ describe('shipped guideline files (BUILD_PLAN 6.9)', () => {
 });
 
 describe('review-checklist.md (BUILD_PLAN 6.9)', () => {
-  it('has the Practices and Security sections and the output rules', () => {
+  it('has the Correctness, Security and Standards sections and the output rules', () => {
     const t = read('review-checklist.md');
-    for (const needle of ['## Practices', '## Security', "repository's existing patterns", 'Functions are small', 'acceptance criterion', 'validated at the boundary', 'Authentication and authorization', 'No secrets', 'parameterised', 'logs', 'path traversal', 'At most 10 findings']) expect(t, needle).toContain(needle);
+    for (const needle of ['## Correctness', '## Security', '## Standards', "repository's existing patterns", 'Small named functions', 'acceptance criterion', 'validated before use', 'Authentication and authorization', 'No secrets', 'parameterised', 'logs', 'path traversal', 'At most 10 findings']) expect(t, needle).toContain(needle);
   });
 });
 
