@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BreakdownPanel } from '@/components/breakdown-panel';
 import { PlanPanel } from '@/components/plan-panel';
+import { TicketTimeline } from '@/components/charts/ticket-timeline';
 import { RunsTable } from '@/components/runs-table';
 import { TicketActions } from '@/components/ticket-actions';
 import { StateBadge } from '@/components/state-badge';
@@ -63,7 +64,12 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
         {active === 'plan' && <PlanPanel ticketId={ticket.id} status={ticket.status} planMarkdown={ticket.planMarkdown} />}
         {active === 'breakdown' && <BreakdownPanel key={ticket.updatedAt} ticketId={ticket.id} status={ticket.status} draft={ticket.breakdownDraft} subtasks={ticket.subtasks} maxSubtasks={ticket.maxSubtasks} />}
         {active === 'history' && <TransitionHistory transitions={transitions} />}
-        {active === 'runs' && <RunsTable runs={ticket.stageRuns} />}
+        {active === 'runs' && (
+          <div className="space-y-6">
+            <TicketTimeline runs={ticket.stageRuns} />
+            <RunsTable runs={ticket.stageRuns} />
+          </div>
+        )}
       </div>
     </section>
   );
