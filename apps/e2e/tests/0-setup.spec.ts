@@ -5,19 +5,13 @@ import { PASSWORD, SETUP_CODE } from './constants.ts';
 // It creates the admin account the other specs sign in with, and leaves the credentials complete.
 test.describe.configure({ mode: 'serial' });
 
-const field = (page: Page, key: string) => page.getByTestId(`field-${key}`);
+const card = (page: Page, id: string) => page.getByTestId(`card-${id}`);
 
-async function login(page: Page) {
-  await page.goto('/login');
-  await page.getByLabel('Password').fill(PASSWORD);
-  await page.getByRole('button', { name: /sign in/i }).click();
-  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
-}
-
-async function save(page: Page, key: string, label: string, value: string) {
-  await field(page, key).getByLabel(label, { exact: true }).fill(value);
-  await field(page, key).getByRole('button', { name: 'Save' }).click();
-  await expect(field(page, key).getByText('Saved', { exact: true })).toBeVisible();
+/** Fills the given fields of a card and saves them with the card's single Save button. */
+async function saveCard(page: Page, id: string, values: Record<string, string>) {
+  for (const [label, value] of Object.entries(values)) await card(page, id).getByLabel(label, { exact: true }).fill(value);
+  await card(page, id).getByRole('button', { name: 'Save' }).click();
+  await expect(card(page, id).getByText('Saved', { exact: true }).first()).toBeVisible();
 }
 
 test('a first visit goes to the setup wizard; a wrong code is refused; the right one creates the admin', async ({ page }) => {
@@ -42,11 +36,15 @@ test('save and test the GitHub token; the banner stays until every required cred
   await login(page);
   await page.goto('/setup/connections');
 
-  await save(page, 'github_token', 'GitHub token', 'ghp_e2eFakeTokenForTheSetupSpec1234');
-  await expect(field(page, 'github_token')).toContainText('••••1234');
+  // One Save and one Test per card, not per field.
+  await expect(page.getByRole('button', { name: 'Save' })).toHaveCount(3);
+  await expect(page.getByRole('button', { name: 'Test' })).toHaveCount(3);
+
+  await saveCard(page, 'github', { 'GitHub token': 'ghp_e2eFakeTokenForTheSetupSpec1234' });
+  await expect(card(page, 'github')).toContainText('••••1234');
   await expect(page.locator('body')).not.toContainText('ghp_e2eFakeToken'); // the secret is never rendered back
-  await field(page, 'github_token').getByRole('button', { name: 'Test' }).click();
-  await expect(field(page, 'github_token').getByRole('status')).toContainText('Connected as octo-e2e');
+  await card(page, 'github').getByRole('button', { name: 'Test' }).click();
+  await expect(card(page, 'github')).toContainText('Connected as octo-e2e');
 
   // The Claude token (and the git identity) are still missing.
   await page.goto('/');
@@ -56,9 +54,8 @@ test('save and test the GitHub token; the banner stays until every required cred
 test('finishing the setup removes the banner', async ({ page }) => {
   await login(page);
   await page.goto('/setup/connections');
-  await save(page, 'claude_token', 'Claude token', 'sk-ant-oat01-e2eFakeClaudeToken');
-  await save(page, 'git_author_name', 'Git author name', 'E2E Bot');
-  await save(page, 'git_author_email', 'Git author email', 'e2e@example.com');
+  await saveCard(page, 'claude', { 'Claude token': 'sk-ant-oat01-e2eFakeClaudeToken' });
+  await saveCard(page, 'github', { 'Git author name': 'E2E Bot', 'Git author email': 'e2e@example.com' });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
   await expect(page.getByText('Setup incomplete')).toHaveCount(0);
