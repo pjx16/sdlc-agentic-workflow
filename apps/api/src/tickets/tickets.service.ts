@@ -201,6 +201,45 @@ export class TicketsService {
     return toTicketDto(await this.prisma.ticket.findUniqueOrThrow({ where: { id } }));
   }
 
+  /** POST /tickets/:id/hold: puts the ticket on hold (`manual`) from any state a hold is allowed from (row 16). */
+  async holdTicket(id: string): Promise<TicketDto> {
+    const ticket = await this.findOr404(id);
+    if (['DONE', 'FAILED', 'ON_HOLD'].includes(ticket.status)) {
+      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `A ${ticket.status} ticket cannot be put on hold`);
+    }
+    await this.states.hold(id, 'manual', 'user', 'Put on hold by the developer');
+    return toTicketDto(await this.prisma.ticket.findUniqueOrThrow({ where: { id } }));
+  }
+
+  private async heldOrFailed(id: string, what: string) {
+    const ticket = await this.findOr404(id);
+    if (ticket.status !== 'ON_HOLD' && ticket.status !== 'FAILED') {
+      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `${what} needs a ticket that is on hold or failed (it is ${ticket.status})`);
+    }
+    return ticket;
+  }
+
+  /** POST /tickets/:id/resume: back to the state the ticket was held from (row 17); the work carries on where it was. */
+  async resumeTicket(id: string): Promise<TicketDto> {
+    await this.heldOrFailed(id, 'Resume');
+    await this.states.resume(id, 'user', 'Resumed by the developer');
+    return toTicketDto(await this.prisma.ticket.findUniqueOrThrow({ where: { id } }));
+  }
+
+  /**
+   * POST /tickets/:id/retry: like resume, but the stage that was in progress runs again fresh: the fix-round, CI-fix and verify-red
+   * counters of the work in progress are reset (BUILD_PLAN 6.8). Works on held and failed tickets.
+   */
+  async retryTicket(id: string): Promise<TicketDto> {
+    await this.heldOrFailed(id, 'Retry');
+    await this.prisma.$transaction([
+      this.prisma.subtask.updateMany({ where: { ticketId: id, status: { not: 'DONE' } }, data: { fixRounds: 0, lastFailure: null, retriedAt: new Date() } }),
+      this.prisma.ticket.update({ where: { id }, data: { ciFixPending: false, ciFixDone: false, ciWaitStartedAt: null, kbUpdatePending: false } }),
+    ]);
+    await this.states.resume(id, 'user', 'Retried by the developer');
+    return toTicketDto(await this.prisma.ticket.findUniqueOrThrow({ where: { id } }));
+  }
+
   private async awaitingBreakdown(id: string) {
     const ticket = await this.prisma.ticket.findUnique({ where: { id }, include: { project: true } });
     if (!ticket) throw new ApiException(HttpStatus.NOT_FOUND, ErrorCodes.notFound, 'Ticket not found');

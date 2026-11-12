@@ -26,6 +26,7 @@ export class CiPoller implements Housekeeper {
     private readonly pr: PrService,
     @Inject(GITHUB_CLIENT) private readonly github: GitHubClient,
     private readonly now: () => number = () => Date.now(),
+    private readonly holds?: { onHold(ticketId: string, reason: string, note?: string): Promise<void> },
   ) {}
 
   async check(): Promise<void> {
@@ -83,6 +84,7 @@ export class CiPoller implements Housekeeper {
   private async holdIt(ticketId: string, note: string): Promise<void> {
     await this.prisma.ticket.update({ where: { id: ticketId }, data: { ciWaitStartedAt: null } });
     await this.states.hold(ticketId, 'needs_help', 'system', note);
+    await this.holds?.onHold(ticketId, 'needs_help', note).catch(() => undefined);
   }
 
   private loadOne(id: string) {

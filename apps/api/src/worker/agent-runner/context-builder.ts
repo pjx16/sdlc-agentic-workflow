@@ -61,6 +61,8 @@ export interface StageInputs {
   diffLines?: number;
   reviewChecklist?: string;
   previousFindings?: FindingInfo[];
+  /** Earlier questions this stage asked for the ticket and the developer's answers (F13), oldest first. */
+  qa?: { question: string; answer: string }[];
   existingDoc?: string;
   docTemplate?: string;
   jql?: string;
@@ -236,6 +238,12 @@ function planSections(stage: StageName, i: StageInputs): Plan {
     case 'jiraSync':
       sections.push({ heading: 'Operation', body: fenced(i.syncPayload ?? '') });
       break;
+  }
+  if (i.qa && i.qa.length > 0) {
+    sections.push({
+      heading: 'Earlier questions and answers',
+      body: `You asked these questions on an earlier run of this stage; the developer answered. Do not ask them again.\n\n${i.qa.map((x, n) => `${n + 1}. Q: ${x.question}\n   A: ${x.answer}`).join('\n\n')}`,
+    });
   }
   return { sections, files };
 }

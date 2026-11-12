@@ -214,3 +214,20 @@ describe('stage.json', () => {
     expect(j.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Read', 'Edit', 'Write', 'Grep', 'Glob', 'WebFetch', 'WebSearch']));
   });
 });
+
+describe('earlier questions and answers (F13)', () => {
+  it('adds one section with every question and answer, for any stage', async () => {
+    const qa = [{ question: 'Which currency?', answer: 'EUR' }, { question: 'Rounding?', answer: 'Half up' }];
+    for (const stage of ['plan', 'breakdown', 'implement'] as const) {
+      const { runDir } = await build(stage, {}, { qa });
+      const prompt = read(runDir, 'prompt.md');
+      expect(headings(prompt)).toContain('Earlier questions and answers');
+      expect(prompt).toContain('1. Q: Which currency?\n   A: EUR');
+      expect(prompt).toContain('2. Q: Rounding?\n   A: Half up');
+    }
+  });
+  it('adds nothing when there are none', async () => {
+    const { runDir } = await build('plan', {}, { qa: [] });
+    expect(headings(read(runDir, 'prompt.md'))).not.toContain('Earlier questions and answers');
+  });
+});

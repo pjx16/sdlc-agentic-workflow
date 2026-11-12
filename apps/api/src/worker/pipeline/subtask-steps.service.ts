@@ -75,8 +75,9 @@ export class SubtaskStepsService implements SubtaskSteps {
   }
 
   /** How many `tests` stage runs for this subtask have succeeded: 0 on the first pass, 1 after one invalid red (the retry). */
-  protected testsRoundsDone(subtaskId: string): Promise<number> {
-    return this.prisma.stageRun.count({ where: { subtaskId, stage: 'tests', status: 'succeeded' } });
+  protected async testsRoundsDone(subtaskId: string): Promise<number> {
+    const subtask = await this.prisma.subtask.findUnique({ where: { id: subtaskId }, select: { retriedAt: true } });
+    return this.prisma.stageRun.count({ where: { subtaskId, stage: 'tests', status: 'succeeded', ...(subtask?.retriedAt ? { startedAt: { gte: subtask.retriedAt } } : {}) } });
   }
 
   /**

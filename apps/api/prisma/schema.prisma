@@ -252,6 +252,8 @@ model Subtask {
   featCommit         String?
   /// Why the last verify step failed (the tail of its output), for the next tests or fix run.
   lastFailure        String?
+  /// Set by Retry: only `tests` runs after this count towards the verify-red retry limit.
+  retriedAt          DateTime?     @db.Timestamptz(6)
 
   stageRuns StageRun[]
 

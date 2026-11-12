@@ -33,6 +33,8 @@ export class StageLauncher {
     const settings = ProjectSettingsSchema.parse(project.settings);
     const global = await this.global();
     const stageSettings = settings.stages[stage];
+    const answered = await this.prisma.supportQuery.findMany({ where: { ticketId: ticket.id, stage, status: 'answered' }, orderBy: { createdAt: 'asc' } });
+    const qa = answered.map((q) => ({ question: q.question, answer: q.answer ?? '' }));
     return this.runner.run({
       projectId: project.id,
       ticketId: ticket.id,
@@ -46,7 +48,7 @@ export class StageLauncher {
       modelAliases: global.modelAliases,
       maxTurns: stageSettings.maxTurns,
       stageTimeoutMin: global.stageTimeoutMin,
-      inputs,
+      inputs: qa.length > 0 ? { ...inputs, qa } : inputs,
       workspacePath: opts.workspacePath ?? this.workspaceOf(ticket),
       validate: opts.validate,
     });

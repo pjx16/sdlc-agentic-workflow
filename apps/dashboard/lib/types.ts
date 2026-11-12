@@ -117,3 +117,16 @@ export interface TicketFull extends TicketWithPlan {
   subtasks: SubtaskRow[];
   maxSubtasks: number;
 }
+
+export interface SupportQueryView {
+  id: string;
+  ticketId: string;
+  ticketKey: string;
+  ticketTitle: string;
+  stage: string;
+  question: string;
+  answer: string | null;
+  status: 'open' | 'answered';
+  createdAt: string;
+  answeredAt: string | null;
+}
