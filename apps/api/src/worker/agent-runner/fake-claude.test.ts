@@ -74,6 +74,26 @@ describe('fake-claude (BUILD_PLAN 11)', () => {
     expect(parseStream(res.stdout.split('\n').filter(Boolean), 'plan').kind).toBe('ok');
   });
 
+  it('selects an entry by promptMatches, so one scenario can differ per input', () => {
+    const dir = path.join(tmp, 'sc-match');
+    mkdirSync(path.join(dir, 's'), { recursive: true });
+    writeFileSync(path.join(dir, 's', 'implement.json'), JSON.stringify([
+      { promptMatches: 'Subtask 1: ', edits: [{ path: 'one.txt', content: '1' }], result: { status: 'done', summary: 'one', data: { filesChanged: [] } } },
+      { promptMatches: 'Subtask 2: ', edits: [{ path: 'two.txt', content: '2' }], result: { status: 'done', summary: 'two', data: { filesChanged: [] } } },
+    ]));
+    const run2 = (prompt: string) => {
+      const ws = path.join(tmp, `ws-match-${++n}`);
+      mkdirSync(ws);
+      const res = spawnSync('node', [FAKE], { cwd: ws, input: prompt, encoding: 'utf8', env: { ...process.env, FAKE_SCENARIO: 's', FAKE_SCENARIOS_DIR: dir, FAKE_ATTEMPT: '1' } });
+      return { res, files: readdirSync(ws) };
+    };
+    expect(run2('<!-- stage: implement -->\nSubtask 1: add\n').files).toEqual(['one.txt']);
+    expect(run2('<!-- stage: implement -->\nSubtask 2: more\n').files).toEqual(['two.txt']);
+    const none = run2('<!-- stage: implement -->\nSubtask 3: x\n');
+    expect(none.res.status).toBe(2);
+    expect(none.res.stderr).toContain('matches this prompt');
+  });
+
   it('applies deletes', () => {
     const dir = path.join(tmp, 'sc-delete');
     mkdirSync(path.join(dir, 's'), { recursive: true });

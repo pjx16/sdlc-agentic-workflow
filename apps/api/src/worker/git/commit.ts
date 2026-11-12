@@ -1,3 +1,4 @@
+import { assertStagedChangeIsSafe } from './commit-guard';
 import { GitError, type GitRunner } from './git-runner';
 
 export class CommitMessageError extends Error {
@@ -51,6 +52,7 @@ export async function commitAll(git: GitRunner, workspace: string, message: stri
   // `paths` limits what is staged (the KB commit stages only the KB directory); the default stages everything.
   await git.run(['add', '-A', ...(opts.paths && opts.paths.length > 0 ? ['--', ...opts.paths] : [])], { cwd: workspace });
   if ((await git.out(['diff', '--cached', '--name-only'], { cwd: workspace })) === '') return { committed: false };
+  await assertStagedChangeIsSafe(git, workspace); // node_modules, .env*, keys and files over 1 MB fail the stage
 
   await git.run(['commit', '--no-verify', '-m', message], {
     cwd: workspace,

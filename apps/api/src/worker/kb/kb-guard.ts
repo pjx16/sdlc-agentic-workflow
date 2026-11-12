@@ -1,5 +1,6 @@
 import { readdir, rm, rmdir } from 'node:fs/promises';
 import path from 'node:path';
+import { type Change, parsePorcelain } from '../git/changes';
 import type { GitRunner } from '../git/git-runner';
 
 /** Dependencies installed by the worker live inside the workspace; they are never part of a stage's changes. */
@@ -21,25 +22,8 @@ const within = (rel: string, dir: string) => {
 };
 
 /** The changed paths in a workspace (porcelain v1, one entry per file), with their status codes. */
-export async function changedPaths(git: GitRunner, workspace: string): Promise<{ status: string; path: string }[]> {
-  const out = (await git.run(['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: workspace })).stdout;
-  const parts = out.split('\0').filter(Boolean);
-  const entries: { status: string; path: string }[] = [];
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i] as string;
-    const status = part.slice(0, 2);
-    const file = part.slice(3);
-    if (status[0] === 'R' || status[0] === 'C') {
-      // A rename or copy is followed by its source path. Treat it as the new path being added and (for a rename)
-      // the old path being deleted, so reverting restores the old one and removes the new one.
-      const source = parts[++i] as string;
-      entries.push({ status: 'A ', path: file });
-      if (status[0] === 'R') entries.push({ status: ' D', path: source });
-    } else {
-      entries.push({ status, path: file });
-    }
-  }
-  return entries;
+export async function changedPaths(git: GitRunner, workspace: string): Promise<Change[]> {
+  return parsePorcelain((await git.run(['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: workspace })).stdout);
 }
 
 /**

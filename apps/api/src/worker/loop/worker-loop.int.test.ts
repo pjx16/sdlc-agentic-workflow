@@ -183,6 +183,13 @@ describe('worker loop (BUILD_PLAN 6.6, F4)', () => {
     expect(await prisma.stateTransition.count({ where: { ticketId: t.id } })).toBe(0);
   });
 
+  it('a continue outcome counts as a step without changing the ticket, so the next iteration starts at once', async () => {
+    const t = await ticket('IN_PROGRESS');
+    expect(await loopWith([handler('IN_PROGRESS', () => ({ kind: 'continue' }))]).tick()).toBe('stepped');
+    expect(await status(t.id)).toBe('IN_PROGRESS');
+    expect(await prisma.stateTransition.count({ where: { ticketId: t.id } })).toBe(0);
+  });
+
   it('a stay outcome waits instead of spinning', async () => {
     await ticket('NEW');
     expect(await loopWith([handler('NEW', () => ({ kind: 'stay' }))]).tick()).toBe('idle');

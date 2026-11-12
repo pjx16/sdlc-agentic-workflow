@@ -20,6 +20,10 @@ import { WorkspaceService } from './git/workspace.service';
 import { VerifyService } from './verify/verify.service';
 import { IntakePoller } from './intake/intake-poller';
 import { BreakdownHandler } from './pipeline/breakdown.handler';
+import { GITHUB_CLIENT, GhCliClient } from './github/github-client';
+import { InProgressHandler, SUBTASK_STEPS } from './pipeline/in-progress.handler';
+import { PrService } from './pipeline/pr.service';
+import { SubtaskStepsService } from './pipeline/subtask-steps.service';
 import { PlanHandler } from './pipeline/plan.handler';
 import { KB_BUILDER, KbHandler } from './pipeline/kb.handler';
 import { KbBuildService } from './pipeline/kb-build.service';
@@ -53,10 +57,15 @@ import { WorkerRunner } from './worker-runner';
     KbBuildService,
     PlanHandler,
     BreakdownHandler,
+    { provide: GITHUB_CLIENT, useFactory: (c: WorkerConfig) => new GhCliClient({ token: c.githubToken, tmpDir: c.dataDir }), inject: [WorkerConfig] },
+    PrService,
+    SubtaskStepsService,
+    { provide: SUBTASK_STEPS, useExisting: SubtaskStepsService },
+    InProgressHandler,
     { provide: KB_BUILDER, useExisting: KbBuildService },
     NewTicketHandler,
     KbHandler,
-    { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler] },
+    { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler, InProgressHandler] },
     RestartRecovery,
     {
       provide: WorkerLoop,

@@ -1,4 +1,5 @@
-import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
 import type { TicketType } from '@sdlc/shared';
@@ -19,6 +20,22 @@ export interface WorkspaceResult {
   /** Why no install ran, when that is worth telling the developer. */
   installSkipped?: 'empty_command' | 'already_installed';
 }
+
+const MANIFESTS = ['package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml'];
+
+/** A hash of package.json and the lockfiles: when it changes, dependencies must be installed again. */
+export function manifestHash(workspace: string): string {
+  const hash = createHash('sha256');
+  for (const f of MANIFESTS) {
+    const file = path.join(workspace, f);
+    if (existsSync(file)) hash.update(`${f}\0`).update(readFileSync(file));
+  }
+  return hash.digest('hex');
+}
+
+const hashFile = (workspace: string) => path.join(workspace, '.git', 'sdlc-install-hash'); // inside .git: never part of a commit
+export const installedHash = (workspace: string): string | null => (existsSync(hashFile(workspace)) ? readFileSync(hashFile(workspace), 'utf8').trim() : null);
+export const recordInstalled = (workspace: string): void => writeFileSync(hashFile(workspace), manifestHash(workspace));
 
 /** Prepares a ticket's workspace, installs its dependencies, and records the branch (BUILD_PLAN 6.2, `Git.prepareWorkspace`). */
 @Injectable()
@@ -63,6 +80,7 @@ export class WorkspaceService {
     }
     const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
     result.install = await this.verify.runCmd({ name: `sdlc-install-${ticket.key}-${Date.now()}`, workspace: prepared.path, cmd: installCmd, timeoutSec: settings?.verifyTimeoutSec ?? 600 });
+    if (result.install.ok) recordInstalled(prepared.path);
     if (!result.install.ok) this.logger.warn(`Install failed for ${ticket.key}: ${result.install.tail.split('\n').slice(-3).join(' | ')}`);
     await makeWritableForAgent(prepared.path); // the install created files as the agent user
     return result;

@@ -246,6 +246,8 @@ model Subtask {
   testFiles          Json          @default("[]")
   testCommit         String?
   featCommit         String?
+  /// Why the last verify step failed (the tail of its output), for the next tests or fix run.
+  lastFailure        String?
 
   stageRuns StageRun[]
 

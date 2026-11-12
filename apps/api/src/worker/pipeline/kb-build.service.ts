@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { ProjectSettingsSchema, type StageEnvelope } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { squashAgentCommits } from '../git/commit-guard';
 import { GitRunner } from '../git/git-runner';
 import { WorkspaceService } from '../git/workspace.service';
 import { FEATURE_KEY, readIndex, safeDocPath, upsertEntry } from '../kb/kb-index';
@@ -42,6 +43,7 @@ export class KbBuildService implements KbBuilder {
     const ws = this.launcher.workspaceOf(ticket);
     const kbDir = project.kbDir;
     const maxLines = settings.limits.kbDocMaxLines;
+    const preHead = await this.git.out(['rev-parse', 'HEAD'], { cwd: ws });
     const { index } = await readIndex(ws, kbDir);
     const keys = index.features.map((f) => f.key);
 
@@ -53,6 +55,8 @@ export class KbBuildService implements KbBuilder {
     );
     if (result.kind !== 'done') return this.outcomes.forResult(ticket.id, 'kbBuild', result);
 
+    const squashed = await squashAgentCommits(this.git, ws, preHead);
+    if (squashed > 0) await this.prisma.event.create({ data: { ticketId: ticket.id, type: 'git', message: `Warning: the agent made ${squashed} commit(s) of its own; they were squashed back` } });
     const data = result.envelope.data as KbBuildData;
     await this.keepOnlyKbChanges(ticket, ws, kbDir, data.isNew);
 

@@ -21,4 +21,8 @@ A stand-in for the `claude` CLI so tests never call a real model (BUILD_PLAN sec
 | `kb-new` | `kbBuild` writes a new doc and also edits a file outside the KB directory |
 | `kb-existing` | `kbBuild` selects the existing `bookings` key |
 | `kb-bad-key` | `kbBuild` returns `isNew: false` with a key that is not in the index |
+| `tdd-ok` | `tests` and `implement` do two subtasks properly (selected per subtask with `promptMatches`) |
+| `tdd-bad-impl` | `implement` and `fix` never produce a working implementation |
+| `tdd-tamper` | `implement` edits the committed test file to always pass, leaving the implementation broken |
+| `tdd-red-invalid` | `tests` writes tests whose run fails with `Cannot find module` (an invalid red) |
 | `fenced` | `plan` returns its result as a fenced JSON block instead of `structured_output` |
