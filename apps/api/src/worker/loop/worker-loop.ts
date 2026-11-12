@@ -3,6 +3,7 @@ import { ACTIONABLE_STATUSES, type TicketStatus } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
 import { ApprovalPoller } from '../../jira/approval-poller';
 import { JiraUnavailableError } from '../../jira/jira-client';
+import { CredentialsService } from '../../credentials/credentials.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StateMachine } from '../../state/state-machine.service';
 import { MirrorService } from '../git/mirror.service';
@@ -26,6 +27,7 @@ export type TickOutcome =
   | 'paused' // pipelinePaused: housekeeping ran, no step
   | 'blocked' // a stage is already running system-wide
   | 'idle' // no actionable ticket
+  | 'not_configured' // the setup wizard is not finished: housekeeping ran, no step
   | 'stepped'; // one step was run for one ticket
 
 /**
@@ -49,6 +51,7 @@ export class WorkerLoop {
     private readonly now: () => number = () => Date.now(),
     @Optional() @Inject(HOUSEKEEPERS) private readonly housekeepers: Housekeeper[] = [],
     @Optional() private readonly holds?: { onHold(ticketId: string, reason: string, note?: string): Promise<void> },
+    @Optional() private readonly creds?: CredentialsService,
   ) {
     this.schedule = new Schedule(now);
   }
@@ -60,6 +63,15 @@ export class WorkerLoop {
     try {
       await this.cloneMirrors();
       await this.housekeeping();
+
+      // Required credentials (or the admin password) are missing: the pipeline stays blocked until setup is finished.
+      if (this.creds) {
+        const status = await this.creds.status();
+        if (!status.ready) {
+          this.logMissing([...(status.adminCreated ? [] : ['admin password']), ...status.missing]);
+          return 'not_configured';
+        }
+      }
 
       const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
       if (settings?.pipelinePaused) return 'paused';
@@ -125,8 +137,21 @@ export class WorkerLoop {
     return outcome.kind;
   }
 
+  private lastMissingLog = 0;
+  private logMissing(missing: string[]): void {
+    const now = this.now();
+    if (now - this.lastMissingLog < 60_000) return;
+    this.lastMissingLog = now;
+    this.logger.warn(`Setup is incomplete; the pipeline is blocked until these are set: ${missing.join(', ')}`);
+  }
+
   private cloneMirrors = async () => {
     const pending = await this.prisma.project.findMany({ where: { mirrorStatus: 'pending', enabled: true }, orderBy: { createdAt: 'asc' } });
+    if (pending.length > 0 && this.creds && !(await this.creds.resolve()).github_token) {
+      // Cloning needs the GitHub token: say so on the project (it stays pending) instead of failing it.
+      await this.prisma.project.updateMany({ where: { id: { in: pending.map((p) => p.id) } }, data: { mirrorError: 'Waiting for setup: add the GitHub token' } });
+      return;
+    }
     for (const project of pending) await this.mirrors.clone(project);
   };
 
