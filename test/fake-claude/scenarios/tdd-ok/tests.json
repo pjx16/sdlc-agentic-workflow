@@ -1,0 +1,48 @@
+[
+ {
+  "promptMatches": "Subtask 1: ",
+  "edits": [
+   {
+    "path": "src/f1.ts",
+    "content": "export const f1 = () => { throw new Error('NOT_IMPLEMENTED'); };\n"
+   },
+   {
+    "path": "src/f1.test.ts",
+    "content": "// test\n"
+   }
+  ],
+  "result": {
+   "status": "done",
+   "summary": "tests for subtask 1",
+   "data": {
+    "testFiles": [
+     "src/f1.test.ts"
+    ],
+    "criteriaCovered": []
+   }
+  }
+ },
+ {
+  "promptMatches": "Subtask 2: ",
+  "edits": [
+   {
+    "path": "src/f2.ts",
+    "content": "export const f2 = () => { throw new Error('NOT_IMPLEMENTED'); };\n"
+   },
+   {
+    "path": "src/f2.test.ts",
+    "content": "// test\n"
+   }
+  ],
+  "result": {
+   "status": "done",
+   "summary": "tests for subtask 2",
+   "data": {
+    "testFiles": [
+     "src/f2.test.ts"
+    ],
+    "criteriaCovered": []
+   }
+  }
+ }
+]

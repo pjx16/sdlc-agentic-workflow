@@ -1,0 +1,19 @@
+{
+  "name": "@sdlc/e2e",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "echo 'e2e tests run with npm run test:e2e'",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@testcontainers/postgresql": "^12.2.1",
+    "@types/node": "^26.6.6",
+    "pg": "^8.23.1",
+    "typescript": "^5.9.3",
+    "@types/pg": "^8.23.1"
+  }
+}

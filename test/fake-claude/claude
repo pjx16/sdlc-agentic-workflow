@@ -1,0 +1,4 @@
+#!/bin/sh
+# Mounted over /usr/local/bin/claude in test runs. In the agent image that path is a symlink to claude.exe, and Node
+# refuses to run a script by that name, so this wrapper is plain sh and starts the real stub from the mounted directory.
+exec node "${FAKE_CLAUDE_JS:-/fake-claude/fake-claude.js}" "$@"

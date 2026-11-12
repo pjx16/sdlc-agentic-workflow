@@ -13,5 +13,8 @@ export const ErrorCodes = {
   tooManyRequests: 'too_many_requests',
   validation: 'validation_error',
   notFound: 'not_found',
+  conflict: 'conflict',
+  invalidTransition: 'invalid_transition',
+  jiraError: 'jira_error',
   internal: 'internal_error',
 } as const;

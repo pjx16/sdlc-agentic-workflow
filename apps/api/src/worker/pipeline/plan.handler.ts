@@ -1,0 +1,96 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { ProjectSettingsSchema, type StageEnvelope } from '@sdlc/shared';
+import type { Ticket } from '../../generated/prisma/client';
+import { JiraClients } from '../../jira/jira-clients';
+import { PrismaService } from '../../prisma/prisma.service';
+import { featureKeyOf, lookup } from '../kb/kb-index';
+import { StageLauncher } from './stage-launcher';
+import { StageOutcomes } from './stage-outcomes';
+import type { StepHandler, StepOutcome } from './step-handler';
+
+interface PlanData {
+  planMarkdown: string;
+  risks: string[];
+  openQuestions: string[];
+}
+
+const bullets = (items: string[]) => items.map((i) => `- ${i}`).join('\n');
+
+/** The plan as one markdown text: the plan itself, then its risks and open questions, so the developer sees them at the gate. */
+export function composePlan(data: PlanData): string {
+  const parts = [data.planMarkdown.trim()];
+  if (data.risks.length > 0) parts.push(`## Risks\n\n${bullets(data.risks)}`);
+  if (data.openQuestions.length > 0) parts.push(`## Open questions\n\n${bullets(data.openQuestions)}`);
+  return parts.join('\n\n');
+}
+
+/**
+ * PLANNING (rows 3 and 4): run the `plan` stage (read-only workspace), save the plan on the ticket, post it to Jira when
+ * write-back is on, and go to the plan gate, or straight to breakdown when the gate (or the stage) is off (F7).
+ */
+@Injectable()
+export class PlanHandler implements StepHandler {
+  readonly status = 'PLANNING' as const;
+  private readonly logger = new Logger(PlanHandler.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly launcher: StageLauncher,
+    private readonly outcomes: StageOutcomes,
+    private readonly jira: JiraClients,
+  ) {}
+
+  async run(ticket: Ticket): Promise<StepOutcome> {
+    const project = await this.prisma.project.findUniqueOrThrow({ where: { id: ticket.projectId } });
+    const settings = ProjectSettingsSchema.parse(project.settings);
+
+    if (!settings.stages.plan.enabled) {
+      // "plan off: the ticket body becomes the plan".
+      await this.prisma.ticket.update({ where: { id: ticket.id }, data: { planMarkdown: ticket.body || ticket.title } });
+      return { kind: 'transition', to: 'BREAKDOWN', reason: 'The plan stage is off: the ticket body is the plan' };
+    }
+
+    const ws = this.launcher.workspaceOf(ticket);
+    const { match } = await lookup(ws, project.kbDir, featureKeyOf(ticket));
+    const rejection = await this.rejection(ticket);
+
+    const result = await this.launcher.launch(
+      ticket,
+      'plan',
+      {
+        ticket: { key: ticket.key, title: ticket.title, body: ticket.body },
+        kbDoc: match?.content,
+        ...(rejection ? { previousPlan: ticket.planMarkdown ?? undefined, rejectionNote: rejection } : {}),
+      },
+      { workspacePath: ws },
+    );
+    if (result.kind !== 'done') return this.outcomes.forResult(ticket.id, 'plan', result);
+
+    const plan = composePlan((result.envelope as StageEnvelope).data as PlanData);
+    await this.prisma.ticket.update({ where: { id: ticket.id }, data: { planMarkdown: plan } });
+    await this.commentOnJira(ticket, project.jiraMode, settings.jiraWriteBack.comments, plan);
+
+    return settings.gates.plan
+      ? { kind: 'transition', to: 'AWAITING_PLAN_APPROVAL', reason: 'Plan ready for approval', stageRunId: result.stageRunId }
+      : { kind: 'transition', to: 'BREAKDOWN', reason: 'Plan stored; the plan gate is off', stageRunId: result.stageRunId };
+  }
+
+  /** The developer's note, when the latest move into PLANNING was a rejection at the plan gate (row 6). */
+  private async rejection(ticket: Ticket): Promise<string | null> {
+    if (!ticket.planMarkdown) return null;
+    const last = await this.prisma.stateTransition.findFirst({ where: { ticketId: ticket.id, toStatus: 'PLANNING' }, orderBy: [{ at: 'desc' }, { id: 'desc' }] });
+    return last?.fromStatus === 'AWAITING_PLAN_APPROVAL' && last.reason ? last.reason : null;
+  }
+
+  /** Posts the plan to the Jira issue (REST directly, MCP through jiraSync). A Jira problem never blocks the pipeline. */
+  private async commentOnJira(ticket: Ticket, jiraMode: string, enabled: boolean, plan: string): Promise<void> {
+    if (!enabled || (jiraMode !== 'rest' && jiraMode !== 'mcp') || ticket.source !== 'jira' || !ticket.externalKey) return;
+    try {
+      await this.jira.forMode(jiraMode).comment(ticket.externalKey, `## Plan for ${ticket.key}\n\n${plan}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Posting the plan to ${ticket.externalKey} failed: ${message}`);
+      await this.prisma.event.create({ data: { ticketId: ticket.id, type: 'jira', message: `Could not post the plan to Jira: ${message}`.slice(0, 500) } });
+    }
+  }
+}

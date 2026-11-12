@@ -3,14 +3,22 @@
   "private": true,
   "version": "0.1.0",
   "packageManager": "npm@12.0.2",
-  "engines": { "node": ">=24" },
-  "workspaces": ["apps/*", "packages/*"],
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
     "test": "turbo run test",
     "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "test:int": "turbo run test:int",
+    "test:live": "turbo run test:live",
+    "test:e2e": "turbo run build --filter=@sdlc/api... && npm run test:e2e -w @sdlc/e2e"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

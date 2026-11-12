@@ -1,0 +1,38 @@
+[
+ {
+  "promptMatches": "Subtask 1: ",
+  "edits": [
+   {
+    "path": "src/f1.ts",
+    "content": "export const f1 = () => 1;\n"
+   }
+  ],
+  "result": {
+   "status": "done",
+   "summary": "implemented 1",
+   "data": {
+    "filesChanged": [
+     "src/f1.ts"
+    ]
+   }
+  }
+ },
+ {
+  "promptMatches": "Subtask 2: ",
+  "edits": [
+   {
+    "path": "src/f2.ts",
+    "content": "export const f2 = () => 2;\n"
+   }
+  ],
+  "result": {
+   "status": "done",
+   "summary": "implemented 2",
+   "data": {
+    "filesChanged": [
+     "src/f2.ts"
+    ]
+   }
+  }
+ }
+]
