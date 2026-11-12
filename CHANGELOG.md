@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- The dashboard can be installed as a desktop app (PWA).
 - The `sdlc-agent` npm CLI (`npx sdlc-agent init`): installs and runs the stack from the published images, with `up`, `down`, `status`, `logs`, `upgrade` (with a database backup), `doctor`, `reset-admin` and `uninstall`.
 - First-run setup wizard: create the admin password with a one-time setup code, then enter the Claude token, GitHub token and git identity (Jira optional) in the dashboard, each with a Test button. The pipeline stays blocked, with a banner, until the required credentials are set.
 - Credentials are stored in the database, encrypted with AES-256-GCM using `ENCRYPTION_KEY`. Environment variables still override stored values.

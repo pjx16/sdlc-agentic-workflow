@@ -6,7 +6,7 @@ import { type Manifest, shippedGuidelineHashes, writeManifest } from './manifest
 import { assetsDir, packageVersion } from './paths';
 import { generateEncryptionKey, generatePostgresPassword, generateSetupCode } from './secrets';
 import { CliError, out } from './ui';
-import { openBrowser, up } from './commands';
+import { INSTALL_TIP, openBrowser, up } from './commands';
 
 export interface InitOptions {
   dir: string;
@@ -83,5 +83,6 @@ export async function init(opts: InitOptions): Promise<void> {
   out(`Open  ${url}`);
   out(`Setup code: ${setupCode}   (needed once, to create your admin password)`);
   out(`Installed in ${dir} — keep its .env safe and back it up: it holds the key that encrypts your tokens.`);
+  out(INSTALL_TIP);
   if (opts.open && process.stdout.isTTY) openBrowser(url);
 }

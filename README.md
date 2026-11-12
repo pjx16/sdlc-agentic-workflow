@@ -192,6 +192,16 @@ Development mode needs the GitHub CLI (`gh`) installed, because the worker runs 
 
 To stop: `docker compose down`. The database lives in a Docker volume and survives restarts.
 
+## Use it as a desktop app
+
+The dashboard can be installed as an app that opens in its own window, with its own icon and no browser tabs. The stack itself still runs in Docker.
+
+- **Chrome or Edge:** click the install icon in the address bar, or the **Install app** button at the bottom of the sidebar.
+- **Safari on macOS:** **File → Add to Dock**.
+- It only works on `localhost` or `127.0.0.1` (or behind HTTPS), because browsers only offer installation on a secure context. Each address is a separate installed app.
+- The stack must be running (`sdlc-agent up` or `docker compose up -d`) for the app window to show anything.
+- Firefox cannot install it.
+
 ## Adding a project
 
 Open **Projects → New** and enter:

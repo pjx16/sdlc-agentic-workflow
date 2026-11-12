@@ -8,6 +8,8 @@ import { readManifest } from './manifest';
 import { run } from './proc';
 import { CliError, dim, green, out, yellow } from './ui';
 
+export const INSTALL_TIP = 'Tip: install it as an app from Chrome/Edge (address-bar install icon) or Safari (File → Add to Dock).';
+
 export function openBrowser(url: string): void {
   const opener = process.platform === 'darwin' ? 'open' : 'xdg-open';
   try {
@@ -58,6 +60,7 @@ export async function up(opts: { dir: string; quiet?: boolean }): Promise<void> 
   if ((await run('docker', ['pull', image], { inherit: true })).code !== 0) out(yellow('Could not pull the agent image now; the worker will try again on its first stage.'));
 
   const status = await fetchSetupStatus(opts.dir);
+  if (!opts.quiet) out(`\n${INSTALL_TIP}`);
   if (status && !status.adminCreated) {
     out();
     out(`Open ${dashboardUrl(opts.dir)} to finish setup. Setup code: ${getEnv(envText, 'SETUP_CODE') ?? '(see docker compose logs api)'}`);
