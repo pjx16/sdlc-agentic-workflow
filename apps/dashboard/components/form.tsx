@@ -77,7 +77,7 @@ export function Num(props: BaseProps) {
   return <Text {...props} type="text" />;
 }
 
-export function TextArea(props: BaseProps & { rows?: number }) {
+export function TextArea(props: BaseProps & { rows?: number; placeholder?: string }) {
   const { values, errors, set } = useForm();
   const error = errors[props.path];
   return (
@@ -85,6 +85,7 @@ export function TextArea(props: BaseProps & { rows?: number }) {
       <textarea
         id={props.path}
         rows={props.rows ?? 3}
+        placeholder={props.placeholder}
         value={String(getIn(values, props.path) ?? '')}
         disabled={props.disabled}
         aria-invalid={error ? true : undefined}

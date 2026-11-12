@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_GLOBAL_SETTINGS, DEFAULT_PROJECT_SETTINGS, GlobalSettingsSchema, ProjectInputSchema, ProjectSettingsSchema,
-  STACK_PREFILLS, TICKET_STATUSES, commandWarnings, deepMerge, defaultLocalKeyPrefix, stageWarnings, zodFields,
+  STACK_PREFILLS, TICKET_STATUSES, commandWarnings, DEFAULT_INTAKE_LABEL, deepMerge, defaultJiraJql, defaultLocalKeyPrefix, stageWarnings, zodFields,
 } from './index';
 
 const valid = { name: 'Billing API', repoUrl: 'https://github.com/acme/billing', stack: 'nestjs', testCmdTemplate: 'npx jest {files}' };
@@ -150,6 +150,16 @@ describe('GlobalSettings', () => {
   it('validates ranges with field-level errors', () => {
     const f = zodFields(GlobalSettingsSchema.safeParse({ usageThresholdPct: 0, pollIntervalSec: 1, stageTimeoutMin: 'x', modelAliases: { haiku: '' }, jiraMcp: { readTools: [''] } }).error!);
     expect(Object.keys(f).sort()).toEqual(['jiraMcp.readTools.0', 'modelAliases.haiku', 'pollIntervalSec', 'stageTimeoutMin', 'usageThresholdPct']);
+  });
+});
+
+describe('defaultJiraJql', () => {
+  it("is the project's issues labelled sdlc-agent, oldest first, and empty without a key", () => {
+    expect(defaultJiraJql('ABC')).toBe('project = "ABC" AND labels = "sdlc-agent" ORDER BY created ASC');
+    expect(defaultJiraJql('  ABC ')).toBe('project = "ABC" AND labels = "sdlc-agent" ORDER BY created ASC');
+    expect(defaultJiraJql('')).toBe('');
+    expect(defaultJiraJql(undefined)).toBe('');
+    expect(DEFAULT_INTAKE_LABEL).toBe('sdlc-agent');
   });
 });
 

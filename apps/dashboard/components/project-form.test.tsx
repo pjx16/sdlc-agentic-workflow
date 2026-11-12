@@ -63,6 +63,19 @@ describe('ProjectForm', () => {
     expect(screen.getByLabelText('Sub-task type name')).toHaveValue('Sub-task');
   });
 
+  it('shows the default Jira query (only issues labelled sdlc-agent) as the JQL placeholder, follows the project key, and leaves it empty so the default applies', async () => {
+    render(<ProjectForm />);
+    await userEvent.selectOptions(screen.getByLabelText('Jira mode'), 'rest');
+    const jql = screen.getByLabelText('JQL') as HTMLTextAreaElement;
+    expect(jql.value).toBe('');
+    expect(jql.placeholder).toBe('Enter the Jira project key first');
+    await userEvent.type(screen.getByLabelText('Jira project key'), 'ABC');
+    expect(jql.placeholder).toBe('project = "ABC" AND labels = "sdlc-agent" ORDER BY created ASC');
+    expect(screen.getByText(/Leave empty for the default, which picks up only issues labelled "sdlc-agent"\. Write your own query to change that\./)).toBeInTheDocument();
+    await userEvent.type(jql, 'project = ABC AND status = "Ready"');
+    expect(jql.value).toBe('project = ABC AND status = "Ready"'); // the user's query replaces the default
+  });
+
   it('creates a project: posts numbers as numbers and goes to the new project', async () => {
     fetchMock.mockResolvedValue(ok({ id: 'new-id' }, 201));
     render(<ProjectForm />);

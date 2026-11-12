@@ -29,7 +29,10 @@ describe('JiraMcpClient', () => {
     expect(tickets[0]).not.toHaveProperty('status');
   });
 
-  it('rejects a project without JQL', async () => {
+  it('uses the default query (only issues labelled sdlc-agent) when the project has no JQL, and rejects one with neither JQL nor a key', async () => {
+    const f = fakePort({ issues: [] });
+    await new JiraMcpClient(f.port).searchTickets({ id: 'p1', jiraJql: ' ', jiraProjectKey: 'ABC' });
+    expect(f.reads).toEqual([{ jql: 'project = "ABC" AND labels = "sdlc-agent" ORDER BY created ASC', projectKey: 'ABC', projectId: 'p1' }]);
     await expect(new JiraMcpClient(fakePort().port).searchTickets({ jiraJql: ' ' })).rejects.toThrow('no JQL');
   });
 

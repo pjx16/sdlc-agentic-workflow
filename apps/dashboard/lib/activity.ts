@@ -1,3 +1,4 @@
+import { DEFAULT_INTAKE_LABEL } from '@sdlc/shared';
 import { formatDuration } from './ticket-status';
 import type { IntakeStatusView, SystemView } from './types';
 
@@ -42,7 +43,7 @@ function intakeLine(i: IntakeStatusView, system: SystemView, now: number): Activ
     return { key, label, tone: 'amber', text: `${i.waiting} project${i.waiting === 1 ? ' is' : 's are'} set to ${MODE[i.mode]} but the repository mirror is not Ready, so nothing is polled.`, link: { href: '/projects', text: 'Projects' } };
   }
   if (i.projects === 0) return { key, label, tone: 'grey', text: `No project uses ${MODE[i.mode]} intake.`, link: { href: '/projects', text: 'Projects' } };
-  const found = `found ${i.seen} ticket${i.seen === 1 ? '' : 's'}${i.created > 0 ? `, ${i.created} new` : ''}`;
+  const found = `found ${i.seen} ticket${i.seen === 1 ? '' : 's'}${i.created > 0 ? `, ${i.created} new` : ''}${i.seen === 0 ? ` (the default query only picks up issues labelled "${DEFAULT_INTAKE_LABEL}")` : ''}`;
   const next =
     i.mode === 'rest' && i.at ? ` Next poll ${inFuture(new Date(i.at).getTime() + system.settings.pollIntervalSec * 1000 - now)}.` : i.mode === 'mcp' ? ' Each MCP poll runs Claude; per-project interval (default 15 min).' : '';
   return { key, label, tone: 'green', text: `Polled ${when}: ${found}.${next}` };
