@@ -32,7 +32,7 @@ let prisma: PrismaService;
 let nowMs = Date.now();
 
 async function buildApp(env: Record<string, string>): Promise<INestApplication> {
-  Object.assign(process.env, { DATABASE_URL: testDb.url, DASHBOARD_PASSWORD: PASSWORD, SESSION_SECRET: 'x'.repeat(32), ...env });
+  Object.assign(process.env, { DATABASE_URL: testDb.url, DASHBOARD_PASSWORD: PASSWORD, ...env });
   const moduleRef = await Test.createTestingModule({ imports: [PrismaModule, AuthModule, SystemModule, ProtectedModule] })
     .overrideProvider(CLOCK)
     .useValue(() => nowMs)

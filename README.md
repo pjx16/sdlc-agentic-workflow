@@ -176,7 +176,7 @@ Environment variables (`.env.example` lists all of them with comments):
 | `CLAUDE_CODE_OAUTH_TOKEN` | yes | Output of `claude setup-token` |
 | `GITHUB_TOKEN` | yes | Fine-grained token for git and `gh` |
 | `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL` | yes | Identity for every commit |
-| `DASHBOARD_PASSWORD`, `SESSION_SECRET` | yes | Single login password and session secret |
+| `DASHBOARD_PASSWORD` | yes | Single login password (at least 12 characters) |
 | `POSTGRES_PASSWORD` | yes | Database password |
 | `DATA_DIR` | yes | Absolute host path for mirrors, workspaces, runs and logs |
 | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira REST mode | Jira Cloud access |

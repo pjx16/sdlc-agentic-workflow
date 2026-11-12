@@ -17,7 +17,7 @@ describe('application wiring', () => {
   let db: TestDatabase;
   beforeAll(async () => {
     db = await createTestDatabase();
-    Object.assign(process.env, { DATABASE_URL: db.url, DASHBOARD_PASSWORD: 'x'.repeat(8), SESSION_SECRET: 'y'.repeat(32), DATA_DIR: '/tmp/sdlc-wiring' });
+    Object.assign(process.env, { DATABASE_URL: db.url, DASHBOARD_PASSWORD: 'x'.repeat(12), DATA_DIR: '/tmp/sdlc-wiring' });
   }, 180_000);
   afterAll(async () => db?.drop());
 

@@ -41,7 +41,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     return child;
   };
   start('node', ['dist/main.js'], path.join(ROOT, 'apps/api'), {
-    PORT: String(API_PORT), DATABASE_URL: url, DATA_DIR: dataDir, DASHBOARD_PASSWORD: PASSWORD, SESSION_SECRET: 'e2e-session-secret-0123456789abcdef', COOKIE_SECURE: 'false', LOG_LEVEL: 'warn',
+    PORT: String(API_PORT), DATABASE_URL: url, DATA_DIR: dataDir, DASHBOARD_PASSWORD: PASSWORD, COOKIE_SECURE: 'false', LOG_LEVEL: 'warn',
   });
   start('npx', ['next', 'dev', '-p', String(WEB_PORT), '-H', '127.0.0.1'], path.join(ROOT, 'apps/dashboard'), { API_URL: `http://127.0.0.1:${API_PORT}` });
   await waitFor(`http://127.0.0.1:${API_PORT}/health`, 'the API');
