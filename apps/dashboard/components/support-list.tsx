@@ -78,7 +78,7 @@ export function SupportList({ queries }: { queries: SupportQueryView[] }) {
         {open.length === 0 && <p className="mt-2 text-sm text-muted">Nothing is waiting for an answer.</p>}
         <ul className="mt-2 space-y-3">
           {open.map((q) => (
-            <li key={q.id} className="rounded-lg border border-border bg-surface p-4">
+            <li key={q.id} className="panel p-4">
               <p className="text-xs text-muted">
                 <Link href={`/tickets/${q.ticketId}`} className="font-medium text-fg underline">
                   {q.ticketKey}

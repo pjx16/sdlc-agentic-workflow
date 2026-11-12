@@ -1,8 +1,8 @@
-/** Chart styling (F17): one accent colour, light grid lines, no gradients. Colours are the dashboard's CSS variables, so both themes work. */
+/** Chart styling (F17): one accent colour, faint grid lines, monospace ticks. Colours are the dashboard's CSS variables, so both themes work. */
 export const GRID = 'var(--border)';
 export const AXIS = 'var(--muted)';
 export const ACCENT = 'var(--accent)';
-export const AXIS_PROPS = { stroke: AXIS, tick: { fill: AXIS, fontSize: 11 }, tickLine: false, axisLine: { stroke: GRID } } as const;
+export const AXIS_PROPS = { stroke: AXIS, tick: { fill: AXIS, fontSize: 11, fontFamily: 'var(--font-mono)' }, tickLine: false, axisLine: { stroke: GRID } } as const;
 
 /** Tones of the accent for the n-th series of a stacked chart: strongest first. */
 export const tone = (index: number, total: number): string => {
@@ -10,4 +10,4 @@ export const tone = (index: number, total: number): string => {
   return `color-mix(in srgb, var(--accent) ${pct}%, var(--surface))`;
 };
 
-export const tooltipStyle = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12, color: 'var(--text)' } as const;
+export const tooltipStyle = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text)' } as const;

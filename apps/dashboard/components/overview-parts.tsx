@@ -29,9 +29,9 @@ export function NumberCards({ summary }: { summary: MetricsSummary }) {
   return (
     <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {cards.map((c) => (
-        <div key={c.label} className="rounded-lg border border-border bg-surface p-4">
-          <dt className="text-xs text-muted">{c.label}</dt>
-          <dd className="mt-1 text-2xl font-semibold">{c.value}</dd>
+        <div key={c.label} className="panel p-4">
+          <dt className="eyebrow">{c.label}</dt>
+          <dd className="mt-2 font-mono text-3xl font-medium tracking-tight">{c.value}</dd>
           {c.hint && <p className="mt-1 text-xs text-muted">{c.hint}</p>}
         </div>
       ))}
@@ -49,7 +49,7 @@ const elapsed = (from: string | null, now: number) => {
 export function ActivityCard({ system, now }: { system: SystemView | null; now: number }) {
   const run = system?.runningStage ?? null;
   return (
-    <section aria-label="Current activity" className="rounded-lg border border-border bg-surface p-4">
+    <section aria-label="Current activity" className="panel p-4">
       <h2 className="text-sm font-medium">Current activity</h2>
       {system?.settings.pipelinePaused ? (
         <p className="mt-2 text-sm text-amber">Paused. {system.settings.pausedReason === 'manual' ? 'Paused by you.' : (system.settings.pausedReason ?? '')}</p>
@@ -78,7 +78,7 @@ export function ActivityCard({ system, now }: { system: SystemView | null; now: 
 /** Tickets that are waiting for a stage, oldest first (the order the worker takes them). */
 export function QueueList({ tickets }: { tickets: TicketListItem[] }) {
   return (
-    <section aria-label="Queue" className="rounded-lg border border-border bg-surface p-4">
+    <section aria-label="Queue" className="panel p-4">
       <h2 className="text-sm font-medium">Queue</h2>
       {tickets.length === 0 ? (
         <p className="mt-2 text-sm text-muted">No ticket is waiting for a stage.</p>

@@ -16,7 +16,7 @@ export function QualityPanel({ data }: { data: MetricsQuality }) {
     <div className="space-y-3">
       <dl className="grid grid-cols-3 gap-3">
         {stats.map((s) => (
-          <div key={s.label} className="rounded-lg border border-border bg-surface p-3">
+          <div key={s.label} className="panel p-3">
             <dt className="text-xs text-muted">{s.label}</dt>
             <dd className="mt-1 text-xl font-semibold">{s.value}</dd>
           </div>

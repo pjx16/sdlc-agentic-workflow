@@ -88,7 +88,7 @@ export function GuidelinesEditor({ tree }: { tree: GuidelineNode[] }) {
 
   return (
     <div className="grid gap-6 md:grid-cols-[16rem_1fr]">
-      <nav aria-label="Guideline files" className="rounded-lg border border-border bg-surface p-3">
+      <nav aria-label="Guideline files" className="panel p-3">
         {tree.length === 0 ? <p className="text-sm text-muted">No guideline files found.</p> : <Tree nodes={tree} selected={selected} onSelect={open} />}
       </nav>
       <div>

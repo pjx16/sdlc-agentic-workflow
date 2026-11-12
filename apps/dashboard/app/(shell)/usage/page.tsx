@@ -15,7 +15,7 @@ export default async function UsagePage() {
   return (
     <section className="space-y-8">
       <div>
-        <h1 className="text-xl font-semibold">Usage</h1>
+        <h1 className="text-2xl font-semibold">Usage</h1>
         <p className="mt-1 text-sm text-muted">
           The pipeline pauses at {system?.settings.usageThresholdPct ?? 50}% of the 5-hour window or {system?.settings.usageThresholdWeeklyPct ?? 80}% of the 7-day window.
         </p>

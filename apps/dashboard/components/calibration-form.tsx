@@ -40,7 +40,7 @@ export function CalibrationForm({ current, suggested }: Props) {
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <div className="panel p-4">
       <h2 className="text-sm font-medium">Calibration</h2>
       <p className="mt-1 text-sm text-muted">
         Used to estimate the 5-hour share when Claude does not report it: tokens in the last 5 hours divided by this value.

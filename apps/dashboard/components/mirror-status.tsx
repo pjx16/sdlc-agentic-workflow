@@ -31,7 +31,7 @@ export function MirrorStatus({ project }: { project: ProjectView }) {
   const color = { pending: 'bg-grey', ok: 'bg-green', failed: 'bg-red' }[project.mirrorStatus];
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-4 text-sm">
+    <div className="flex flex-wrap items-center gap-3 panel p-4 text-sm">
       <span className="text-muted">Repository mirror</span>
       <span className="flex items-center gap-2" role="status">
         <span aria-hidden className={`inline-block h-2 w-2 rounded-full ${color}`} />
