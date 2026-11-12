@@ -64,6 +64,13 @@ describe('safe-fs (S3)', () => {
     expect(await readNoFollow(root, 'dir')).toBeNull();
   });
 
+  it('treats a missing root as having nothing to read, and refuses to write there', async () => {
+    const gone = path.join(path.dirname(root), 'no-such-workspace');
+    expect(await readTextNoFollow(gone, 'a.md')).toBeNull();
+    expect(readTextNoFollowSync(gone, 'a.md')).toBeNull();
+    await expect(writeTextNoFollow(gone, 'a.md', 'x')).rejects.toThrow('Refusing');
+  });
+
   it('works when the root itself is reached through a symlink', async () => {
     const alias = path.join(path.dirname(root), 'alias');
     symlinkSync(root, alias);

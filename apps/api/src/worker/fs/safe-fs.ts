@@ -26,7 +26,13 @@ const isMissing = (err: unknown) => ['ENOENT', 'ENOTDIR'].includes((err as NodeJ
 /** The absolute path of `rel` inside `root`, or null if it escapes the root or an existing component is a symlink. */
 export async function resolveInside(root: string, rel: string): Promise<string | null> {
   if (rel.includes('\0')) return null;
-  const rootReal = await realpath(root);
+  let rootReal: string;
+  try {
+    rootReal = await realpath(root);
+  } catch (err) {
+    if (isMissing(err)) return null; // no workspace yet: nothing to read
+    throw err;
+  }
   const full = path.resolve(rootReal, rel);
   if (!underRoot(rootReal, full)) return null;
   for (const part of componentsBelow(rootReal, full)) {
@@ -42,7 +48,13 @@ export async function resolveInside(root: string, rel: string): Promise<string |
 
 export function resolveInsideSync(root: string, rel: string): string | null {
   if (rel.includes('\0')) return null;
-  const rootReal = realpathSync(root);
+  let rootReal: string;
+  try {
+    rootReal = realpathSync(root);
+  } catch (err) {
+    if (isMissing(err)) return null;
+    throw err;
+  }
   const full = path.resolve(rootReal, rel);
   if (!underRoot(rootReal, full)) return null;
   for (const part of componentsBelow(rootReal, full)) {
