@@ -122,6 +122,16 @@ docker compose up -d
 
 Then open `http://localhost:3000`, log in with `DASHBOARD_PASSWORD`, and add a project. `DATA_DIR` must be an absolute path that exists on the host; mirrors, workspaces, run folders and logs live there. Check that everything is up with `docker compose ps`; the API reports `healthy` at `/health` inside the Compose network.
 
+One-line shortcuts, from the repository root:
+
+```bash
+npm run up:prod   # production mode: builds the images and starts everything in Docker, waits until healthy
+npm run up:dev    # development mode: Postgres and the proxy in Docker; API, worker and dashboard on your machine with hot reload (Ctrl+C stops them)
+npm run down      # stops the Docker containers
+```
+
+Development mode needs the GitHub CLI (`gh`) installed, because the worker runs outside Docker there.
+
 To stop: `docker compose down`. The database lives in a Docker volume and survives restarts.
 
 ## Adding a project
