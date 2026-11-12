@@ -44,7 +44,7 @@ export async function checkRepoAccess(repoUrl: string, token: string, opts: Repo
   if (res.status === 404 || res.status === 403) {
     return (
       `The GitHub token cannot access ${repo} (GitHub answered ${res.status}). Either the repository does not exist, or the token is not allowed to see it. ` +
-      'For a fine-grained token: add this repository under "Repository access" (and check the token\'s resource owner), and grant Contents: Read and write and Metadata: Read. ' +
+      'For a fine-grained token: add this repository under "Repository access" (and check the token\'s resource owner), and grant Contents: Read and write, Pull requests: Read and write, Actions: Read, Commit statuses: Read and Metadata: Read. ' +
       'For a classic token: it needs the repo scope (and SSO authorisation for an organisation).'
     );
   }

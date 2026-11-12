@@ -22,12 +22,24 @@ interface Card {
   testKey: CredentialKey;
 }
 
+/** GitHub's "new fine-grained token" page with the name and permissions pre-filled (the repositories are chosen on the page). */
+const GITHUB_TOKEN_URL =
+  'https://github.com/settings/personal-access-tokens/new?name=sdlc-agent&description=Used+by+sdlc-agent+to+clone%2C+push+branches+and+open+pull+requests&contents=write&pull_requests=write&metadata=read&actions=read&statuses=read';
+
+const PERMISSIONS: { name: string; level: string; why: string }[] = [
+  { name: 'Contents', level: 'Read and write', why: 'clone the repository and push the ticket branch' },
+  { name: 'Pull requests', level: 'Read and write', why: 'open the draft PR, mark it ready, comment on it' },
+  { name: 'Actions', level: 'Read', why: 'read CI results and failing logs' },
+  { name: 'Commit statuses', level: 'Read', why: 'read check status on the PR' },
+  { name: 'Metadata', level: 'Read', why: 'required by GitHub for every token' },
+];
+
 const CARDS: Card[] = [
   {
     title: 'Claude',
     help: (
       <>
-        Run <code>claude setup-token</code> on a machine logged in to your Claude account and paste the token.
+        Run <code>claude setup-token</code> on a machine logged in to your Claude account and paste the token (it starts with <code>sk-ant-</code>). It needs no other permissions.
       </>
     ),
     keys: ['claude_token'],
@@ -37,10 +49,35 @@ const CARDS: Card[] = [
   {
     title: 'GitHub',
     help: (
-      <>
-        A fine-grained personal access token limited to the target repositories, with Contents (read/write), Pull requests (read/write), Actions (read), Commit statuses
-        (read) and Metadata (read). Do not grant administration permission. The name and email are used for every commit.
-      </>
+      <div className="space-y-3">
+        <p>
+          Create a <strong>fine-grained personal access token</strong>.{' '}
+          <a href={GITHUB_TOKEN_URL} target="_blank" rel="noopener noreferrer" className="text-accent underline">
+            Open GitHub with the permissions pre-filled ↗
+          </a>
+        </p>
+        <div>
+          <p className="font-medium text-text">Repository access</p>
+          <p>
+            Choose <strong>Only select repositories</strong> and add every repository you will use here. The token owner must be the account or organisation that owns them. A token that cannot see a repository
+            makes it fail with a 404.
+          </p>
+        </div>
+        <div>
+          <p className="font-medium text-text">Repository permissions</p>
+          <ul className="mt-1 space-y-0.5" data-testid="github-permissions">
+            {PERMISSIONS.map((p) => (
+              <li key={p.name}>
+                <span className="font-medium text-text">{p.name}</span>: {p.level} <span className="text-muted">— {p.why}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1">Do not grant Administration or any account permission.</p>
+        </div>
+        <p>
+          A classic token also works: it needs the <code>repo</code> scope (and SSO authorisation for an organisation). The name and email below are used for every commit.
+        </p>
+      </div>
     ),
     keys: ['github_token', 'git_author_name', 'git_author_email'],
     id: 'github',
@@ -49,7 +86,18 @@ const CARDS: Card[] = [
   {
     title: 'Jira',
     optional: true,
-    help: <>Only needed for Jira REST mode. Use a Jira Cloud base URL (https://your-site.atlassian.net) and an API token.</>,
+    help: (
+      <div className="space-y-2">
+        <p>
+          Only needed for Jira REST mode. Use your Jira Cloud base URL (<code>https://your-site.atlassian.net</code>), the email of your Atlassian account, and an API token from{' '}
+          <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener noreferrer" className="text-accent underline">
+            id.atlassian.com ↗
+          </a>
+          .
+        </p>
+        <p>The account behind it must be able to browse the project, comment, create subtasks and transition issues, because the pipeline reads tickets, posts plans and moves statuses.</p>
+      </div>
+    ),
     keys: ['jira_base_url', 'jira_email', 'jira_api_token'],
     id: 'jira',
     testKey: 'jira_api_token',
@@ -171,7 +219,7 @@ function CardView({ card, views, onSaved }: { card: Card; views: Map<CredentialK
           Skip for now
         </a>
       </div>
-      <p className="mt-2 text-sm text-muted">{card.help}</p>
+      <div className="mt-2 text-sm text-muted">{card.help}</div>
       <div className="mt-4 space-y-4">
         {fields.map((v) => (
           <Field key={v.key} view={v} value={values[v.key] ?? ''} onChange={(text) => setValues((cur) => ({ ...cur, [v.key]: text }))} error={errors[v.key]} />

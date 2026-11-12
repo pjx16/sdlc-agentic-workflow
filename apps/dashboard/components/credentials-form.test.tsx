@@ -81,6 +81,31 @@ describe('CredentialsForm', () => {
     expect(card('github').getByRole('button', { name: 'Test' })).toBeDisabled();
   });
 
+  it('spells out the GitHub token permissions and links to a pre-filled token page', () => {
+    render(<CredentialsForm initial={views()} />);
+    const list = within(screen.getByTestId('github-permissions'));
+    const items = list.getAllByRole('listitem').map((li) => li.textContent);
+    expect(items).toHaveLength(5);
+    expect(items[0]).toMatch(/^Contents: Read and write/);
+    expect(items[1]).toMatch(/^Pull requests: Read and write/);
+    expect(items[2]).toMatch(/^Actions: Read /);
+    expect(items[3]).toMatch(/^Commit statuses: Read /);
+    expect(items[4]).toMatch(/^Metadata: Read /);
+    expect(card('github').getByText(/Only select repositories/)).toBeInTheDocument();
+    expect(card('github').getByText(/Do not grant Administration/)).toBeInTheDocument();
+    const link = card('github').getByRole('link', { name: /pre-filled/ });
+    expect(link).toHaveAttribute('href', expect.stringContaining('github.com/settings/personal-access-tokens/new'));
+    expect(link.getAttribute('href')).toContain('contents=write');
+    expect(link.getAttribute('href')).toContain('pull_requests=write');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
+  });
+
+  it('says what the Jira account must be allowed to do', () => {
+    render(<CredentialsForm initial={views()} />);
+    expect(card('jira').getByText(/browse the project, comment, create subtasks and transition issues/)).toBeInTheDocument();
+  });
+
   it('warns when ENCRYPTION_KEY is not set', () => {
     render(<CredentialsForm initial={views()} encryptionKeyOk={false} />);
     expect(screen.getByRole('alert')).toHaveTextContent('ENCRYPTION_KEY is not set');
