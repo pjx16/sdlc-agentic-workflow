@@ -98,6 +98,16 @@ describe('F1 authentication', () => {
     expect(res.headers['set-cookie']).toBeUndefined();
   });
 
+  it('refuses state-changing requests from another site (Sec-Fetch-Site), and allows same-origin ones', async () => {
+    const post = (site: string) => request(app.getHttpServer()).post('/auth/login').set('X-Forwarded-For', '10.0.0.9').set('Sec-Fetch-Site', site).send({ password: PASSWORD });
+    for (const site of ['same-site', 'cross-site']) {
+      const res = await post(site).expect(403);
+      expect(res.body).toEqual({ error: 'forbidden', message: 'Cross-site request refused' });
+      expect(res.headers['set-cookie']).toBeUndefined();
+    }
+    await post('same-origin').expect(200);
+  });
+
   it('rejects a missing password with a validation error', async () => {
     const res = await request(app.getHttpServer()).post('/auth/login').send({}).expect(400);
     expect(res.body).toEqual({ error: 'validation_error', message: 'Invalid login request', fields: { password: 'required' } });
