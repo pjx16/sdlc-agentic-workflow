@@ -118,6 +118,41 @@ jobs:
             SHA256SUMS
           if-no-files-found: error
 
+  npm:
+    name: npm
+    needs: [images, bundle]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing (OIDC) needs a recent npm. There is no NPM_TOKEN secret.
+      - run: npm install -g npm@latest
+      - run: npm ci
+      - run: npm run build -w sdlc-agent
+      - name: Publish
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          PACKAGE_VERSION=$(node -p "require('./packages/cli/package.json').version")
+          if [ "${PACKAGE_VERSION}" != "${VERSION}" ]; then
+            echo "packages/cli/package.json is ${PACKAGE_VERSION} but the tag is ${VERSION}" >&2
+            exit 1
+          fi
+          # A pre-release tag (v0.0.2-rc.1) goes to the "next" dist-tag, a plain tag to "latest".
+          case "${VERSION}" in *-*) DIST_TAG=next ;; *) DIST_TAG=latest ;; esac
+          npm publish -w sdlc-agent --provenance --access public --tag "${DIST_TAG}"
+
   release:
     name: release
     needs: [images, bundle]
