@@ -1,3 +1,4 @@
+import { defaultJiraJql } from '@sdlc/shared';
 import { adfToText, markdownToAdf } from './adf';
 import {
   JiraHttpError, JiraStatusNotFoundError, JiraUnavailableError,
@@ -56,7 +57,8 @@ export class JiraRestClient implements JiraClient {
   // ---------------------------------------------------------------- JiraClient
 
   async searchTickets(project: JiraProjectRef): Promise<JiraTicket[]> {
-    const jql = project.jiraJql?.trim() || (project.jiraProjectKey ? `project = "${project.jiraProjectKey}" ORDER BY created ASC` : '');
+    // An empty JQL means the default: the project's issues labelled `sdlc-agent`. A JQL set on the project is used exactly as written.
+    const jql = project.jiraJql?.trim() || defaultJiraJql(project.jiraProjectKey);
     if (!jql) return [];
     const tickets: JiraTicket[] = [];
     let nextPageToken: string | undefined;

@@ -214,6 +214,8 @@ Open **Projects → New** and enter:
 
 Save. The worker clones a bare mirror in the background and checks that the base branch exists. The project shows *Cloning*, then *Ready*, or *Failed* with the error (fix the URL or token and press Retry). A project accepts tickets only when it is *Ready*.
 
+**Which Jira tickets are picked up.** By default only issues that carry the label **`sdlc-agent`** are picked up. Leave the project's **JQL** empty and it uses `project = "KEY" AND labels = "sdlc-agent" ORDER BY created ASC` (the form shows it as the placeholder). Add the label to an issue when you want the agent to work on it. To change this, write your own JQL in the project's settings (REST and MCP mode): it is used exactly as written, so you can drop the label or filter on a status instead. Jira sub-tasks are never picked up as tickets, whatever the query.
+
 A **suggested JQL** for REST mode, so each ticket is picked up once and only when you mean it:
 
 ```text

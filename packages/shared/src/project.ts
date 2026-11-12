@@ -15,6 +15,18 @@ export const STACK_PREFILLS: Record<ProjectStack, StackPrefill> = {
   nextjs: { installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx vitest run {files}' },
 };
 
+/** The Jira label that marks an issue for the agent. The default intake query only picks up issues that carry it. */
+export const DEFAULT_INTAKE_LABEL = 'sdlc-agent';
+
+/**
+ * The query a Jira project uses when its JQL field is empty: the project's issues that carry the `sdlc-agent` label, oldest first.
+ * A project that sets its own JQL uses exactly that instead, so the query (and with it the label rule) can be changed per project.
+ */
+export function defaultJiraJql(projectKey: string | null | undefined): string {
+  const key = (projectKey ?? '').trim();
+  return key ? `project = "${key}" AND labels = "${DEFAULT_INTAKE_LABEL}" ORDER BY created ASC` : '';
+}
+
 /** First 4 letters of the name, upper-cased (section 7). Falls back to "PROJ" if the name has no letters. */
 export function defaultLocalKeyPrefix(name: string): string {
   const letters = name.replace(/[^A-Za-z]/g, '').slice(0, 4).toUpperCase();

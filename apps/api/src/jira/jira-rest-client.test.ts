@@ -84,9 +84,11 @@ describe('searchTickets', () => {
   });
 
   it('falls back to the project key, and returns nothing without JQL or key', async () => {
-    const { client, calls } = make([{ json: { issues: [] } }]);
+    const { client, calls } = make([{ json: { issues: [] } }, { json: { issues: [] } }]);
     await client.searchTickets({ jiraProjectKey: 'ABC', jiraJql: '  ' });
-    expect(calls[0]?.body.jql).toBe('project = "ABC" ORDER BY created ASC');
+    expect(calls[0]?.body.jql).toBe('project = "ABC" AND labels = "sdlc-agent" ORDER BY created ASC'); // the default query: only issues labelled sdlc-agent
+    await client.searchTickets({ jiraProjectKey: 'ABC', jiraJql: 'project = ABC AND status = "Ready"' });
+    expect(calls[1]?.body.jql).toBe('project = ABC AND status = "Ready"'); // a query set on the project is used exactly as written
     const none = make([{ json: {} }]);
     expect(await none.client.searchTickets({})).toEqual([]);
     expect(none.calls).toHaveLength(0);

@@ -3,8 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import {
-  CLAUDE_MD_MODES, JIRA_MODES, MODEL_ALIASES, PROJECT_STACKS, STAGE_NAMES,
-  ProjectSettingsSchema, commandWarnings, stageWarnings, type ProjectStack, type StageName,
+  CLAUDE_MD_MODES, DEFAULT_INTAKE_LABEL, JIRA_MODES, MODEL_ALIASES, PROJECT_STACKS, STAGE_NAMES,
+  ProjectSettingsSchema, defaultJiraJql, commandWarnings, stageWarnings, type ProjectStack, type StageName,
 } from '@sdlc/shared';
 import { Check, FormProvider, Num, Section, Select, Text, TextArea, Warnings } from './form';
 import { MirrorStatus } from './mirror-status';
@@ -124,7 +124,12 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
           {jiraOn && (
             <>
               <Text path="jiraProjectKey" label="Jira project key" placeholder="ABC" />
-              <TextArea path="jiraJql" label="JQL" hint="Which tickets to pick up." />
+              <TextArea
+                path="jiraJql"
+                label="JQL"
+                placeholder={defaultJiraJql(String(values.jiraProjectKey ?? '')) || 'Enter the Jira project key first'}
+                hint={`Which tickets to pick up. Leave empty for the default, which picks up only issues labelled "${DEFAULT_INTAKE_LABEL}". Write your own query to change that.`}
+              />
               <Text path="settings.jiraSubtaskTypeName" label="Sub-task type name" />
               <Check path="settings.jiraWriteBack.comments" label="Write back comments" />
               <Check path="settings.jiraWriteBack.transitions" label="Write back status transitions" />

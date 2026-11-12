@@ -77,6 +77,11 @@ describe('describeActivity: Jira intake', () => {
     expect(l?.text).toContain('found 0 tickets');
     expect(l?.text).toContain('runs Claude');
   });
+  it('reminds that the default query needs the label when a poll found nothing, but not when it found tickets', () => {
+    const none = line(system({ worker: worker({ intake: [intake({ seen: 0 })] }) }), 'intake-rest');
+    expect(none?.text).toContain('found 0 tickets (the default query only picks up issues labelled "sdlc-agent")');
+    expect(line(system({ worker: worker({ intake: [intake({ seen: 2, created: 1 })] }) }), 'intake-rest')?.text).not.toContain('labelled');
+  });
   it('no project uses the mode, or the projects are waiting for their mirror', () => {
     expect(line(system({ worker: worker({ intake: [intake({ projects: 0 })] }) }), 'intake-rest')).toMatchObject({ tone: 'grey', text: 'No project uses REST intake.' });
     const waiting = line(system({ worker: worker({ intake: [intake({ mode: 'mcp', projects: 0, waiting: 1 })] }) }), 'intake-mcp');

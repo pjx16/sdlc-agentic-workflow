@@ -1,4 +1,4 @@
-import { JIRA_KEY_PATTERN } from '@sdlc/shared';
+import { JIRA_KEY_PATTERN, defaultJiraJql } from '@sdlc/shared';
 import type { JiraClient, JiraIssueStatus, JiraProjectRef, JiraSubtaskInput, JiraTicket } from './jira-client';
 import { JiraHttpError } from './jira-client';
 
@@ -58,8 +58,9 @@ export class JiraMcpClient implements JiraClient {
   constructor(private readonly port: JiraMcpPort) {}
 
   async searchTickets(project: JiraProjectRef): Promise<JiraTicket[]> {
-    const jql = project.jiraJql?.trim();
-    if (!jql) throw new JiraMcpError('The project has no JQL');
+    // An empty JQL means the default: the project's issues labelled `sdlc-agent`. A JQL set on the project is used exactly as written.
+    const jql = project.jiraJql?.trim() || defaultJiraJql(project.jiraProjectKey);
+    if (!jql) throw new JiraMcpError('The project has no JQL and no Jira project key');
     const issues = validateIssues(await this.port.read({ jql, projectKey: project.jiraProjectKey ?? null, projectId: project.id }), project.jiraProjectKey ?? null);
     return issues.map(toTicket);
   }
