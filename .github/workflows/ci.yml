@@ -128,3 +128,64 @@ jobs:
       - run: npm install -g npm@12.0.2
       - run: npm ci --ignore-scripts
       - run: npm audit --omit=dev --audit-level=high
+
+  cli:
+    name: cli
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm install -g npm@12.0.2
+      - run: npm ci
+      - run: npm run build -w sdlc-agent
+      - name: No install scripts in the published package
+        run: |
+          node -e "const p=require('./packages/cli/package.json');for(const s of ['preinstall','install','postinstall','prepare'])if(p.scripts&&p.scripts[s]){console.error('forbidden script '+s);process.exit(1)}"
+      - name: Package contents
+        run: npm pack -w sdlc-agent --json --dry-run | node packages/cli/scripts/check-pack.mjs
+      - name: Smoke install
+        run: |
+          set -euo pipefail
+          npm pack -w sdlc-agent --pack-destination "$RUNNER_TEMP"
+          npm install -g --prefix "$RUNNER_TEMP/g" "$RUNNER_TEMP"/sdlc-agent-*.tgz
+          "$RUNNER_TEMP/g/bin/sdlc-agent" --version
+          "$RUNNER_TEMP/g/bin/sdlc-agent" init --no-start --no-open --dir "$RUNNER_TEMP/inst"
+          test "$(stat -c '%a' "$RUNNER_TEMP/inst/.env")" = "600"
+          docker compose -f "$RUNNER_TEMP/inst/docker-compose.yml" --env-file "$RUNNER_TEMP/inst/.env" config -q
+
+  cli-macos:
+    name: cli (macOS, no Docker)
+    needs: checks
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm install -g npm@12.0.2
+      - run: npm ci
+      - run: npm run build -w sdlc-agent
+      - name: Smoke install (no Docker here, so the doctor is skipped)
+        env:
+          # Test-only: documented in packages/cli/README.md. Skips the Docker checks, which cannot pass on this runner.
+          SDLC_AGENT_SKIP_DOCTOR: '1'
+        run: |
+          set -euo pipefail
+          npm pack -w sdlc-agent --pack-destination "$RUNNER_TEMP"
+          npm install -g --prefix "$RUNNER_TEMP/g" "$RUNNER_TEMP"/sdlc-agent-*.tgz
+          "$RUNNER_TEMP/g/bin/sdlc-agent" --version
+          "$RUNNER_TEMP/g/bin/sdlc-agent" init --no-start --no-open --dir "$RUNNER_TEMP/inst"
+          test "$(stat -f '%Lp' "$RUNNER_TEMP/inst/.env")" = "600"
+          test -f "$RUNNER_TEMP/inst/docker-compose.yml"
+          test -d "$RUNNER_TEMP/inst/guidelines"
