@@ -9,7 +9,7 @@ import type { SubtaskInfo } from '../agent-runner/context-builder';
 import { changedFilesSync } from '../git/changes';
 import { CommitGuardError, describeViolations, squashAgentCommits, workspaceViolationsSync } from '../git/commit-guard';
 import { PushRejectedError } from '../git/commit';
-import { GitRunner } from '../git/git-runner';
+import { GitRunner, HARDENING_FLAGS } from '../git/git-runner';
 import { makeWritableForAgent } from '../git/workspace';
 import { WorkspaceService, installedHash, manifestHash, recordInstalled } from '../git/workspace.service';
 import { featureKeyOf, lookup } from '../kb/kb-index';
@@ -91,7 +91,7 @@ export class SubtaskStepsService implements SubtaskSteps {
     await makeWritableForAgent(ws);
 
     const preHead = await this.head(ws);
-    const tracked = execFileSync('git', ['ls-files'], { cwd: ws, encoding: 'utf8' }).split('\n').filter(Boolean);
+    const tracked = execFileSync('git', [...HARDENING_FLAGS, 'ls-files'], { cwd: ws, encoding: 'utf8' }).split('\n').filter(Boolean);
     const info = toSubtaskInfo(subtask);
     const result = await this.launcher.launch(
       ticket,

@@ -1,7 +1,6 @@
-import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
+import { readTextNoFollow, writeTextNoFollow } from '../fs/safe-fs';
 
 /** `<kbDir>/features.json` (BUILD_PLAN 6.9). */
 export const KbEntrySchema = z.object({
@@ -55,10 +54,11 @@ export interface LoadedIndex {
 
 /** A missing directory or index is an empty index (F6). A corrupt one is also treated as empty, with a warning. */
 export async function readIndex(workspace: string, kbDir: string): Promise<LoadedIndex> {
-  const file = path.resolve(workspace, kbDir, INDEX_FILE);
-  if (!existsSync(file)) return { index: { version: 1, features: [] } };
+  // The workspace is written by agents: never follow a symlink there (S3).
+  const text = await readTextNoFollow(workspace, path.join(kbDir, INDEX_FILE));
+  if (text === null) return { index: { version: 1, features: [] } };
   try {
-    return { index: KbIndexSchema.parse(JSON.parse(await readFile(file, 'utf8'))) };
+    return { index: KbIndexSchema.parse(JSON.parse(text)) };
   } catch (err) {
     return { index: { version: 1, features: [] }, warning: `${kbDir}/${INDEX_FILE} is not a valid KB index (${err instanceof Error ? err.message.split('\n')[0] : 'unreadable'}); treating it as empty` };
   }
@@ -78,15 +78,16 @@ export async function lookup(workspace: string, kbDir: string, featureKey: strin
   const entry = index.features.find((f) => f.key === featureKey);
   if (!entry) return { match: null, warning };
   const full = safeDocPath(workspace, kbDir, entry.doc);
-  if (!full || !existsSync(full)) return { match: null, warning };
-  return { match: { entry, relPath: path.relative(workspace, full), content: await readFile(full, 'utf8') }, warning };
+  if (!full) return { match: null, warning };
+  const relPath = path.relative(workspace, full);
+  const content = await readTextNoFollow(workspace, relPath);
+  if (content === null) return { match: null, warning };
+  return { match: { entry, relPath, content }, warning };
 }
 
 /** Adds or updates one entry and writes the index back, sorted by key. */
 export async function upsertEntry(workspace: string, kbDir: string, entry: KbEntry): Promise<void> {
   const { index } = await readIndex(workspace, kbDir);
   const features = [...index.features.filter((f) => f.key !== entry.key), entry].sort((a, b) => a.key.localeCompare(b.key));
-  const file = path.resolve(workspace, kbDir, INDEX_FILE);
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, `${JSON.stringify({ version: 1, features }, null, 2)}\n`, 'utf8');
+  await writeTextNoFollow(workspace, path.join(kbDir, INDEX_FILE), `${JSON.stringify({ version: 1, features }, null, 2)}\n`);
 }

@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
 import type { TicketType } from '@sdlc/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { type CmdResult, VerifyService } from '../verify/verify.service';
 import { WorkerConfig } from '../worker-config';
+import { readNoFollowSync, readTextNoFollowSync, writeTextNoFollowSync } from '../fs/safe-fs';
 import { assertSafeKey, branchName } from './branch';
 import { type CommitResult, commitAll, pushBranch } from './commit';
 import { GitRunner } from './git-runner';
@@ -21,21 +22,22 @@ export interface WorkspaceResult {
   installSkipped?: 'empty_command' | 'already_installed';
 }
 
+const MAX_MANIFEST_BYTES = 64 * 1024 * 1024;
 const MANIFESTS = ['package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml'];
 
 /** A hash of package.json and the lockfiles: when it changes, dependencies must be installed again. */
 export function manifestHash(workspace: string): string {
   const hash = createHash('sha256');
   for (const f of MANIFESTS) {
-    const file = path.join(workspace, f);
-    if (existsSync(file)) hash.update(`${f}\0`).update(readFileSync(file));
+    const content = readNoFollowSync(workspace, f, MAX_MANIFEST_BYTES); // lockfiles can be large; symlinks are never followed (S3)
+    if (content) hash.update(`${f}\0`).update(content);
   }
   return hash.digest('hex');
 }
 
-const hashFile = (workspace: string) => path.join(workspace, '.git', 'sdlc-install-hash'); // inside .git: never part of a commit
-export const installedHash = (workspace: string): string | null => (existsSync(hashFile(workspace)) ? readFileSync(hashFile(workspace), 'utf8').trim() : null);
-export const recordInstalled = (workspace: string): void => writeFileSync(hashFile(workspace), manifestHash(workspace));
+const HASH_FILE = '.git/sdlc-install-hash'; // inside .git: never part of a commit
+export const installedHash = (workspace: string): string | null => readTextNoFollowSync(workspace, HASH_FILE)?.trim() ?? null;
+export const recordInstalled = (workspace: string): void => writeTextNoFollowSync(workspace, HASH_FILE, manifestHash(workspace));
 
 /** Prepares a ticket's workspace, installs its dependencies, and records the branch (BUILD_PLAN 6.2, `Git.prepareWorkspace`). */
 @Injectable()

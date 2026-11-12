@@ -1,9 +1,9 @@
-import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { Injectable } from '@nestjs/common';
 import { ProjectSettingsSchema, type StageEnvelope } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { readTextNoFollowSync } from '../fs/safe-fs';
 import { squashAgentCommits } from '../git/commit-guard';
 import { GitRunner } from '../git/git-runner';
 import { WorkspaceService } from '../git/workspace.service';
@@ -89,8 +89,9 @@ export class KbBuildService implements KbBuilder {
     const inside = d.docPath.startsWith(prefix) ? d.docPath.slice(prefix.length) : null;
     const full = inside ? safeDocPath(ctx.ws, ctx.kbDir, inside) : null;
     if (!full) return `docPath "${d.docPath}" must be a .md file inside ${ctx.kbDir}`;
-    if (!existsSync(full)) return `the doc ${d.docPath} was not written`;
-    const lines = readFileSync(full, 'utf8').split('\n').length;
+    const text = readTextNoFollowSync(ctx.ws, path.relative(ctx.ws, full)); // never follows a symlink the agent left (S3)
+    if (text === null) return `the doc ${d.docPath} was not written`;
+    const lines = text.split('\n').length;
     if (lines > ctx.maxLines) return `the doc has ${lines} lines, more than the limit of ${ctx.maxLines}`;
     return null;
   }

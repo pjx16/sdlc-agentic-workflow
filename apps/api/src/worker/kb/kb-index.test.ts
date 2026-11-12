@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -103,5 +103,21 @@ describe('upsertEntry', () => {
     const written = JSON.parse(readFileSync(path.join(ws, 'docs/kb/features.json'), 'utf8'));
     expect(written.version).toBe(1);
     expect(written.features.map((f: { key: string; title: string }) => [f.key, f.title])).toEqual([['alpha', 'Alpha'], ['zeta', 'Zeta v2']]);
+  });
+});
+
+describe('symlinks left by an agent (S3)', () => {
+  it('does not read a symlinked doc or index, and refuses to write through a symlinked index', async () => {
+    const secret = path.join(ws, 'secret.txt');
+    write('secret.txt', 'root-only data');
+    write('docs/kb/features.json', index({ key: 'a', doc: 'a.md' }));
+    symlinkSync(secret, path.join(ws, 'docs/kb/a.md'));
+    expect((await lookup(ws, 'docs/kb', 'a')).match).toBeNull();
+
+    rmSync(path.join(ws, 'docs/kb/features.json'));
+    symlinkSync(secret, path.join(ws, 'docs/kb/features.json'));
+    expect((await readIndex(ws, 'docs/kb')).index.features).toEqual([]);
+    await expect(upsertEntry(ws, 'docs/kb', { key: 'b', title: '', doc: 'b.md', globs: [] })).rejects.toThrow('symlink');
+    expect(readFileSync(secret, 'utf8')).toBe('root-only data');
   });
 });
