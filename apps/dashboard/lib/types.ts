@@ -228,3 +228,15 @@ export interface StateCount {
   status: string;
   count: number;
 }
+
+/** GET /tickets/:id/hold: what happened to a held or failed ticket. */
+export interface HoldInfo {
+  status: string;
+  holdReason: string | null;
+  holdFromStatus: string | null;
+  note: string | null;
+  at: string | null;
+  failedRun: { id: string; stage: string; attempt: number; round: number; error: string | null } | null;
+  subtask: { seq: number; title: string; status: string; fixRounds: number } | null;
+  canRedoTests: boolean;
+}

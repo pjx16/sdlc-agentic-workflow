@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BreakdownPanel } from '@/components/breakdown-panel';
+import { HoldPanel } from '@/components/hold-panel';
 import { PlanPanel } from '@/components/plan-panel';
 import { TicketTimeline } from '@/components/charts/ticket-timeline';
 import { RunsTable } from '@/components/runs-table';
@@ -9,7 +10,7 @@ import { StateBadge } from '@/components/state-badge';
 import { TransitionHistory } from '@/components/transition-history';
 import { apiGet } from '@/lib/server-api';
 import { formatDateTime, humanizeStatus } from '@/lib/ticket-status';
-import type { TicketFull, TransitionView } from '@/lib/types';
+import type { HoldInfo, TicketFull, TransitionView } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,8 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
   if (!ticket) notFound();
   // A ticket waiting at a gate opens on that gate; otherwise on its history.
   const active = tab === 'runs' || tab === 'plan' || tab === 'breakdown' || tab === 'history' ? tab : ticket.status === 'AWAITING_PLAN_APPROVAL' ? 'plan' : ticket.status === 'AWAITING_BREAKDOWN_APPROVAL' ? 'breakdown' : 'history';
+  const stopped = ticket.status === 'ON_HOLD' || ticket.status === 'FAILED';
+  const hold = stopped ? await apiGet<HoldInfo>(`/tickets/${encodeURIComponent(id)}/hold`).catch(() => null) : null;
   const transitions = active === 'history' ? ((await apiGet<TransitionView[]>(`/tickets/${encodeURIComponent(id)}/transitions`)) ?? []) : [];
 
   return (
@@ -45,7 +48,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
         )}
         <span className="text-muted">Updated {formatDateTime(ticket.updatedAt)}</span>
       </div>
-      <TicketActions ticketId={ticket.id} status={ticket.status} />
+      {hold ? <HoldPanel ticketId={ticket.id} info={hold} /> : <TicketActions ticketId={ticket.id} status={ticket.status} />}
       {ticket.body && <pre className="mt-6 whitespace-pre-wrap panel p-4 font-sans text-sm">{ticket.body}</pre>}
 
       <nav aria-label="Ticket sections" className="mt-8 flex gap-1 border-b border-border">
