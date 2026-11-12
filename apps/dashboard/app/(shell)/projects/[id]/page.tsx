@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { DeleteProject } from '@/components/delete-project';
 import { ProjectForm } from '@/components/project-form';
 import { apiGet } from '@/lib/server-api';
 import type { ProjectView } from '@/lib/types';
@@ -13,6 +14,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     <section>
       <h1 className="mb-6 text-2xl font-semibold">{project.name}</h1>
       <ProjectForm project={project} />
+      <DeleteProject project={project} />
     </section>
   );
 }
