@@ -4,7 +4,7 @@ How sdlc-agent is put together, and how that has changed. Read this before chang
 
 - Status: **version 1** (all 14 milestones implemented)
 - Last reviewed: 2026-11-12
-- Diagrams are [Mermaid](https://mermaid.js.org/) so GitHub renders them and a change shows up as a text diff.
+- The two main diagrams are hand-written SVG files in this folder (plain text, so changes show in a diff); the rest are [Mermaid](https://mermaid.js.org/), which GitHub renders. The SVGs follow the viewer's light or dark setting.
 
 ## Contents
 
@@ -22,41 +22,9 @@ How sdlc-agent is put together, and how that has changed. Read this before chang
 
 ## The system in one picture
 
-```mermaid
-flowchart LR
-  you([You, in a browser])
-  subgraph compose[Docker Compose network]
-    dash[Dashboard<br/>Next.js]
-    api[API<br/>NestJS]
-    pg[(Postgres<br/>state and queue)]
-    worker[Worker<br/>NestJS, one process]
-    data[/Data directory<br/>mirrors, workspaces, runs, logs/]
-    proxy[Squid proxy<br/>host allowlist]
-    subgraph throwaway[Throwaway containers, started by the worker]
-      agent[Agent container<br/>Claude Code CLI<br/>no GitHub or Jira key]
-      cmd[Command container<br/>install, typecheck, tests<br/>no Claude token]
-    end
-  end
-  gh[(GitHub)]
-  jira[(Jira, optional)]
-  claude[(Anthropic API)]
-  npm[(npm registry)]
+![System diagram: the browser talks to the dashboard and API; one worker reads the queue from Postgres, pushes to GitHub, talks to Jira and starts throwaway agent and command containers, whose internet access goes through an allowlisting proxy.](./system.svg)
 
-  you --> dash -->|/api| api
-  api <--> pg
-  worker <--> pg
-  worker -->|git, gh| gh
-  worker -->|REST or MCP| jira
-  worker <-->|clone, commit| data
-  worker -->|docker run| agent
-  worker -->|docker run| cmd
-  data -.->|workspace mounted| agent
-  data -.->|workspace mounted| cmd
-  agent --> proxy
-  cmd --> proxy
-  proxy --> claude
-  proxy --> npm
-```
+Source: [`system.svg`](./system.svg). Amber boxes are people, teal are AI work, red are containers that hold no GitHub or Jira key.
 
 | Part | Does | Does not |
 | --- | --- | --- |
@@ -84,27 +52,17 @@ Agent containers run as a non-root user with all capabilities dropped, `no-new-p
 
 ## Ticket lifecycle
 
-```mermaid
-stateDiagram-v2
-  [*] --> NEW
-  NEW --> KB: intake
-  KB --> PLANNING: KB doc found or built
-  PLANNING --> AWAITING_PLAN_APPROVAL
-  AWAITING_PLAN_APPROVAL --> PLANNING: rejected with a note
-  AWAITING_PLAN_APPROVAL --> BREAKDOWN: you approve
-  BREAKDOWN --> AWAITING_BREAKDOWN_APPROVAL
-  AWAITING_BREAKDOWN_APPROVAL --> BREAKDOWN: rejected with a note
-  AWAITING_BREAKDOWN_APPROVAL --> IN_PROGRESS: you approve
-  IN_PROGRESS --> REVIEW: every subtask done
-  REVIEW --> KB_UPDATE: no blocking findings, or rounds used up
-  KB_UPDATE --> AWAITING_CI
-  AWAITING_CI --> IN_HUMAN_REVIEW: checks pass
-  IN_HUMAN_REVIEW --> DONE: you merge the PR
-  DONE --> [*]
-  FAILED --> [*]
+![Ticket lifecycle: plan, plan approval, breakdown, breakdown approval, build subtasks, review, KB update, CI, human review, merge. Any step can move to on hold.](./lifecycle.svg)
+
+Source: [`lifecycle.svg`](./lifecycle.svg). The exact states and transitions are in `packages/shared/src/state-machine.ts`:
+
+```text
+NEW → KB → PLANNING → AWAITING_PLAN_APPROVAL → BREAKDOWN → AWAITING_BREAKDOWN_APPROVAL
+  → IN_PROGRESS → REVIEW → KB_UPDATE → AWAITING_CI → IN_HUMAN_REVIEW → DONE
+A rejected plan or breakdown goes back to PLANNING or BREAKDOWN. ON_HOLD and FAILED return to where they were.
 ```
 
-Any working state can move to `ON_HOLD` (not drawn, to keep the picture readable). Resume, and Retry for a `FAILED` ticket, return it to the state it was in (`holdFromStatus`). Hold reasons: `awaiting_answer` (the agent asked a question), `needs_help` (a stage failed twice or hit a limit), `manual` (you paused or killed it), `pr_closed`. Gates, review rounds and the CI fix round are per-project settings. The usage gate pauses the whole pipeline, not one ticket.
+Any working state can move to `ON_HOLD`. Resume, and Retry for a `FAILED` ticket, return it to the state it was in (`holdFromStatus`). Hold reasons: `awaiting_answer` (the agent asked a question), `needs_help` (a stage failed twice or hit a limit), `manual` (you paused or killed it), `pr_closed`. Gates, review rounds and the CI fix round are per-project settings. The usage gate pauses the whole pipeline, not one ticket.
 
 Every transition is a row in `StateTransition`, written by one state machine (`apps/api/src/state`). Nothing else changes a ticket's status.
 

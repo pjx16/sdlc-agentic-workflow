@@ -99,6 +99,8 @@ Supported target stacks: TypeScript/Node, NestJS and Next.js.
 
 ## Architecture
 
+![System diagram](./docs/architecture/system.svg)
+
 The architecture is documented in [`docs/architecture`](./docs/architecture/README.md), with diagrams that GitHub renders: the system and its containers, trust boundaries (which secret lives where), the ticket lifecycle, the subtask loop, the worker loop, stages and models, and the data model. It ends with a change log. **If you change the structure, update that file in the same pull request.**
 
 ## Setup
