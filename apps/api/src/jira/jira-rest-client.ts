@@ -24,7 +24,7 @@ export interface JiraRestOptions {
 
 const DEFAULT_BACKOFF = [1000, 4000, 16000] as const;
 const MAX_RETRY_AFTER_MS = 60_000;
-const SEARCH_FIELDS = ['summary', 'description', 'issuetype', 'labels', 'priority'];
+const SEARCH_FIELDS = ['summary', 'description', 'issuetype', 'labels', 'priority', 'parent'];
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -127,6 +127,7 @@ export class JiraRestClient implements JiraClient {
       issuetype: String(f.issuetype?.name ?? ''),
       labels: Array.isArray(f.labels) ? f.labels.map(String) : [],
       priority: f.priority?.name ? String(f.priority.name) : null,
+      isSubtask: f.issuetype?.subtask === true || Boolean(f.parent),
     };
   }
 

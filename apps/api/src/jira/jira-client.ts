@@ -8,6 +8,8 @@ export interface JiraTicket {
   issuetype: string;
   labels: string[];
   priority: string | null;
+  /** True when Jira says the issue type is a sub-task, or the issue has a parent (REST only; MCP gives the type name). */
+  isSubtask?: boolean;
 }
 
 export interface JiraIssueStatus {

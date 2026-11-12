@@ -54,8 +54,15 @@ describe('searchTickets', () => {
   it('posts the JQL with only the needed fields, and converts ADF descriptions', async () => {
     const { client, calls } = make([{ json: { issues: [issue('ABC-1')], isLast: true } }]);
     const tickets = await client.searchTickets({ jiraJql: 'project = ABC AND status = "To Do"' });
-    expect(calls[0]?.body).toEqual({ jql: 'project = ABC AND status = "To Do"', fields: ['summary', 'description', 'issuetype', 'labels', 'priority'], maxResults: 50 });
-    expect(tickets).toEqual([{ key: 'ABC-1', summary: 'Summary ABC-1', description: 'Body ABC-1', issuetype: 'Story', labels: ['a'], priority: 'High' }]);
+    expect(calls[0]?.body).toEqual({ jql: 'project = ABC AND status = "To Do"', fields: ['summary', 'description', 'issuetype', 'labels', 'priority', 'parent'], maxResults: 50 });
+    expect(tickets).toEqual([{ key: 'ABC-1', summary: 'Summary ABC-1', description: 'Body ABC-1', issuetype: 'Story', labels: ['a'], priority: 'High', isSubtask: false }]);
+  });
+
+  it('marks sub-tasks: by the issue type flag, or by having a parent', async () => {
+    const sub = { key: 'ABC-2', fields: { summary: 'S', issuetype: { name: 'Sub-task', subtask: true } } };
+    const child = { key: 'ABC-3', fields: { summary: 'S', issuetype: { name: 'Task' }, parent: { key: 'ABC-1' } } };
+    const tickets = await make([{ json: { issues: [sub, child, issue('ABC-1')], isLast: true } }]).client.searchTickets({ jiraJql: 'x' });
+    expect(tickets.map((t) => [t.key, t.isSubtask])).toEqual([['ABC-2', true], ['ABC-3', true], ['ABC-1', false]]);
   });
 
   it('follows nextPageToken until the last page', async () => {
@@ -73,7 +80,7 @@ describe('searchTickets', () => {
     expect(await make([{ json: { issues: [] } }]).client.searchTickets({ jiraJql: 'x' })).toEqual([]);
     expect(await make([{ json: {} }]).client.searchTickets({ jiraJql: 'x' })).toEqual([]);
     const sparse = await make([{ json: { issues: [{ key: 'ABC-9', fields: { summary: 'S', description: null } }] } }]).client.searchTickets({ jiraJql: 'x' });
-    expect(sparse[0]).toEqual({ key: 'ABC-9', summary: 'S', description: '', issuetype: '', labels: [], priority: null });
+    expect(sparse[0]).toEqual({ key: 'ABC-9', summary: 'S', description: '', issuetype: '', labels: [], priority: null, isSubtask: false });
   });
 
   it('falls back to the project key, and returns nothing without JQL or key', async () => {

@@ -220,7 +220,7 @@ A **suggested JQL** for REST mode, so each ticket is picked up once and only whe
 project = ABC AND issuetype in (Story, Bug, Task) AND status = "Ready for Dev" ORDER BY created ASC
 ```
 
-Use a status or a label that only you set (for example `labels = sdlc-agent`). Anything the JQL returns is stored as a ticket, once per issue. Pasting a ticket in the dashboard works in every Jira mode.
+Use a status or a label that only you set (for example `labels = sdlc-agent`). Anything the JQL returns is stored as a ticket, once per issue, except Jira sub-tasks: those are never tickets (the pipeline publishes its own subtasks to Jira as sub-tasks and works through them itself). Pasting a ticket in the dashboard works in every Jira mode.
 
 Optional per-project settings: which stages run, models and turn limits, the plan and breakdown gates, review rounds and other limits, CI behaviour, and the mapping from pipeline states to Jira statuses (and which Jira status counts as approval).
 

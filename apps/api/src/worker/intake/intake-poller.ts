@@ -17,6 +17,8 @@ export interface PollResult {
   /** Tickets that were already stored. */
   duplicates: number;
   errors: { project: string; message: string }[];
+  /** Jira sub-tasks that were left out: they are work items of a ticket, never tickets themselves. */
+  subtasksIgnored: number;
 }
 
 /** REST-mode intake (F3): runs each project's JQL and stores new tickets as NEW, exactly once per (projectId, externalKey). */
@@ -37,7 +39,7 @@ export class IntakePoller {
   }
 
   async poll(mode: 'rest' | 'mcp' = 'rest', only?: (project: Project) => boolean): Promise<PollResult> {
-    const result: PollResult = { projects: 0, created: 0, duplicates: 0, errors: [] };
+    const result: PollResult = { projects: 0, created: 0, duplicates: 0, errors: [], subtasksIgnored: 0 };
 
     // Pausing intake and pausing the pipeline are separate switches: only the intake switch stops polling.
     const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
@@ -51,6 +53,10 @@ export class IntakePoller {
       try {
         const tickets = await (await this.clients.forMode(mode)).searchTickets(project);
         for (const jt of tickets) {
+          if (await this.isSubtask(jt)) {
+            result.subtasksIgnored++;
+            continue;
+          }
           const outcome = await this.store(project, jt);
           if (outcome === 'created') result.created++;
           else if (outcome === 'duplicate') result.duplicates++;
@@ -85,6 +91,16 @@ export class IntakePoller {
       skipped: result.skipped,
     });
     return result;
+  }
+
+  /**
+   * Sub-tasks are never tickets. The pipeline breaks a ticket into subtasks and publishes them to Jira as sub-tasks for visibility; the
+   * implement stage works through them one by one, so intake must not take them back as new tickets. A Jira issue is a sub-task when
+   * its type says so, when it has a parent, or when it is one the pipeline created itself.
+   */
+  private async isSubtask(jt: JiraTicket): Promise<boolean> {
+    if (jt.isSubtask || /^sub[-\s]?tasks?$/i.test(jt.issuetype.trim())) return true;
+    return (await this.prisma.subtask.count({ where: { externalKey: jt.key } })) > 0;
   }
 
   private async store(project: Project, jt: JiraTicket): Promise<'created' | 'duplicate' | 'collision'> {

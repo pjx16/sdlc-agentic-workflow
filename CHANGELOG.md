@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- Jira intake no longer takes sub-tasks as tickets, including the sub-tasks the pipeline publishes for its own subtasks (it was picking those up and starting a new ticket for each).
+
 ### Added
 - A held or failed ticket now explains what happened and lists the steps to keep it moving, with the actions that apply: Resume, Retry, and **Redo tests** (discards a subtask's tests and code and writes the tests again, with the failure and an optional note as context), so a wrong or over-strict test no longer leaves a ticket stuck.
 - The Overview shows what the worker is doing: whether it is online, what the pipeline is doing, the result of the last Jira intake poll per mode (found, new, error, nothing to poll and why), and recent events. It refreshes every few seconds.
