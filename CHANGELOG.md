@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- First-run setup wizard: create the admin password with a one-time setup code, then enter the Claude token, GitHub token and git identity (Jira optional) in the dashboard, each with a Test button. The pipeline stays blocked, with a banner, until the required credentials are set.
+- Credentials are stored in the database, encrypted with AES-256-GCM using `ENCRYPTION_KEY`. Environment variables still override stored values.
+
+### Changed
+- `DASHBOARD_PASSWORD` and the token variables are optional; `ENCRYPTION_KEY` is required.
+
 ## [0.0.0] - YYYY-MM-DD
 
 First public pre-release. Published so the author can use sdlc-agent on their own projects (including sdlc-agent itself) and find what breaks. Not production-ready and not supported for other users.

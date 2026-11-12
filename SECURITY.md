@@ -22,7 +22,8 @@ The boundaries that matter:
 
 - **Agent container ↔ worker.** Agent containers run with all capabilities dropped, `no-new-privileges`, resource limits, no Docker socket and no GitHub or Jira credentials (Jira credentials only in the optional MCP mode). The workspace `.git` directory is mounted read-only. The worker runs git with hooks, fsmonitor, credential helpers and non-HTTPS protocols disabled, pushes only to the stored repository URL, and never follows symlinks in agent-written workspaces.
 - **Agent ↔ internet.** The only route out is an egress proxy that allows HTTPS tunnels (CONNECT to port 443) to the Anthropic API and the npm registry. Repositories are restricted to `https://github.com/...`, and the GitHub token is only handed to github.com.
-- **Browser ↔ API.** A single-user password login creates a session cookie (httpOnly, SameSite). Requests are denied by default without a session, state-changing requests marked cross-site by `Sec-Fetch-Site` are refused, and the dashboard sends anti-framing headers.
+- **Stored credentials.** Tokens entered in the dashboard are stored in the local Postgres, encrypted with AES-256-GCM using `ENCRYPTION_KEY` from `.env`; anyone who can read both `.env` and the database can read them. Back up `.env` separately from the database. Losing `ENCRYPTION_KEY` means re-entering the tokens. Environment variables always override stored values.
+- **Browser ↔ API.** A single-user password login creates a session cookie (httpOnly, SameSite). Requests are denied by default without a session; the only public endpoints are `/auth/login`, `/health`, `/setup/status` (reveals only whether an admin exists) and `/setup/admin` (needs the one-time setup code and is rate limited), state-changing requests marked cross-site by `Sec-Fetch-Site` are refused, and the dashboard sends anti-framing headers.
 
 ## Known residual risks
 

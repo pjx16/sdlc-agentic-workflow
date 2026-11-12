@@ -93,6 +93,7 @@ The full flow, state machine and acceptance criteria are in [`BUILD_PLAN.md`](./
 - Repositories are restricted to `https://github.com/...`, and the GitHub token is only ever handed to github.com.
 - The worker never follows symlinks when it reads or writes files in an agent-written workspace.
 - The API is not published to the host, and the dashboard binds to `127.0.0.1` by default. The API refuses cross-site state-changing requests, and the dashboard sends anti-framing and `nosniff` headers.
+- Tokens entered in the dashboard are stored in your local Postgres, encrypted with `ENCRYPTION_KEY`; anyone who can read both `.env` and the database can read them. Back up `.env` separately from the database. Losing `ENCRYPTION_KEY` means re-entering the tokens.
 - Secrets are redacted from logs (including the session cookie) and from everything shown in the dashboard.
 - Ticket text and repository content are treated as untrusted data, never as instructions.
 - Agents have no access to merge. There is no auto-merge.
@@ -145,12 +146,12 @@ Releases are published on [GitHub Releases](https://github.com/pjx16/sdlc-agenti
 shasum -a 256 -c SHA256SUMS            # macOS; on Linux: sha256sum -c SHA256SUMS
 tar -xzf sdlc-agent-<version>.tar.gz
 cd sdlc-agent-<version>
-cp .env.example .env                   # fill in the values described under Configuration (SDLC_VERSION is already set)
+cp .env.example .env                   # set POSTGRES_PASSWORD, ENCRYPTION_KEY (openssl rand -base64 32) and DATA_DIR; SDLC_VERSION is already set
 mkdir -p "$(grep ^DATA_DIR= .env | cut -d= -f2)"
 docker compose up -d
 ```
 
-The worker pulls the agent image on its first start, so the first run takes a little longer. Then open `http://localhost:3000`, log in with `DASHBOARD_PASSWORD`, and add a project.
+The worker pulls the agent image on its first start, so the first run takes a little longer. Then open `http://localhost:3000`, enter the setup code from `docker compose logs api | grep 'setup code'`, create the admin password, and add your tokens in the setup wizard. Then add a project.
 
 The images are published to GHCR with provenance attestations. To verify one (needs the GitHub CLI):
 
@@ -163,13 +164,13 @@ gh attestation verify oci://ghcr.io/pjx16/sdlc-agent-api:<version> --owner pjx16
 ```bash
 git clone https://github.com/pjx16/sdlc-agentic-workflow.git
 cd sdlc-agentic-workflow
-cp .env.example .env              # fill in the values described under Configuration
+cp .env.example .env              # set POSTGRES_PASSWORD, ENCRYPTION_KEY (openssl rand -base64 32) and DATA_DIR; tokens are entered in the dashboard
 mkdir -p "$(grep ^DATA_DIR= .env | cut -d= -f2)"
 docker compose --profile build build   # builds the agent image (sdlc-agent/agent:latest)
 docker compose up -d
 ```
 
-Then open `http://localhost:3000`, log in with `DASHBOARD_PASSWORD`, and add a project. `DATA_DIR` must be an absolute path that exists on the host; mirrors, workspaces, run folders and logs live there. Check that everything is up with `docker compose ps`; the API reports `healthy` at `/health` inside the Compose network.
+Then open `http://localhost:3000`, enter the setup code from `docker compose logs api | grep 'setup code'`, then add your tokens, and add a project. `DATA_DIR` must be an absolute path that exists on the host; mirrors, workspaces, run folders and logs live there. Check that everything is up with `docker compose ps`; the API reports `healthy` at `/health` inside the Compose network.
 
 One-line shortcuts, from the repository root:
 
@@ -222,10 +223,12 @@ Environment variables (`.env.example` lists all of them with comments):
 
 | Name | Required | Purpose |
 | --- | --- | --- |
-| `CLAUDE_CODE_OAUTH_TOKEN` | yes | Output of `claude setup-token` |
-| `GITHUB_TOKEN` | yes | Fine-grained token for git and `gh` |
-| `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL` | yes | Identity for every commit |
-| `DASHBOARD_PASSWORD` | yes | Single login password (at least 12 characters) |
+| `ENCRYPTION_KEY` | yes | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts the tokens saved in the dashboard. |
+| `CLAUDE_CODE_OAUTH_TOKEN` | no | Output of `claude setup-token`. Normally entered in the dashboard; a value here overrides it and makes it read-only there |
+| `GITHUB_TOKEN` | no | Fine-grained token for git and `gh`. Same rule as above |
+| `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL` | no | Identity for every commit. Same rule as above |
+| `DASHBOARD_PASSWORD` | no | Login password (at least 12 characters). Normally created in the setup wizard; a value here overrides it |
+| `SETUP_CODE` | no | One-time code for the setup wizard (otherwise the API logs one at start-up) |
 | `POSTGRES_PASSWORD` | yes | Database password |
 | `DATA_DIR` | yes | Absolute host path for mirrors, workspaces, runs and logs |
 | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira REST mode | Jira Cloud access |

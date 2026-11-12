@@ -29,7 +29,9 @@ services:
       postgres: { condition: service_healthy }
     environment:
       DATABASE_URL: postgresql://sdlc:${POSTGRES_PASSWORD}@postgres:5432/sdlc
-      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?set DASHBOARD_PASSWORD in .env}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+      SETUP_CODE: ${SETUP_CODE:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env (openssl rand -base64 32)}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       JIRA_BASE_URL: ${JIRA_BASE_URL:-}
       JIRA_EMAIL: ${JIRA_EMAIL:-}
@@ -54,6 +56,7 @@ services:
       api: { condition: service_healthy }
     environment:
       DATABASE_URL: postgresql://sdlc:${POSTGRES_PASSWORD}@postgres:5432/sdlc
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env (openssl rand -base64 32)}
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GIT_AUTHOR_NAME: ${GIT_AUTHOR_NAME:-}
@@ -70,7 +73,7 @@ services:
       AGENT_CPUS: ${AGENT_CPUS:-2}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock
       - ${DATA_DIR}:${DATA_DIR}
       - ./guidelines:/app/guidelines:ro
       # Jira MCP mode: the MCP server description (see docker/jira-mcp.example.json); JIRA_MCP_CONFIG_PATH=/config/jira-mcp.json

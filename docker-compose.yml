@@ -30,7 +30,9 @@ services:
       postgres: { condition: service_healthy }
     environment:
       DATABASE_URL: postgresql://sdlc:${POSTGRES_PASSWORD}@postgres:5432/sdlc
-      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?set DASHBOARD_PASSWORD in .env}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+      SETUP_CODE: ${SETUP_CODE:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env (openssl rand -base64 32)}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       JIRA_BASE_URL: ${JIRA_BASE_URL:-}
       JIRA_EMAIL: ${JIRA_EMAIL:-}
@@ -57,6 +59,7 @@ services:
       api: { condition: service_healthy }
     environment:
       DATABASE_URL: postgresql://sdlc:${POSTGRES_PASSWORD}@postgres:5432/sdlc
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env (openssl rand -base64 32)}
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GIT_AUTHOR_NAME: ${GIT_AUTHOR_NAME:-}
