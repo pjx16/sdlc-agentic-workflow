@@ -77,6 +77,36 @@ export class ProjectsService {
     return toDto(await this.prisma.project.update({ where: { id }, data: { enabled: false } }));
   }
 
+  /** What deleting the project would remove, for the confirmation prompt. */
+  async deleteImpact(id: string): Promise<{ tickets: number; openTickets: number; stageRuns: number; runningStage: boolean }> {
+    await this.get(id);
+    const [tickets, openTickets, stageRuns, running] = await Promise.all([
+      this.prisma.ticket.count({ where: { projectId: id } }),
+      this.prisma.ticket.count({ where: { projectId: id, status: { notIn: ['DONE', 'FAILED'] } } }),
+      this.prisma.stageRun.count({ where: { projectId: id } }),
+      this.prisma.stageRun.count({ where: { projectId: id, status: 'running' } }),
+    ]);
+    return { tickets, openTickets, stageRuns, runningStage: running > 0 };
+  }
+
+  /**
+   * Permanently deletes the project with its tickets, subtasks, stage runs, findings, queries and history. Refused while a stage of the
+   * project is running. The mirror, workspaces and logs on disk are removed by the worker (it owns that folder). Nothing is touched
+   * in GitHub or Jira: branches and pull requests stay.
+   */
+  async remove(id: string): Promise<{ deleted: true; tickets: number }> {
+    const impact = await this.deleteImpact(id);
+    if (impact.runningStage) {
+      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'A stage of this project is running. Stop or wait for it, then delete the project.');
+    }
+    await this.prisma.$transaction([
+      this.prisma.stageRun.deleteMany({ where: { projectId: id } }),
+      this.prisma.ticket.deleteMany({ where: { projectId: id } }), // subtasks, transitions, findings, queries and events cascade
+      this.prisma.project.delete({ where: { id } }),
+    ]);
+    return { deleted: true, tickets: impact.tickets };
+  }
+
   async retryMirror(id: string): Promise<ProjectDto> {
     const project = await this.get(id);
     if (project.mirrorStatus !== 'failed') {

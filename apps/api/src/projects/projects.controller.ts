@@ -32,6 +32,18 @@ export class ProjectsController {
     return this.projects.disable(id);
   }
 
+  @Get(':id/delete-impact')
+  deleteImpact(@Param('id') id: string) {
+    return this.projects.deleteImpact(id);
+  }
+
+  /** Permanent delete (DELETE /projects/:id above only disables). */
+  @Delete(':id/permanent')
+  @HttpCode(HttpStatus.OK)
+  remove(@Param('id') id: string) {
+    return this.projects.remove(id);
+  }
+
   @Get(':id/jira/statuses')
   jiraStatuses(@Param('id') id: string): Promise<string[]> {
     return this.projects.jiraStatuses(id);
