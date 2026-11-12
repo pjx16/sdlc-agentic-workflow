@@ -4,7 +4,7 @@ How sdlc-agent is put together, and how that has changed. Read this before chang
 
 - Status: **version 1** (all 14 milestones implemented)
 - Last reviewed: 2026-11-12
-- The two main diagrams are hand-written SVG files in this folder (plain text, so changes show in a diff); the rest are [Mermaid](https://mermaid.js.org/), which GitHub renders. The SVGs follow the viewer's light or dark setting.
+- The two main diagrams are hand-written SVG files in [`diagrams/`](./diagrams) (plain text, so changes show in a diff); the rest are [Mermaid](https://mermaid.js.org/), which GitHub renders. The SVGs follow the viewer's light or dark setting.
 
 ## Contents
 
@@ -22,9 +22,9 @@ How sdlc-agent is put together, and how that has changed. Read this before chang
 
 ## The system in one picture
 
-![System diagram: the browser talks to the dashboard and API; one worker reads the queue from Postgres, pushes to GitHub, talks to Jira and starts throwaway agent and command containers, whose internet access goes through an allowlisting proxy.](./system.svg)
+![System diagram: the browser talks to the dashboard and API; one worker reads the queue from Postgres, pushes to GitHub, talks to Jira and starts throwaway agent and command containers, whose internet access goes through an allowlisting proxy.](./diagrams/system.svg)
 
-Source: [`system.svg`](./system.svg). Amber boxes are people, teal are AI work, red are containers that hold no GitHub or Jira key.
+Source: [`diagrams/system.svg`](./diagrams/system.svg). Amber boxes are people, teal are AI work, red are containers that hold no GitHub or Jira key.
 
 | Part | Does | Does not |
 | --- | --- | --- |
@@ -52,9 +52,9 @@ Agent containers run as a non-root user with all capabilities dropped, `no-new-p
 
 ## Ticket lifecycle
 
-![Ticket lifecycle: plan, plan approval, breakdown, breakdown approval, build subtasks, review, KB update, CI, human review, merge. Any step can move to on hold.](./lifecycle.svg)
+![Ticket lifecycle: plan, plan approval, breakdown, breakdown approval, build subtasks, review, KB update, CI, human review, merge. Any step can move to on hold.](./diagrams/lifecycle.svg)
 
-Source: [`lifecycle.svg`](./lifecycle.svg). The exact states and transitions are in `packages/shared/src/state-machine.ts`:
+Source: [`diagrams/lifecycle.svg`](./diagrams/lifecycle.svg). The exact states and transitions are in `packages/shared/src/state-machine.ts`:
 
 ```text
 NEW → KB → PLANNING → AWAITING_PLAN_APPROVAL → BREAKDOWN → AWAITING_BREAKDOWN_APPROVAL
