@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import net from 'node:net';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { compose } from './compose';
@@ -27,9 +28,19 @@ function readEnvText(dir: string): string {
   return readFileSync(file, 'utf8');
 }
 
+/**
+ * The host to reach the dashboard on, from DASHBOARD_BIND. Only an IP address or `localhost` is accepted (anything else, such as a
+ * hostname or a URL fragment from an edited .env, falls back to localhost), and a wildcard address means "this machine".
+ */
+export function dashboardHost(bind: string | undefined): string {
+  const value = (bind ?? '').trim();
+  if (value === '' || value === '0.0.0.0' || value === '::') return 'localhost';
+  if (value === 'localhost' || net.isIP(value) !== 0) return net.isIPv6(value) ? `[${value}]` : value;
+  return 'localhost';
+}
+
 export function dashboardUrl(dir: string): string {
-  const bind = getEnv(readEnvText(dir), 'DASHBOARD_BIND') || '127.0.0.1';
-  return `http://${bind === '0.0.0.0' ? 'localhost' : bind}:3000`;
+  return `http://${dashboardHost(getEnv(readEnvText(dir), 'DASHBOARD_BIND'))}:3000`;
 }
 
 export async function fetchSetupStatus(dir: string): Promise<{ adminCreated: boolean } | null> {
