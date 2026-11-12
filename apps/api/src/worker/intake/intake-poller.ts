@@ -4,6 +4,7 @@ import { JiraUnavailableError, type JiraTicket } from '../../jira/jira-client';
 import { JiraClients, JiraNotConfiguredError } from '../../jira/jira-clients';
 import { Prisma, type Project } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { recordIntake } from '../status/worker-status';
 
 /** When Jira stays unreachable after the client's retries, intake pauses for this long; the pipeline does not pause (BUILD_PLAN 6.3). */
 export const INTAKE_BACKOFF_MS = 10 * 60 * 1000;
@@ -40,8 +41,8 @@ export class IntakePoller {
 
     // Pausing intake and pausing the pipeline are separate switches: only the intake switch stops polling.
     const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
-    if (settings?.intakePaused) return { ...result, skipped: 'intake_paused' };
-    if (this.backoffRemainingMs() > 0) return { ...result, skipped: 'backoff' };
+    if (settings?.intakePaused) return this.finish(mode, { ...result, skipped: 'intake_paused' });
+    if (this.backoffRemainingMs() > 0) return this.finish(mode, { ...result, skipped: 'backoff' });
 
     // A project accepts tickets only when its mirror is ready (F2).
     const projects = await this.prisma.project.findMany({ where: { enabled: true, jiraMode: mode, mirrorStatus: 'ok' }, orderBy: { createdAt: 'asc' } });
@@ -68,6 +69,21 @@ export class IntakePoller {
         if (!(err instanceof JiraNotConfiguredError)) this.logger.warn(`Polling "${project.name}" failed: ${message}`);
       }
     }
+    return this.finish(mode, result);
+  }
+
+  /** Remembers the outcome of this poll for the dashboard, then returns it. */
+  private async finish(mode: 'rest' | 'mcp', result: PollResult): Promise<PollResult> {
+    const waiting = await this.prisma.project.count({ where: { enabled: true, jiraMode: mode, mirrorStatus: { not: 'ok' } } }).catch(() => 0);
+    await recordIntake(this.prisma, {
+      mode,
+      projects: result.projects,
+      waiting,
+      created: result.created,
+      seen: result.created + result.duplicates,
+      error: result.errors[0]?.message,
+      skipped: result.skipped,
+    });
     return result;
   }
 

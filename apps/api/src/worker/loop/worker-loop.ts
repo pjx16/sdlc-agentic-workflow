@@ -9,6 +9,7 @@ import { StateMachine } from '../../state/state-machine.service';
 import { MirrorService } from '../git/mirror.service';
 import { IntakePoller } from '../intake/intake-poller';
 import { STEP_HANDLERS, type StepHandler, type StepOutcome } from '../pipeline/step-handler';
+import { recordTick } from '../status/worker-status';
 import { Schedule } from './schedule';
 
 /** A recurring part of housekeeping, run when its interval has passed (CI checks, PR state; BUILD_PLAN 6.6 step 1). */
@@ -60,6 +61,8 @@ export class WorkerLoop {
   async tick(): Promise<TickOutcome> {
     if (this.running) return 'busy';
     this.running = true;
+    let outcome: TickOutcome = 'idle';
+    let detail: string | undefined;
     try {
       await this.cloneMirrors();
       await this.housekeeping();
@@ -68,26 +71,33 @@ export class WorkerLoop {
       if (this.creds) {
         const status = await this.creds.status();
         if (!status.ready) {
-          this.logMissing([...(status.adminCreated ? [] : ['admin password']), ...status.missing]);
-          return 'not_configured';
+          const missing = [...(status.adminCreated ? [] : ['admin password']), ...status.missing];
+          this.logMissing(missing);
+          outcome = 'not_configured';
+          detail = missing.join(', ');
+          return outcome;
         }
       }
 
       const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
-      if (settings?.pipelinePaused) return 'paused';
+      if (settings?.pipelinePaused) return (outcome = 'paused');
 
       // At most one StageRun runs at any time, system-wide (F4).
-      if ((await this.prisma.stageRun.count({ where: { status: 'running' } })) > 0) return 'blocked';
+      if ((await this.prisma.stageRun.count({ where: { status: 'running' } })) > 0) return (outcome = 'blocked');
 
       const ticket = await this.pickNext();
-      if (!ticket) return 'idle';
-      const outcome = await this.runStep(ticket);
-      return outcome === 'stay' ? 'idle' : 'stepped';
+      if (!ticket) return (outcome = 'idle');
+      const step = await this.runStep(ticket);
+      detail = `${ticket.key} (${ticket.status})`;
+      return (outcome = step === 'stay' ? 'idle' : 'stepped');
     } catch (err) {
       this.logger.error(`Worker iteration failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
-      return 'idle';
+      outcome = 'idle';
+      detail = `Iteration failed: ${err instanceof Error ? err.message : String(err)}`.slice(0, 300);
+      return outcome;
     } finally {
       this.running = false;
+      await recordTick(this.prisma, outcome, detail);
     }
   }
 

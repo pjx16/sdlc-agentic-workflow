@@ -384,3 +384,19 @@ model AdminAccount {
   createdAt    DateTime @default(now()) @db.Timestamptz(6)
   updatedAt    DateTime @updatedAt @db.Timestamptz(6)
 }
+
+/// What the worker last did, so the dashboard can show that it is alive and what it is (not) doing. One row, written by the worker.
+model WorkerStatus {
+  id              String    @id @default("worker")
+  heartbeatAt     DateTime  @db.Timestamptz(6)
+  tickOutcome     String
+  tickDetail      String?
+  intakeMode      String?
+  intakeAt        DateTime? @db.Timestamptz(6)
+  intakeProjects  Int       @default(0)
+  intakeWaiting   Int       @default(0)
+  intakeCreated   Int       @default(0)
+  intakeSeen      Int       @default(0)
+  intakeError     String?
+  intakeSkipped   String?
+}
