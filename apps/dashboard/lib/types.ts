@@ -32,8 +32,39 @@ export interface GlobalSettingsView {
   intakePaused: boolean;
 }
 
+export interface IntakeStatusView {
+  mode: 'rest' | 'mcp';
+  at: string | null;
+  projects: number;
+  waiting: number;
+  created: number;
+  seen: number;
+  error: string | null;
+  skipped: string | null;
+}
+
+/** What the worker last reported; `online` comes from its heartbeat. */
+export interface WorkerStatusView {
+  online: boolean;
+  heartbeatAt: string;
+  tickOutcome: string;
+  tickDetail: string | null;
+  intake: IntakeStatusView[];
+}
+
+export interface RecentEvent {
+  id: string;
+  at: string;
+  type: string;
+  message: string;
+  ticketId: string | null;
+  ticketKey: string | null;
+}
+
 export interface SystemView {
   settings: GlobalSettingsView;
+  worker?: WorkerStatusView | null;
+  recentEvents?: RecentEvent[];
   runningStage: { id: string; stage: string; model: string; projectId: string; ticketId: string | null; startedAt: string | null } | null;
   usage: { at: string; fiveHourPct: number | null; sevenDayPct: number | null; status: string | null; resetsAt: string | null; source: string } | null;
 }

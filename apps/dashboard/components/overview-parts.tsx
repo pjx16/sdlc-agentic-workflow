@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { type Tone, ago, describeActivity } from '@/lib/activity';
 import { formatDateTime, humanizeStatus } from '@/lib/ticket-status';
 import type { MetricsRange, MetricsSummary, SystemView, TicketListItem } from '@/lib/types';
 import { StateBadge } from './state-badge';
@@ -39,37 +40,55 @@ export function NumberCards({ summary }: { summary: MetricsSummary }) {
   );
 }
 
-const elapsed = (from: string | null, now: number) => {
-  if (!from) return '—';
-  const s = Math.max(0, Math.round((now - Date.parse(from)) / 1000));
-  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
-};
+const TONE: Record<Tone, string> = { green: 'bg-green', amber: 'bg-amber', red: 'bg-red', grey: 'bg-grey' };
 
-/** What the worker is doing right now (6.10). */
+/** What the worker is doing right now: is it alive, what the pipeline is doing, what Jira intake last did, and recent events. */
 export function ActivityCard({ system, now }: { system: SystemView | null; now: number }) {
-  const run = system?.runningStage ?? null;
+  const lines = describeActivity(system, now);
+  const events = system?.recentEvents ?? [];
   return (
     <section aria-label="Current activity" className="panel p-4">
-      <h2 className="text-sm font-medium">Current activity</h2>
-      {system?.settings.pipelinePaused ? (
-        <p className="mt-2 text-sm text-amber">Paused. {system.settings.pausedReason === 'manual' ? 'Paused by you.' : (system.settings.pausedReason ?? '')}</p>
-      ) : run ? (
-        <p className="mt-2 text-sm">
-          Running <span className="font-mono">{run.stage}</span> with {run.model}, for {elapsed(run.startedAt, now)}.{' '}
-          <Link href={`/runs/${run.id}`} className="text-accent hover:underline">
-            Watch the log
-          </Link>
-          {run.ticketId && (
-            <>
-              {' · '}
-              <Link href={`/tickets/${run.ticketId}`} className="text-accent hover:underline">
-                Ticket
-              </Link>
-            </>
-          )}
-        </p>
-      ) : (
-        <p className="mt-2 text-sm text-muted">Idle. Nothing is running.</p>
+      <h2 className="text-sm font-medium">Activity</h2>
+      <dl className="mt-3 space-y-2 text-sm">
+        {lines.map((l) => (
+          <div key={l.key} className="flex gap-3" data-testid={`activity-${l.key}`}>
+            <dt className="flex w-36 shrink-0 items-center gap-2 text-muted">
+              <span aria-hidden className={`inline-block h-2 w-2 rounded-full ${TONE[l.tone]}`} />
+              {l.label}
+            </dt>
+            <dd className={l.tone === 'red' ? 'text-red' : ''}>
+              {l.text}
+              {l.link && (
+                <>
+                  {' '}
+                  <Link href={l.link.href} className="text-accent hover:underline">
+                    {l.link.text}
+                  </Link>
+                </>
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {events.length > 0 && (
+        <div className="mt-4 border-t border-border pt-3">
+          <h3 className="text-xs font-medium text-muted">Recent events</h3>
+          <ul className="mt-2 space-y-1 text-xs">
+            {events.map((e) => (
+              <li key={e.id} className="flex gap-3">
+                <span className="w-24 shrink-0 text-muted">{ago(e.at, now)}</span>
+                <span className="min-w-0">
+                  {e.ticketKey && e.ticketId && (
+                    <Link href={`/tickets/${e.ticketId}`} className="mr-1 text-accent hover:underline">
+                      {e.ticketKey}
+                    </Link>
+                  )}
+                  {e.message}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </section>
   );

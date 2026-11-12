@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- The Overview shows what the worker is doing: whether it is online, what the pipeline is doing, the result of the last Jira intake poll per mode (found, new, error, nothing to poll and why), and recent events. It refreshes every few seconds.
+- Pause and resume the pipeline, and pause and resume Jira intake, from the top bar.
 - Permanently delete a project from its page, with a warning dialog that shows what is removed and asks for the project name.
 - The dashboard can be installed as a desktop app (PWA).
 - The `sdlc-agent` npm CLI (`npx sdlc-agent init`): installs and runs the stack from the published images, with `up`, `down`, `status`, `logs`, `upgrade` (with a database backup), `doctor`, `reset-admin` and `uninstall`.

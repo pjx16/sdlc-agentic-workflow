@@ -5,6 +5,13 @@ import { PASSWORD, SETUP_CODE } from './constants.ts';
 // It creates the admin account the other specs sign in with, and leaves the credentials complete.
 test.describe.configure({ mode: 'serial' });
 
+async function login(page: Page) {
+  await page.goto('/login');
+  await page.getByLabel('Password').fill(PASSWORD);
+  await page.getByRole('button', { name: /sign in/i }).click();
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
+}
+
 const card = (page: Page, id: string) => page.getByTestId(`card-${id}`);
 
 /** Fills the given fields of a card and saves them with the card's single Save button. */

@@ -151,7 +151,7 @@ describe('Overview parts', () => {
     expect(screen.getByRole('link', { name: '24h' })).toHaveAttribute('href', '/?range=24h');
   });
   it('the activity card shows the running stage with elapsed time, idle, or paused', () => {
-    const base = { settings: { pipelinePaused: false, pausedReason: null }, usage: null } as unknown as SystemView;
+    const base = { settings: { pipelinePaused: false, pausedReason: null }, usage: null, worker: { online: true, heartbeatAt: '2026-11-12T10:02:03Z', tickOutcome: 'idle', tickDetail: null, intake: [] } } as unknown as SystemView;
     const now = Date.parse('2026-11-12T10:02:05Z');
     const { rerender } = render(<ActivityCard system={{ ...base, runningStage: { id: 'r1', stage: 'implement', model: 'haiku', projectId: 'p', ticketId: 't1', startedAt: '2026-11-12T10:00:00Z' } }} now={now} />);
     expect(screen.getByText(/implement/)).toBeInTheDocument();
