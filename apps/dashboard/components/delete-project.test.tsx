@@ -59,6 +59,17 @@ describe('DeleteProject', () => {
     expect(fetchMock).toHaveBeenLastCalledWith('/api/projects/p1/permanent', { method: 'DELETE' });
   });
 
+  it('still lets you delete when the counts cannot be loaded (the server enforces the rules)', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) }).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ deleted: true, tickets: 0 }) });
+    render(<DeleteProject project={project} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Delete project…' }));
+    expect(await screen.findByText(/counts could not be loaded/)).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toHaveTextContent('enabled once the name above matches');
+    await userEvent.type(screen.getByLabelText(/Type/), 'Billing');
+    await userEvent.click(screen.getByRole('button', { name: 'Delete permanently' }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/projects'));
+  });
+
   it('cancel closes the dialog without deleting', async () => {
     fetchMock.mockResolvedValue(impact());
     await open();

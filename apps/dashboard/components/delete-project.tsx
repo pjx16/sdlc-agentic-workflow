@@ -21,18 +21,20 @@ export function DeleteProject({ project }: { project: Pick<ProjectView, 'id' | '
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [impactFailed, setImpactFailed] = useState(false);
 
   async function show() {
     setOpen(true);
     setTyped('');
     setError(null);
     setImpact(null);
+    setImpactFailed(false);
     try {
       const res = await fetch(`/api/projects/${project.id}/delete-impact`);
       if (res.ok) setImpact((await res.json()) as Impact);
-      else setError('Could not load what would be deleted.');
+      else setImpactFailed(true);
     } catch {
-      setError('Cannot reach the server.');
+      setImpactFailed(true);
     }
   }
 
@@ -81,6 +83,8 @@ export function DeleteProject({ project }: { project: Pick<ProjectView, 'id' | '
                   </li>
                   <li>{plural(impact.stageRuns, 'stage run')} and their usage records</li>
                 </>
+              ) : impactFailed ? (
+                <li className="text-amber">All of its tickets, subtasks, review findings, questions, stage runs and history (the counts could not be loaded)</li>
               ) : (
                 <li className="text-muted">Loading…</li>
               )}
@@ -103,6 +107,7 @@ export function DeleteProject({ project }: { project: Pick<ProjectView, 'id' | '
                 {error}
               </p>
             )}
+            {typed !== project.name && <p className="mt-3 text-xs text-muted">The Delete button is enabled once the name above matches exactly.</p>}
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" onClick={() => setOpen(false)} disabled={busy} className="rounded-md border border-border px-3 py-2 text-sm">
                 Cancel
@@ -110,7 +115,7 @@ export function DeleteProject({ project }: { project: Pick<ProjectView, 'id' | '
               <button
                 type="button"
                 onClick={remove}
-                disabled={busy || blocked || !impact || typed !== project.name}
+                disabled={busy || blocked || (!impact && !impactFailed) || typed !== project.name}
                 className="rounded-md bg-red px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
               >
                 {busy ? 'Deleting…' : 'Delete permanently'}
