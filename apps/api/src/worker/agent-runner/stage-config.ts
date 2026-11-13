@@ -13,7 +13,6 @@ export interface StageJson {
   model: string;
   maxTurns: number;
   disallowedTools: string[];
-  allowedTools?: string[];
   attempt: number;
   round: number;
 }

@@ -9,9 +9,16 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 - Build plan for version 1.0.0 in `docs/build-plan/v1.0.0/BUILD_PLAN.md`: one-job agents, an orchestrator, reruns, error recovery, an inbox for support tickets, a scoped assistant, project onboarding, Confluence plans, usage analytics, and fixes for the worker "offline" status and missing usage history.
 
+### Fixed
+- The worker no longer shows as offline while it runs a long stage: the heartbeat is written by its own timer every 5 seconds. The dashboard shows idle, busy (with phase and time), stalled and offline, and a banner when the worker restarts repeatedly. The `worker` service has a Docker healthcheck.
+- A usage snapshot is now recorded after every run (done, failed, killed or container error), linked to the run and model, with every window the event carried. Snapshots older than 90 days are reduced to one per hour.
+
+### Removed
+- Jira MCP mode, the `jiraIntake` and `jiraSync` stages and their prompts, the MCP proxy port, and the MCP settings. Jira is REST only; existing MCP projects are migrated to REST (they need REST credentials in Settings → Connections).
+
 ### Changed
 - The v0 build plan moved from `BUILD_PLAN.md` to `docs/build-plan/v0.0.0/BUILD_PLAN.md`.
-- Jira intake only picks up issues labelled `sdlc-agent` by default. A project with an empty JQL now uses `project = "KEY" AND labels = "sdlc-agent" ORDER BY created ASC` (REST and MCP); a JQL set on the project is used exactly as written, so the query can be changed per project. Before, an empty JQL picked up every issue of the Jira project.
+- Jira intake only picks up issues labelled `sdlc-agent` by default. A project with an empty JQL now uses `project = "KEY" AND labels = "sdlc-agent" ORDER BY created ASC`; a JQL set on the project is used exactly as written, so the query can be changed per project. Before, an empty JQL picked up every issue of the Jira project.
 
 ## [0.0.1] - 2026-11-13
 

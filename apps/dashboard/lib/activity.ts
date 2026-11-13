@@ -5,7 +5,7 @@ import type { IntakeStatusView, SystemView } from './types';
 export type Tone = 'green' | 'amber' | 'red' | 'grey';
 
 export interface ActivityLine {
-  key: 'worker' | 'pipeline' | 'intake-rest' | 'intake-mcp' | 'intake';
+  key: 'worker' | 'pipeline' | 'intake-rest' | 'intake';
   label: string;
   tone: Tone;
   text: string;
@@ -30,22 +30,19 @@ export function inFuture(ms: number): string {
   return s < 120 ? `in ${s}s` : `in ${Math.round(s / 60)} min`;
 }
 
-const MODE = { rest: 'REST', mcp: 'MCP' } as const;
-
 function intakeLine(i: IntakeStatusView, system: SystemView, now: number): ActivityLine {
-  const key = i.mode === 'mcp' ? 'intake-mcp' : 'intake-rest';
-  const label = `Jira intake (${MODE[i.mode]})`;
+  const key = 'intake-rest';
+  const label = 'Jira intake';
   const when = ago(i.at, now);
   if (i.skipped === 'intake_paused') return { key, label, tone: 'amber', text: `Paused: not reading Jira (last checked ${when}).` };
   if (i.skipped === 'backoff') return { key, label, tone: 'amber', text: `Jira was unreachable; waiting before trying again (last attempt ${when}).` };
   if (i.error) return { key, label, tone: 'red', text: `Last poll ${when} failed: ${i.error}` };
   if (i.projects === 0 && i.waiting > 0) {
-    return { key, label, tone: 'amber', text: `${i.waiting} project${i.waiting === 1 ? ' is' : 's are'} set to ${MODE[i.mode]} but the repository mirror is not Ready, so nothing is polled.`, link: { href: '/projects', text: 'Projects' } };
+    return { key, label, tone: 'amber', text: `${i.waiting} project${i.waiting === 1 ? ' is' : 's are'} set to REST but the repository mirror is not Ready, so nothing is polled.`, link: { href: '/projects', text: 'Projects' } };
   }
-  if (i.projects === 0) return { key, label, tone: 'grey', text: `No project uses ${MODE[i.mode]} intake.`, link: { href: '/projects', text: 'Projects' } };
+  if (i.projects === 0) return { key, label, tone: 'grey', text: `No project uses Jira intake.`, link: { href: '/projects', text: 'Projects' } };
   const found = `found ${i.seen} ticket${i.seen === 1 ? '' : 's'}${i.created > 0 ? `, ${i.created} new` : ''}${i.seen === 0 ? ` (the default query only picks up issues labelled "${DEFAULT_INTAKE_LABEL}")` : ''}`;
-  const next =
-    i.mode === 'rest' && i.at ? ` Next poll ${inFuture(new Date(i.at).getTime() + system.settings.pollIntervalSec * 1000 - now)}.` : i.mode === 'mcp' ? ' Each MCP poll runs Claude; per-project interval (default 15 min).' : '';
+  const next = i.at ? ` Next poll ${inFuture(new Date(i.at).getTime() + system.settings.pollIntervalSec * 1000 - now)}.` : '';
   return { key, label, tone: 'green', text: `Polled ${when}: ${found}.${next}` };
 }
 
@@ -91,7 +88,7 @@ export function describeActivity(system: SystemView | null, now: number): Activi
   if (system.settings.intakePaused) {
     lines.push({ key: 'intake', label: 'Jira intake', tone: 'amber', text: 'Paused by you: Jira is not being read. Pasted tickets still work.' });
   } else if (worker.intake.length === 0) {
-    lines.push({ key: 'intake', label: 'Jira intake', tone: 'grey', text: 'Has not polled yet. It needs a project with Jira mode REST or MCP and a ready mirror.' });
+    lines.push({ key: 'intake', label: 'Jira intake', tone: 'grey', text: 'Has not polled yet. It needs a project with Jira mode REST and a ready mirror.' });
   } else {
     const relevant = worker.intake.filter((i) => i.projects > 0 || i.waiting > 0 || i.error || i.skipped);
     for (const i of relevant.length > 0 ? relevant : worker.intake.slice(0, 1)) lines.push(intakeLine(i, system, now));

@@ -7,7 +7,6 @@ import type { ProjectView } from './types';
 
 const NUMERIC_PATHS = [
   ...STAGE_NAMES.map((s) => `settings.stages.${s}.maxTurns`),
-  'settings.intake.mcpPollIntervalSec',
   'settings.pr.ciTimeoutMin',
   'settings.limits.maxSubtasks',
   'settings.limits.maxTestFixRounds',

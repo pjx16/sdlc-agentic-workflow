@@ -15,7 +15,7 @@ import type { ProjectView } from '@/lib/types';
 
 const STAGE_LABELS: Record<StageName, string> = {
   kbBuild: 'KB build', plan: 'Plan', breakdown: 'Breakdown', tests: 'Tests', implement: 'Implement',
-  fix: 'Fix', review: 'Review', kbUpdate: 'KB update', jiraIntake: 'Jira intake', jiraSync: 'Jira sync',
+  fix: 'Fix', review: 'Review', kbUpdate: 'KB update',
 };
 const options = (values: readonly string[]) => values.map((v) => ({ value: v, label: v }));
 
@@ -135,10 +135,9 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
               <Check path="settings.jiraWriteBack.transitions" label="Write back status transitions" />
               <Check path="settings.jiraWriteBack.createSubtasks" label="Create Jira sub-tasks" />
               <Check path="settings.intake.paste" label="Allow pasted tickets" />
-              <Num path="settings.intake.mcpPollIntervalSec" label="MCP poll interval (seconds)" />
               <Text path="settings.jiraApprovalStatuses.plan" label="Plan approved status" hint="REST mode: a ticket moved to this Jira status approves its plan." />
               <Text path="settings.jiraApprovalStatuses.breakdown" label="Breakdown approved status" />
-              <StatusMapping projectId={project?.id} mode={values.jiraMode as 'rest' | 'mcp'} />
+              <StatusMapping projectId={project?.id} mode={values.jiraMode as 'rest' | 'off'} />
             </>
           )}
           {!jiraOn && <p className="text-sm text-muted sm:col-span-2">Jira is off. Tickets are pasted into the dashboard.</p>}

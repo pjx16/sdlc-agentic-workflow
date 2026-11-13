@@ -3,8 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { FormProvider, Num, Section, Text, TextArea } from './form';
-import { collapseListErrors, setIn, type FormValues } from '@/lib/form';
-import { LIST_PATHS, initialSettingsValues, toSettingsPayload } from '@/lib/settings-form';
+import { setIn, type FormValues } from '@/lib/form';
+import { initialSettingsValues, toSettingsPayload } from '@/lib/settings-form';
 import type { GlobalSettingsView } from '@/lib/types';
 
 export function SettingsForm({ settings }: { settings: GlobalSettingsView }) {
@@ -40,7 +40,7 @@ export function SettingsForm({ settings }: { settings: GlobalSettingsView }) {
         setMessage({ kind: 'ok', text: 'Saved. Changes apply from the next stage run.' });
         router.refresh();
       } else if (res.status === 400 && body.fields) {
-        setErrors(collapseListErrors(body.fields, LIST_PATHS));
+        setErrors(body.fields);
         setMessage({ kind: 'error', text: 'Some fields need attention.' });
       } else {
         setMessage({ kind: 'error', text: body.message ?? 'Could not save the settings.' });
@@ -76,11 +76,6 @@ export function SettingsForm({ settings }: { settings: GlobalSettingsView }) {
           <Text path="modelAliases.haiku" label="haiku" />
           <Text path="modelAliases.sonnet" label="sonnet" />
           <Text path="modelAliases.opus" label="opus" />
-        </Section>
-
-        <Section title="Jira MCP tools" description="Tool names the Jira stages may use in MCP mode, one per line.">
-          <TextArea path="jiraMcp.readTools" label="Read tools" rows={5} />
-          <TextArea path="jiraMcp.writeTools" label="Write tools" rows={5} />
         </Section>
 
         <div className="flex items-center gap-4">

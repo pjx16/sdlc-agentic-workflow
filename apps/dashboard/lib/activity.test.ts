@@ -81,28 +81,19 @@ describe('describeActivity: Jira intake', () => {
     expect(l).toMatchObject({ tone: 'green' });
     expect(l?.text).toBe('Polled 30s ago: found 3 tickets, 1 new. Next poll in 90s.');
   });
-  it('MCP: shows the cost warning instead of a countdown', () => {
-    const l = line(system({ worker: worker({ intake: [intake({ mode: 'mcp', seen: 0 })] }) }), 'intake-mcp');
-    expect(l?.text).toContain('found 0 tickets');
-    expect(l?.text).toContain('runs Claude');
-  });
   it('reminds that the default query needs the label when a poll found nothing, but not when it found tickets', () => {
     const none = line(system({ worker: worker({ intake: [intake({ seen: 0 })] }) }), 'intake-rest');
     expect(none?.text).toContain('found 0 tickets (the default query only picks up issues labelled "sdlc-agent")');
     expect(line(system({ worker: worker({ intake: [intake({ seen: 2, created: 1 })] }) }), 'intake-rest')?.text).not.toContain('labelled');
   });
   it('no project uses the mode, or the projects are waiting for their mirror', () => {
-    expect(line(system({ worker: worker({ intake: [intake({ projects: 0 })] }) }), 'intake-rest')).toMatchObject({ tone: 'grey', text: 'No project uses REST intake.' });
-    const waiting = line(system({ worker: worker({ intake: [intake({ mode: 'mcp', projects: 0, waiting: 1 })] }) }), 'intake-mcp');
+    expect(line(system({ worker: worker({ intake: [intake({ projects: 0 })] }) }), 'intake-rest')).toMatchObject({ tone: 'grey', text: 'No project uses Jira intake.' });
+    const waiting = line(system({ worker: worker({ intake: [intake({ projects: 0, waiting: 1 })] }) }), 'intake-rest');
     expect(waiting).toMatchObject({ tone: 'amber' });
     expect(waiting?.text).toContain('mirror is not Ready');
   });
   it('shows an error in red, and a backoff', () => {
     expect(line(system({ worker: worker({ intake: [intake({ error: 'Jira rejected the credentials' })] }) }), 'intake-rest')).toMatchObject({ tone: 'red', text: expect.stringContaining('Jira rejected the credentials') });
     expect(line(system({ worker: worker({ intake: [intake({ skipped: 'backoff' })] }) }), 'intake-rest')?.text).toContain('unreachable');
-  });
-  it('hides a mode nobody uses when another mode is active (a REST poll must not mask an MCP poll)', () => {
-    const l = describeActivity(system({ worker: worker({ intake: [intake({ mode: 'mcp', seen: 2, created: 2 }), intake({ mode: 'rest', projects: 0 })] }) }), NOW);
-    expect(l.map((x) => x.key)).toEqual(['worker', 'pipeline', 'intake-mcp']);
   });
 });

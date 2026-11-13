@@ -24,7 +24,6 @@ export interface GlobalSettingsView {
   workspaceRetentionDays: number;
   logRetentionDays: number;
   modelAliases: { haiku: string; sonnet: string; opus: string };
-  jiraMcp: { readTools: string[]; writeTools: string[] };
   pipelinePaused: boolean;
   pausedReason: string | null;
   resetsAt: string | null;
@@ -33,7 +32,7 @@ export interface GlobalSettingsView {
 }
 
 export interface IntakeStatusView {
-  mode: 'rest' | 'mcp';
+  mode: 'rest';
   at: string | null;
   projects: number;
   waiting: number;

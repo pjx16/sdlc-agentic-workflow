@@ -14,7 +14,6 @@ const settings: GlobalSettingsView = {
   usageThresholdPct: 50, usageThresholdWeeklyPct: 80, calibratedWindowTokens: null, pollIntervalSec: 120, stageTimeoutMin: 20,
   verifyTimeoutSec: 600, workspaceRetentionDays: 7, logRetentionDays: 30,
   modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
-  jiraMcp: { readTools: ['getJiraIssue', 'searchJiraIssuesUsingJql'], writeTools: ['transitionJiraIssue'] },
   pipelinePaused: false, pausedReason: null, resetsAt: null, usageIgnoredUntil: null, intakePaused: false,
 };
 
@@ -30,10 +29,10 @@ describe('SettingsForm', () => {
     expect(screen.getByLabelText('5-hour threshold (%)')).toHaveValue('50');
     expect(screen.getByLabelText('Calibrated window tokens')).toHaveValue('');
     expect(screen.getByLabelText('opus')).toHaveValue('opus');
-    expect(screen.getByLabelText('Read tools')).toHaveValue('getJiraIssue\nsearchJiraIssuesUsingJql');
+    expect(screen.queryByLabelText('Read tools')).not.toBeInTheDocument();
   });
 
-  it('saves edits as numbers and lists and confirms', async () => {
+  it('saves edits as numbers and confirms', async () => {
     fetchMock.mockResolvedValue(reply({ ...settings, usageThresholdPct: 40, calibratedWindowTokens: 5000000 }));
     render(<SettingsForm settings={settings} />);
     await userEvent.clear(screen.getByLabelText('5-hour threshold (%)'));
@@ -48,7 +47,7 @@ describe('SettingsForm', () => {
     expect(init.method).toBe('PATCH');
     const body = JSON.parse(String(init.body));
     expect(body).toMatchObject({ usageThresholdPct: 40, calibratedWindowTokens: 5000000, pollIntervalSec: 120, modelAliases: { opus: 'claude-opus-5-5' } });
-    expect(body.jiraMcp).toEqual({ readTools: ['getJiraIssue', 'searchJiraIssuesUsingJql'], writeTools: ['transitionJiraIssue'] });
+    expect(body).not.toHaveProperty('jiraMcp');
     expect(screen.getByLabelText('5-hour threshold (%)')).toHaveValue('40');
     expect(refresh).toHaveBeenCalled();
   });
@@ -65,15 +64,14 @@ describe('SettingsForm', () => {
     expect(body.pollIntervalSec).toBeNull();
   });
 
-  it('shows field-level errors, including per-line list errors', async () => {
+  it('shows field-level errors', async () => {
     fetchMock.mockResolvedValue(
-      reply({ error: 'validation_error', message: 'Validation failed', fields: { usageThresholdPct: 'must be at least 1', 'modelAliases.haiku': 'required', 'jiraMcp.readTools.1': 'must not be empty' } }, 400),
+      reply({ error: 'validation_error', message: 'Validation failed', fields: { usageThresholdPct: 'must be at least 1', 'modelAliases.haiku': 'required', } }, 400),
     );
     render(<SettingsForm settings={settings} />);
     await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));
     expect(await screen.findByText('must be at least 1')).toBeInTheDocument();
     expect(screen.getByLabelText('haiku')).toHaveAttribute('aria-invalid', 'true');
-    expect(screen.getByText('line 2: must not be empty')).toBeInTheDocument();
     expect(screen.queryByText(/Saved/)).not.toBeInTheDocument();
   });
 });

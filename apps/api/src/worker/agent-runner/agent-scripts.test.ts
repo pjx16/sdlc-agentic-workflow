@@ -91,28 +91,6 @@ describe('run-stage (BUILD_PLAN 6.4)', () => {
     expect(call?.args[call.args.indexOf('--disallowedTools') + 1]).toBe('WebFetch,WebSearch,Edit,Write,NotebookEdit');
   });
 
-  it('adds the MCP flags and the allowed tools for Jira stages, and runs without a workspace', () => {
-    const ctx = path.join(tmp, 'ctx3');
-    writeStage(
-      ctx,
-      { model: 'haiku', maxTurns: 8, disallowedTools: ['Bash', 'Read', 'Edit', 'Write', 'Grep', 'Glob', 'WebFetch', 'WebSearch'], allowedTools: ['mcp__atlassian__getJiraIssue', 'mcp__atlassian__searchJiraIssuesUsingJql'], mcpConfig: true },
-      { 'mcp.json': '{"mcpServers":{}}' },
-    );
-    const { status, call } = runStage(ctx, path.join(tmp, 'does-not-exist'), path.join(tmp, 'rec3.json'));
-    expect(status).toBe(0);
-    expect(call?.args).toContain('--strict-mcp-config');
-    expect(call?.args[call.args.indexOf('--mcp-config') + 1]).toBe(path.join(ctx, 'mcp.json'));
-    expect(call?.args[call.args.indexOf('--allowedTools') + 1]).toBe('mcp__atlassian__getJiraIssue,mcp__atlassian__searchJiraIssuesUsingJql');
-  });
-
-  it('omits the MCP and allowed-tools flags when stage.json has none', () => {
-    const ctx = path.join(tmp, 'ctx4');
-    writeStage(ctx, { model: 'haiku', maxTurns: 3, disallowedTools: [] });
-    const { call } = runStage(ctx, tmp, path.join(tmp, 'rec4.json'));
-    expect(call?.args).not.toContain('--mcp-config');
-    expect(call?.args).not.toContain('--allowedTools');
-  });
-
   it('fails fast with exit 64 when a context file is missing', () => {
     const ctx = path.join(tmp, 'ctx5');
     writeStage(ctx, { model: 'haiku', maxTurns: 3, disallowedTools: [] });
