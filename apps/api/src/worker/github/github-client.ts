@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
+import type { GithubFacts } from '@sdlc/shared';
+
 const exec = promisify(execFile);
 
 export type CheckBucket = 'pass' | 'fail' | 'pending' | 'skipping' | 'cancel';
@@ -37,6 +39,8 @@ export interface GitHubClient {
   failingLogTail(repo: string, branch: string): Promise<string>;
   prState(repo: string, number: number): Promise<PrState>;
   editBody(repo: string, number: number, body: string): Promise<void>;
+  /** Default branch and languages of a repository, which also proves the token can reach it (onboarding). */
+  repoFacts(repo: string): Promise<GithubFacts>;
 }
 
 export const GITHUB_CLIENT = Symbol('GITHUB_CLIENT');
@@ -130,6 +134,13 @@ export class GhCliClient implements GitHubClient {
     }
     const parsed = JSON.parse(out) as { name: string; bucket: CheckBucket }[];
     return parsed.map((c) => ({ name: c.name, bucket: c.bucket }));
+  }
+
+  async repoFacts(repo: string): Promise<GithubFacts> {
+    const info = JSON.parse(await this.gh(['api', `repos/${repo}`])) as { default_branch?: string };
+    const languages = JSON.parse(await this.gh(['api', `repos/${repo}/languages`])) as Record<string, number>;
+    if (!info.default_branch) throw new GitHubError(`GitHub did not report a default branch for ${repo}`, ['api', `repos/${repo}`]);
+    return { defaultBranch: info.default_branch, languages: Object.entries(languages).sort((a, b) => b[1] - a[1]).map(([name]) => name) };
   }
 
   async failingLogTail(repo: string, branch: string): Promise<string> {

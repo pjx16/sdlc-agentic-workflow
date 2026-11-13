@@ -5,7 +5,7 @@ export type WorkspaceAccess = 'rw' | 'ro' | 'none';
 /** Workspace mounting per stage (BUILD_PLAN 6.4 table). kbBuild and kbUpdate may only change `kbDir`. */
 export const STAGE_WORKSPACE: Record<StageName, WorkspaceAccess> = {
   kbBuild: 'rw', plan: 'ro', breakdown: 'ro', tests: 'rw', implement: 'rw', fix: 'rw',
-  review: 'ro', kbUpdate: 'rw', assist: 'ro',
+  review: 'ro', kbUpdate: 'rw', assist: 'ro', repoProfile: 'ro', onboardAdvise: 'none',
 };
 
 /** `stage.json`, read by run-stage (BUILD_PLAN 6.4). `attempt` and `round` are extra, for the test stub and diagnostics. */
@@ -36,7 +36,8 @@ const READ_ONLY_EXTRA = ['Edit', 'Write', 'NotebookEdit'];
 
 export function buildStageJson(input: StageConfigInput): StageJson {
   const disallowed = [...ALWAYS_DISALLOWED];
-  if (STAGE_WORKSPACE[input.stage] === 'ro') disallowed.push(...READ_ONLY_EXTRA);
+  // Only a stage with a read-write workspace may edit files; a read-only or workspace-less stage has nothing it may change.
+  if (STAGE_WORKSPACE[input.stage] !== 'rw') disallowed.push(...READ_ONLY_EXTRA);
 
   const json: StageJson = {
     model: input.modelAliases[input.modelAlias],

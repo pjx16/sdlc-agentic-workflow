@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import type { JiraFacts } from '@sdlc/shared';
 
 /** What the pipeline needs from Jira (BUILD_PLAN 8 Worker interfaces). Two implementations: REST (default) and MCP. */
 
@@ -47,6 +48,8 @@ export interface JiraClient {
   transition(key: string, statusName: string): Promise<void>;
   createSubtask(parentKey: string, subtask: JiraSubtaskInput): Promise<{ key: string }>;
   listStatuses(projectKey: string): Promise<string[]>;
+  /** What onboarding needs to know about a Jira project (BUILD_PLAN v1 6.7). */
+  projectFacts(projectKey: string): Promise<JiraFacts>;
 }
 
 /**

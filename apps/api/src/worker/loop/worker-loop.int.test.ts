@@ -140,6 +140,21 @@ describe('worker loop (BUILD_PLAN 6.6, F4)', () => {
     expect(await loop.tick()).toBe('idle');
   });
 
+  it('ignores a project that is not confirmed yet: no ticket is picked and no mirror is cloned (BUILD_PLAN v1 6.7)', async () => {
+    const draft = await prisma.project.create({ data: { name: `draft-${++n}`, repoUrl: 'https://x/y', stack: 'ts_node', testCmdTemplate: 'x {files}', localKeyPrefix: `D${n}`, mirrorStatus: 'pending', onboardingStatus: 'proposed' } });
+    const t = await prisma.ticket.create({ data: { projectId: draft.id, key: `D${n}-1`, source: 'paste', title: 'x', status: 'KB' } });
+    const loop = loopWith([handler('KB', () => ({ kind: 'continue' }))]);
+    ran.length = 0;
+    expect(await loop.pickNext()).toBeNull();
+    await loop.tick();
+    expect(ran).not.toContain(`${t.key}:KB`);
+    expect((await prisma.project.findUniqueOrThrow({ where: { id: draft.id } })).mirrorStatus).toBe('pending');
+    await prisma.project.update({ where: { id: draft.id }, data: { onboardingStatus: 'confirmed' } });
+    expect((await loop.pickNext())?.id).toBe(t.id);
+    await prisma.ticket.delete({ where: { id: t.id } });
+    await prisma.project.delete({ where: { id: draft.id } });
+  });
+
   it('a running assistant chat does not block the pipeline, but a running stage does (BUILD_PLAN v1 D7)', async () => {
     const loop = loopWith([handler('KB', () => ({ kind: 'continue' }))]);
     await prisma.stageRun.deleteMany();

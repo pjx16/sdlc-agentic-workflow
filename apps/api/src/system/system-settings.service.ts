@@ -102,6 +102,7 @@ function toView(row: GlobalSettings): GlobalSettingsView {
     workspaceRetentionDays: row.workspaceRetentionDays,
     logRetentionDays: row.logRetentionDays,
     assistantTokenCap: row.assistantTokenCap,
+    stageDefaults: GlobalSettingsSchema.parse({ stageDefaults: row.stageDefaults }).stageDefaults,
     modelAliases: row.modelAliases,
   });
   return {
@@ -129,6 +130,7 @@ export class SystemSettingsService {
         id: GLOBAL_ID,
         ...d,
         modelAliases: d.modelAliases as unknown as Prisma.InputJsonValue,
+        stageDefaults: d.stageDefaults as unknown as Prisma.InputJsonValue,
       },
     });
   }
@@ -203,6 +205,7 @@ export class SystemSettingsService {
       data: {
         ...next,
         modelAliases: next.modelAliases as unknown as Prisma.InputJsonValue,
+        stageDefaults: next.stageDefaults as unknown as Prisma.InputJsonValue,
       },
     });
     await this.event('settings', 'Global settings updated');

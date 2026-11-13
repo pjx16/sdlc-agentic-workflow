@@ -2,15 +2,15 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { TICKET_TYPES } from '@sdlc/shared';
+import { TICKET_KINDS } from '@sdlc/shared';
 import { FormProvider, Section, Select, Text, TextArea } from './form';
 import { setIn, type FormValues } from '@/lib/form';
 
 /** Paste a ticket into a project (F3). Works in every Jira mode. */
-export function TicketForm({ projects }: { projects: { id: string; name: string; mirrorStatus: string; enabled: boolean }[] }) {
+export function TicketForm({ projects }: { projects: { id: string; name: string; mirrorStatus: string; enabled: boolean; onboardingStatus?: string }[] }) {
   const router = useRouter();
-  const usable = projects.filter((p) => p.enabled);
-  const [values, setValues] = useState<FormValues>({ projectId: usable[0]?.id ?? '', title: '', body: '', type: 'story', featureKey: '' });
+  const usable = projects.filter((p) => p.enabled && (p.onboardingStatus ?? 'confirmed') === 'confirmed');
+  const [values, setValues] = useState<FormValues>({ projectId: usable[0]?.id ?? '', title: '', body: '', kind: 'feature', featureKey: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -55,7 +55,7 @@ export function TicketForm({ projects }: { projects: { id: string; name: string;
       <form onSubmit={submit} className="max-w-3xl space-y-6" noValidate>
         <Section title="Ticket">
           <Select path="projectId" label="Project" options={usable.map((p) => ({ value: p.id, label: p.mirrorStatus === 'ok' ? p.name : `${p.name} (mirror ${p.mirrorStatus})` }))} />
-          <Select path="type" label="Type" options={TICKET_TYPES.map((t) => ({ value: t, label: t }))} />
+          <Select path="kind" label="Kind" options={TICKET_KINDS.map((k) => ({ value: k, label: k }))} />
           <div className="sm:col-span-2">
             <Text path="title" label="Title" />
           </div>

@@ -86,10 +86,10 @@ export class SupportRaiser {
   }
 
   /** Closes the open tickets that match, by the system or a person. Returns how many were closed. */
-  async close(where: { ticketId?: string; kind?: SupportKind | SupportKind[]; dedupeKey?: string; stage?: string }, status: 'resolved' | 'dismissed', by: string, response?: string): Promise<number> {
+  async close(where: { ticketId?: string; projectId?: string; kind?: SupportKind | SupportKind[]; dedupeKey?: string; stage?: string }, status: 'resolved' | 'dismissed', by: string, response?: string): Promise<number> {
     const kinds = where.kind === undefined ? undefined : Array.isArray(where.kind) ? { in: where.kind } : where.kind;
     const { count } = await this.prisma.supportTicket.updateMany({
-      where: { status: { in: ['open', 'answered'] }, ...(where.ticketId ? { ticketId: where.ticketId } : {}), ...(kinds ? { kind: kinds } : {}), ...(where.dedupeKey ? { dedupeKey: where.dedupeKey } : {}), ...(where.stage ? { stage: where.stage } : {}) },
+      where: { status: { in: ['open', 'answered'] }, ...(where.ticketId ? { ticketId: where.ticketId } : {}), ...(where.projectId ? { projectId: where.projectId } : {}), ...(kinds ? { kind: kinds } : {}), ...(where.dedupeKey ? { dedupeKey: where.dedupeKey } : {}), ...(where.stage ? { stage: where.stage } : {}) },
       data: { status, resolvedBy: by, resolvedAt: new Date(), ...(response ? { response } : {}) },
     });
     return count;

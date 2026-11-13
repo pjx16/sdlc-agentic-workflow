@@ -14,6 +14,8 @@ const validData: Record<string, unknown> = {
   review: { findings: [{ severity: 'high', file: 'a.ts', line: null, issue: 'i', rule: 'r', fix: 'f' }], previousFindings: [{ id: 'x', status: 'fixed' }] },
   kbUpdate: { featureKey: 'auth', docPath: 'docs/kb/auth.md', changed: true },
   assist: { reply: 'Use a comma.', draft: { kind: 'answer', text: 'Comma' } },
+  repoProfile: { stack: 'nestjs', installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx jest {files}', kbDir: 'docs/kb', testFilePattern: '**/*.spec.ts', exampleTestFile: null },
+  onboardAdvise: { statusMap: { KB: 'In Progress' }, approvalStatuses: { plan: 'Plan Approved', breakdown: null }, issueTypeRouting: { Story: 'feature' }, intakeLabel: 'sdlc-agent', confluenceSpaceKey: null },
 };
 
 describe('stage envelopes (BUILD_PLAN 6.5)', () => {

@@ -2,7 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { FormProvider, Num, Section, Text, TextArea } from './form';
+import { MODEL_ALIASES, STAGE_NAMES } from '@sdlc/shared';
+import { FormProvider, Num, Section, Select, Text, TextArea } from './form';
+import { STAGE_LABELS } from '@/lib/stage-labels';
 import { setIn, type FormValues } from '@/lib/form';
 import { initialSettingsValues, toSettingsPayload } from '@/lib/settings-form';
 import type { GlobalSettingsView } from '@/lib/types';
@@ -77,6 +79,15 @@ export function SettingsForm({ settings }: { settings: GlobalSettingsView }) {
           <Text path="modelAliases.haiku" label="haiku" />
           <Text path="modelAliases.sonnet" label="sonnet" />
           <Text path="modelAliases.opus" label="opus" />
+        </Section>
+
+        <Section title="Defaults for new projects" description="The model and turn limit each stage starts with in a project you onboard. A project can override them under Advanced.">
+          {STAGE_NAMES.map((stage) => (
+            <div key={stage} className="grid grid-cols-2 gap-3 sm:col-span-2">
+              <Select path={`stageDefaults.${stage}.model`} label={`${STAGE_LABELS[stage] ?? stage}: model`} options={MODEL_ALIASES.map((m) => ({ value: m, label: m }))} />
+              <Num path={`stageDefaults.${stage}.maxTurns`} label={`${STAGE_LABELS[stage] ?? stage}: turns`} />
+            </div>
+          ))}
         </Section>
 
         <div className="flex items-center gap-4">

@@ -22,6 +22,19 @@ enum ClaudeMdMode {
   both
 }
 
+enum OnboardingStatus {
+  draft
+  profiling
+  proposed
+  confirmed
+}
+
+enum TicketKind {
+  feature
+  bug
+  chore
+}
+
 enum JiraMode {
   rest
   off
@@ -143,28 +156,32 @@ enum UsageSource {
 // ---------------------------------------------------------------- models
 
 model Project {
-  id              String       @id @default(uuid())
-  name            String       @unique
-  repoUrl         String
-  baseBranch      String       @default("dev")
-  stack           ProjectStack
-  installCmd      String       @default("")
-  typecheckCmd    String       @default("")
-  testCmdTemplate String
-  kbDir           String       @default("docs/kb")
-  claudeMdMode    ClaudeMdMode @default(both)
-  jiraMode        JiraMode     @default(off)
-  jiraProjectKey  String?
-  jiraJql         String?
-  localKeyPrefix  String
-  nextLocalNumber Int          @default(1)
-  mirrorStatus    MirrorStatus @default(pending)
-  mirrorError     String?
-  enabled         Boolean      @default(true)
+  id                 String           @id @default(uuid())
+  name               String           @unique
+  repoUrl            String
+  baseBranch         String           @default("dev")
+  stack              ProjectStack
+  installCmd         String           @default("")
+  typecheckCmd       String           @default("")
+  testCmdTemplate    String
+  kbDir              String           @default("docs/kb")
+  claudeMdMode       ClaudeMdMode     @default(both)
+  jiraMode           JiraMode         @default(off)
+  /// New projects start in `draft`; the worker only runs `confirmed` ones (BUILD_PLAN v1 6.7).
+  onboardingStatus   OnboardingStatus @default(confirmed)
+  onboardingProposal Json?
+  onboardingError    String?
+  jiraProjectKey     String?
+  jiraJql            String?
+  localKeyPrefix     String
+  nextLocalNumber    Int              @default(1)
+  mirrorStatus       MirrorStatus     @default(pending)
+  mirrorError        String?
+  enabled            Boolean          @default(true)
   /// ProjectSettings (validated by Zod in packages/shared)
-  settings        Json         @default("{}")
-  createdAt       DateTime     @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime     @updatedAt @db.Timestamptz(6)
+  settings           Json             @default("{}")
+  createdAt          DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime         @updatedAt @db.Timestamptz(6)
 
   tickets        Ticket[]
   stageRuns      StageRun[]
@@ -190,6 +207,8 @@ model GlobalSettings {
   workspaceRetentionDays  Int       @default(7)
   logRetentionDays        Int       @default(30)
   assistantTokenCap       Int       @default(200000)
+  /// { <stage>: { model, maxTurns } } for new projects (BUILD_PLAN v1 6.7).
+  stageDefaults           Json      @default("{}")
   modelAliases            Json      @default("{\"haiku\":\"haiku\",\"sonnet\":\"sonnet\",\"opus\":\"opus\"}")
   updatedAt               DateTime  @updatedAt @db.Timestamptz(6)
 }
@@ -206,6 +225,7 @@ model Ticket {
   body            String        @default("")
   featureKey      String?
   labels          Json          @default("[]")
+  kind            TicketKind    @default(feature)
   status          TicketStatus  @default(NEW)
   holdReason      HoldReason?
   holdFromStatus  TicketStatus?

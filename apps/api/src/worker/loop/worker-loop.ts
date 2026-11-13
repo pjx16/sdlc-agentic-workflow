@@ -122,7 +122,8 @@ export class WorkerLoop {
     const handled = new Set(this.handlers.map((h) => h.status));
     const statuses = ACTIONABLE_STATUSES.filter((s) => handled.has(s));
     const where = {
-      project: { enabled: true },
+      // A project that is still being onboarded is ignored until the person confirms it (BUILD_PLAN v1 6.7).
+      project: { enabled: true, onboardingStatus: 'confirmed' as const },
       OR: [
         ...(statuses.length > 0 ? [{ status: { in: statuses as TicketStatus[] } }] : []),
         // A ticket waiting for CI is only picked when a CI fix is pending.
@@ -175,7 +176,7 @@ export class WorkerLoop {
   }
 
   private cloneMirrors = async () => {
-    const pending = await this.prisma.project.findMany({ where: { mirrorStatus: 'pending', enabled: true }, orderBy: { createdAt: 'asc' } });
+    const pending = await this.prisma.project.findMany({ where: { mirrorStatus: 'pending', enabled: true, onboardingStatus: 'confirmed' }, orderBy: { createdAt: 'asc' } });
     if (pending.length > 0) await setPhase(this.prisma, 'cloning', pending.map((p) => p.name).join(', '));
     if (pending.length > 0 && this.creds && !(await this.creds.resolve()).github_token) {
       // Cloning needs the GitHub token: say so on the project (it stays pending) instead of failing it.

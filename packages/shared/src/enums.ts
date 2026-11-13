@@ -17,7 +17,7 @@ export const TICKET_STATUSES = [
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
 
 export const STAGE_NAMES = [
-  'kbBuild', 'plan', 'breakdown', 'tests', 'implement', 'fix', 'review', 'kbUpdate', 'assist',
+  'kbBuild', 'plan', 'breakdown', 'tests', 'implement', 'fix', 'review', 'kbUpdate', 'assist', 'repoProfile', 'onboardAdvise',
 ] as const;
 export type StageName = (typeof STAGE_NAMES)[number];
 

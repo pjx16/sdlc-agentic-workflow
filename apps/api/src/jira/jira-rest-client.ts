@@ -1,7 +1,7 @@
-import { defaultJiraJql } from '@sdlc/shared';
+import { defaultJiraJql, type JiraFacts } from '@sdlc/shared';
 import { adfToText, markdownToAdf } from './adf';
-import { markerLabel,
-  JiraHttpError, JiraStatusNotFoundError, JiraUnavailableError,
+import {
+  markerLabel, JiraHttpError, JiraStatusNotFoundError, JiraUnavailableError,
   type JiraClient, type JiraIssueStatus, type JiraProjectRef, type JiraSubtaskInput, type JiraTicket,
 } from './jira-client';
 
@@ -131,6 +131,28 @@ export class JiraRestClient implements JiraClient {
     const names = new Set<string>();
     for (const type of types) for (const status of type.statuses ?? []) if (status.name) names.add(String(status.name));
     return [...names].sort((a, b) => a.localeCompare(b));
+  }
+
+  /**
+   * GET /project/{key}: name, issue types and which one is the sub-task type. GET /project/{key}/statuses: statuses per issue type
+   * with their category. Labels in use come from a search over recent issues, because Jira has no per-project label endpoint.
+   */
+  async projectFacts(projectKey: string): Promise<JiraFacts> {
+    const key = encodeURIComponent(projectKey);
+    const project = await this.request<Json>('GET', `/rest/api/3/project/${key}`);
+    const statuses = await this.request<Json[]>('GET', `/rest/api/3/project/${key}/statuses`);
+    const recent = await this.request<Json>('POST', '/rest/api/3/search/jql', { jql: `project = "${projectKey.replace(/"/g, '')}" ORDER BY created DESC`, fields: ['labels'], maxResults: 100 });
+    const labels = new Set<string>();
+    for (const issue of recent?.issues ?? []) for (const l of issue.fields?.labels ?? []) labels.add(String(l));
+    return {
+      projectName: String(project.name ?? projectKey),
+      issueTypes: (project.issueTypes ?? []).map((t: Json) => ({ name: String(t.name), subtask: t.subtask === true })),
+      statusesByType: (statuses ?? []).map((t: Json) => ({
+        type: String(t.name),
+        statuses: (t.statuses ?? []).map((s: Json) => ({ name: String(s.name), category: String(s.statusCategory?.key ?? 'unknown') })),
+      })),
+      labels: [...labels].sort((a, b) => a.localeCompare(b)),
+    };
   }
 
   // ---------------------------------------------------------------- internals

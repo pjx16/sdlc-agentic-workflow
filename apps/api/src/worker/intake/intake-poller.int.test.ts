@@ -122,6 +122,24 @@ describe('Jira intake polling (F3)', () => {
     expect((await poller.poll()).created).toBe(2);
   });
 
+  it('routes each issue type by the project routing: a kind for the ticket, and ignored types are not picked up (BUILD_PLAN v1 6.7)', async () => {
+    const p = await project({ settings: { jiraIssueTypeRouting: { Story: 'feature', Bug: 'bug', Chore: 'chore', Epic: 'ignore' } } });
+    jira.tickets = [jt('ABC-1', { issuetype: 'Story' }), jt('ABC-2', { issuetype: 'Bug' }), jt('ABC-3', { issuetype: 'Chore' }), jt('ABC-4', { issuetype: 'Epic' }), jt('ABC-5', { issuetype: 'Mystery' })] as never;
+    const res = await poller.poll();
+    expect(res).toMatchObject({ created: 4, errors: [] });
+    const kinds = Object.fromEntries((await prisma.ticket.findMany({ where: { projectId: p.id } })).map((t) => [t.key, t.kind]));
+    expect(kinds).toEqual({ 'ABC-1': 'feature', 'ABC-2': 'bug', 'ABC-3': 'chore', 'ABC-5': 'chore' });
+    expect(await prisma.ticket.count({ where: { key: 'ABC-4' } })).toBe(0);
+  });
+
+  it('without a routing the kind follows the issue type name', async () => {
+    const p = await project();
+    jira.tickets = [jt('ABC-1', { issuetype: 'Bug' }), jt('ABC-2', { issuetype: 'Story' }), jt('ABC-3', { issuetype: 'Task' })] as never;
+    await poller.poll();
+    const kinds = Object.fromEntries((await prisma.ticket.findMany({ where: { projectId: p.id } })).map((t) => [t.key, t.kind]));
+    expect(kinds).toEqual({ 'ABC-1': 'bug', 'ABC-2': 'feature', 'ABC-3': 'chore' });
+  });
+
   it('only polls enabled REST-mode projects whose mirror is ready', async () => {
     const ok = await project();
     await project({ enabled: false });

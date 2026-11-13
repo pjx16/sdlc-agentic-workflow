@@ -68,6 +68,8 @@ export interface StageInputs {
   existingDoc?: string;
   docTemplate?: string;
   /** The assistant: the context pack of one support ticket, what was said before, and the new message. */
+  /** Onboarding: the facts code collected, as plain text. */
+  onboard?: { facts: string };
   assist?: { pack: string; summary?: string | null; history: { role: 'user' | 'assistant'; text: string }[]; message: string };
 }
 
@@ -109,6 +111,8 @@ const DATA_SHAPES: Record<StageName, string> = {
   fix: '{ filesChanged[] }',
   review: '{ findings: [{ severity, file, line (nullable), issue, rule, fix }], previousFindings: [{ id, status: "fixed" | "still_open" }] }',
   kbUpdate: '{ featureKey, docPath, changed }',
+  repoProfile: '{ stack: "ts_node" | "nestjs" | "nextjs", installCmd, typecheckCmd, testCmdTemplate (must contain {files}), kbDir, testFilePattern, exampleTestFile (a path, or null) }',
+  onboardAdvise: '{ statusMap: { <internal state>: <Jira status name or null> }, approvalStatuses: { plan, breakdown }, issueTypeRouting: { <issue type>: "feature" | "bug" | "chore" | "ignore" }, intakeLabel, confluenceSpaceKey (a space key from the list, or null) }',
   assist: '{ reply, draft }. `reply` is your answer to the person, in plain words. `draft` is null, or { kind: "answer" | "plan_edit" | "rerun_note", text } when you have something they can apply with one click: the answer to the question, the whole edited plan, or the note for a rerun.',
 };
 
@@ -225,6 +229,12 @@ function planSections(stage: StageName, i: StageInputs): Plan {
     case 'review':
       sections.push({ heading: 'Acceptance criteria', body: list(i.acceptanceCriteria ?? []) }, diff(), { heading: 'Review checklist', body: i.reviewChecklist ?? '_No checklist._' });
       if (i.previousFindings && i.previousFindings.length > 0) sections.push({ heading: 'Previous findings', body: findingsText(i.previousFindings) });
+      break;
+    case 'repoProfile':
+      sections.push({ heading: 'Facts', body: i.onboard?.facts ?? '_No facts._' });
+      break;
+    case 'onboardAdvise':
+      sections.push({ heading: 'Facts', body: i.onboard?.facts ?? '_No facts._' });
       break;
     case 'assist': {
       const a = i.assist;

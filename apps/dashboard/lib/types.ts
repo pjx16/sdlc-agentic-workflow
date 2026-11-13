@@ -1,4 +1,4 @@
-import type { ProjectInput, ProjectSettings } from '@sdlc/shared';
+import type { OnboardingProposal, OnboardingStatus, ProjectInput, ProjectSettings } from '@sdlc/shared';
 
 /** A project as returned by the API. */
 export type ProjectView = Omit<ProjectInput, 'settings' | 'jiraProjectKey' | 'jiraJql'> & {
@@ -7,6 +7,8 @@ export type ProjectView = Omit<ProjectInput, 'settings' | 'jiraProjectKey' | 'ji
   id: string;
   mirrorStatus: 'pending' | 'ok' | 'failed';
   mirrorError: string | null;
+  onboardingStatus?: OnboardingStatus;
+  onboardingError?: string | null;
   nextLocalNumber: number;
   settings: ProjectSettings;
   createdAt: string;
@@ -24,6 +26,7 @@ export interface GlobalSettingsView {
   workspaceRetentionDays: number;
   logRetentionDays: number;
   assistantTokenCap: number;
+  stageDefaults: Record<string, { model: 'haiku' | 'sonnet' | 'opus'; maxTurns: number }>;
   modelAliases: { haiku: string; sonnet: string; opus: string };
   pipelinePaused: boolean;
   pausedReason: string | null;
@@ -262,6 +265,19 @@ export interface AssistantView {
     at: string;
     draft: { kind: 'answer' | 'plan_edit' | 'rerun_note'; text: string; appliedAt: string | null; diff: string | null } | null;
   }[];
+}
+
+export interface OnboardingView {
+  status: OnboardingStatus;
+  error: string | null;
+  proposal: OnboardingProposal | null;
+}
+
+export interface DryRunView {
+  jql: string;
+  count: number;
+  tickets: { key: string; summary: string; issueType: string }[];
+  note: string | null;
 }
 
 export interface InboxCountsView {

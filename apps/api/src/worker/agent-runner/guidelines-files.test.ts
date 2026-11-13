@@ -27,7 +27,7 @@ describe('shipped guideline files (BUILD_PLAN 6.9)', () => {
   });
 
   it('every stage file states its goal, inputs, steps, rules, the data shape and what to do when it cannot go on', () => {
-    for (const f of ['kb-build', 'plan', 'breakdown', 'tests', 'implement', 'fix', 'review', 'kb-update', 'assist']) {
+    for (const f of ['kb-build', 'plan', 'breakdown', 'tests', 'implement', 'fix', 'review', 'kb-update', 'assist', 'repo-profile', 'onboard-advise']) {
       const t = read(`stages/${f}.md`);
       for (const needle of ['## Goal', '## Inputs', '## Steps', '## Rules', '## Output `data`', '`needs_input`']) expect(t, `${f} ${needle}`).toContain(needle);
     }

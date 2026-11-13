@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { StageName } from './enums';
+import { OnboardAdviseData, RepoProfileData } from './onboarding';
 
 /** BUILD_PLAN 6.5: every stage returns this envelope. */
 export const ENVELOPE_STATUSES = ['done', 'needs_input', 'blocked'] as const;
@@ -62,6 +63,8 @@ export const STAGE_DATA = {
   review: ReviewData,
   kbUpdate: KbUpdateData,
   assist: AssistData,
+  repoProfile: RepoProfileData,
+  onboardAdvise: OnboardAdviseData,
 } as const satisfies Record<StageName, z.ZodType>;
 
 export type StageData<S extends StageName> = z.infer<(typeof STAGE_DATA)[S]>;

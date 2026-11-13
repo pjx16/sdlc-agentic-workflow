@@ -1,3 +1,4 @@
+import type { JiraFacts } from '@sdlc/shared';
 import type { JiraClient, JiraIssueStatus, JiraProjectRef, JiraSubtaskInput, JiraTicket } from '../jira/jira-client';
 import { JiraStatusNotFoundError } from '../jira/jira-client';
 import { JiraClients } from '../jira/jira-clients';
@@ -45,6 +46,16 @@ export class FakeJira implements JiraClient {
     const key = `${parentKey}-S`;
     if (subtask.marker) this.createdSubtasks[subtask.marker] = key;
     return { key };
+  }
+  facts: JiraFacts = {
+    projectName: 'Demo',
+    issueTypes: [{ name: 'Story', subtask: false }, { name: 'Bug', subtask: false }, { name: 'Epic', subtask: false }, { name: 'Sub-task', subtask: true }],
+    statusesByType: [{ type: 'Story', statuses: [{ name: 'To Do', category: 'new' }, { name: 'In Progress', category: 'indeterminate' }, { name: 'Done', category: 'done' }] }],
+    labels: ['backend'],
+  };
+  async projectFacts(projectKey: string) {
+    this.guard(`facts ${projectKey}`);
+    return this.facts;
   }
   async listStatuses(projectKey: string) {
     this.guard(`statuses ${projectKey}`);

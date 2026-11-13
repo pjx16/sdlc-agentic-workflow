@@ -128,12 +128,12 @@ describe('TicketForm (paste)', () => {
     render(<TicketForm projects={projects} />);
     await userEvent.type(screen.getByLabelText('Title'), 'Add export');
     await userEvent.type(screen.getByLabelText('Description'), 'CSV please');
-    await userEvent.selectOptions(screen.getByLabelText('Type'), 'bug');
+    await userEvent.selectOptions(screen.getByLabelText('Kind'), 'bug');
     await userEvent.click(screen.getByRole('button', { name: 'Create ticket' }));
     await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/tickets/new-1'));
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('/api/tickets');
-    expect(JSON.parse(String(init.body))).toEqual({ projectId: 'p1', title: 'Add export', body: 'CSV please', type: 'bug', featureKey: '' });
+    expect(JSON.parse(String(init.body))).toEqual({ projectId: 'p1', title: 'Add export', body: 'CSV please', kind: 'bug', featureKey: '' });
   });
 
   it('shows field-level errors, and a conflict message when the mirror is not ready', async () => {

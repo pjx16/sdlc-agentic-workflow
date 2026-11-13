@@ -43,8 +43,10 @@ import { HOUSEKEEPERS, type Housekeeper, WorkerLoop } from './loop/worker-loop';
 import { HoldNotifier } from './ci/hold-notifier';
 import { SupportNotifier } from './support-notifier';
 import { AssistantRunner } from './assistant/assistant-runner';
+import { OnboardingWorker } from './onboarding/onboarding-worker';
 import { CiPoller } from './ci/ci-poller';
 import { JiraStatusSync } from '../jira/jira-status-sync';
+import { ConfluenceModule } from '../confluence/confluence.module';
 import { SupportRaiser } from '../support/support-raiser';
 import { CleanupService } from './cleanup/cleanup.service';
 import { UsageRetention } from './usage/usage-retention';
@@ -56,7 +58,7 @@ import { WorkerRunner } from './worker-runner';
 
 /** The worker shares the database but has no HTTP surface and needs no dashboard credentials. */
 @Module({
-  imports: [LoggingModule, PrismaModule, CredentialsModule, StateModule, JiraModule],
+  imports: [ConfluenceModule, LoggingModule, PrismaModule, CredentialsModule, StateModule, JiraModule],
   providers: [{ provide: WorkerConfig, useFactory: () => new WorkerConfig() },
     MirrorService,
     { provide: GitRunner, useFactory: (creds: CredentialsService) => new GitRunner({ token: async () => (await creds.resolve()).github_token }), inject: [CredentialsService] },
@@ -91,12 +93,13 @@ import { WorkerRunner } from './worker-runner';
     HoldNotifier,
     SupportNotifier,
     AssistantRunner,
+    OnboardingWorker,
     OrphanCleanup,
     { provide: UsageRetention, useFactory: (p: PrismaService) => new UsageRetention(p), inject: [PrismaService] },
     { provide: CleanupService, useFactory: (p: PrismaService, c: WorkerConfig) => new CleanupService(p, c), inject: [PrismaService, WorkerConfig] },
     { provide: CiPoller, useFactory: (p: PrismaService, st: StateMachine, pr: PrService, gh: GitHubClient, hn: HoldNotifier) => new CiPoller(p, st, pr, gh, undefined, hn), inject: [PrismaService, StateMachine, PrService, GITHUB_CLIENT, HoldNotifier] },
     { provide: MergePoller, useFactory: (p: PrismaService, st: StateMachine, gh: GitHubClient) => new MergePoller(p, st, gh), inject: [PrismaService, StateMachine, GITHUB_CLIENT] },
-    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, cleanup: CleanupService, orphans: OrphanCleanup, retention: UsageRetention): Housekeeper[] => [ci, merge, cleanup, orphans, retention], inject: [CiPoller, MergePoller, CleanupService, OrphanCleanup, UsageRetention] },
+    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, cleanup: CleanupService, orphans: OrphanCleanup, retention: UsageRetention, onboarding: OnboardingWorker): Housekeeper[] => [ci, merge, cleanup, orphans, retention, onboarding], inject: [CiPoller, MergePoller, CleanupService, OrphanCleanup, UsageRetention, OnboardingWorker] },
     NewTicketHandler,
     KbHandler,
     { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler, InProgressHandler, ReviewHandler, KbUpdateHandler, HumanReviewHandler, CiFixHandler] },

@@ -50,6 +50,8 @@ export const ProjectSettingsSchema = z.object({
       review: stage('sonnet', 10),
       kbUpdate: stage('sonnet', 15),
       assist: stage('sonnet', 8),
+      repoProfile: stage('sonnet', 25),
+      onboardAdvise: stage('haiku', 5),
     })
     .prefault({}),
   gates: z.object({ plan: z.boolean().default(true), breakdown: z.boolean().default(true) }).prefault({}),
@@ -66,6 +68,10 @@ export const ProjectSettingsSchema = z.object({
     })
     .prefault({}),
   jiraSubtaskTypeName: z.string().trim().min(1, 'required').default('Sub-task'),
+  /** What each Jira issue type becomes: feature, bug, chore, or ignore (BUILD_PLAN v1 6.7). */
+  jiraIssueTypeRouting: z.record(z.string(), z.enum(['feature', 'bug', 'chore', 'ignore'])).default({}),
+  /** Where plans are published (BUILD_PLAN v1 6.10). Null: plans go to Jira comments. */
+  confluence: z.object({ spaceKey: z.string().min(1), parentPageId: z.string().nullable().default(null) }).nullable().default(null),
   jiraStatusMap: z.object(statusMapShape).prefault({}),
   jiraApprovalStatuses: z
     .object({ plan: z.string().trim().min(1).optional(), breakdown: z.string().trim().min(1).optional() })

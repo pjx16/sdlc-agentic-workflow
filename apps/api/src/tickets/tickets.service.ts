@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ErrorCodes, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, validateBreakdown, type SubtaskDraft, type TicketStatus } from '@sdlc/shared';
+import { ErrorCodes, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type SubtaskDraft, type TicketStatus } from '@sdlc/shared';
 import { ApiException } from '../common/api-exception';
 import { parseBody } from '../common/parse-body';
 import { z } from 'zod';
@@ -158,6 +158,9 @@ export class TicketsService {
   /** POST /tickets: a pasted ticket with a local key `<localKeyPrefix>-<n>`, status NEW. Works in every Jira mode. */
   async paste(body: unknown): Promise<TicketDto> {
     const input = parseBody(PasteTicketSchema, body);
+    // A pasted ticket carries a kind (BUILD_PLAN v1 6.7). The older `type` field still works and the two stay consistent.
+    const kind = input.kind ?? kindOfType(input.type ?? 'story');
+    const type = input.type && !input.kind ? input.type : typeOfKind(kind);
     const project = await this.prisma.project.findUnique({ where: { id: input.projectId } });
     if (!project) throw fieldError('projectId', 'unknown project');
     if (!project.enabled) throw fieldError('projectId', 'this project is disabled');
@@ -172,7 +175,7 @@ export class TicketsService {
       const updated = await tx.project.update({ where: { id: project.id }, data: { nextLocalNumber: { increment: 1 } }, select: { nextLocalNumber: true, localKeyPrefix: true } });
       const key = `${updated.localKeyPrefix}-${updated.nextLocalNumber - 1}`;
       const created = await tx.ticket.create({
-        data: { projectId: project.id, key, source: 'paste', type: input.type, title: input.title, body: input.body, featureKey: input.featureKey ?? null, status: 'NEW' },
+        data: { projectId: project.id, key, source: 'paste', type, kind, title: input.title, body: input.body, featureKey: input.featureKey ?? null, status: 'NEW' },
       });
       await tx.event.create({ data: { ticketId: created.id, type: 'intake', message: `${key} pasted` } });
       return created;
