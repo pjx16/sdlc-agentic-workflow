@@ -101,6 +101,7 @@ function toView(row: GlobalSettings): GlobalSettingsView {
     verifyTimeoutSec: row.verifyTimeoutSec,
     workspaceRetentionDays: row.workspaceRetentionDays,
     logRetentionDays: row.logRetentionDays,
+    assistantTokenCap: row.assistantTokenCap,
     modelAliases: row.modelAliases,
   });
   return {

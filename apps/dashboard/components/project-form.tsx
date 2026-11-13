@@ -15,7 +15,7 @@ import type { ProjectView } from '@/lib/types';
 
 const STAGE_LABELS: Record<StageName, string> = {
   kbBuild: 'KB build', plan: 'Plan', breakdown: 'Breakdown', tests: 'Tests', implement: 'Implement',
-  fix: 'Fix', review: 'Review', kbUpdate: 'KB update',
+  fix: 'Fix', review: 'Review', kbUpdate: 'KB update', assist: 'Assistant',
 };
 const options = (values: readonly string[]) => values.map((v) => ({ value: v, label: v }));
 

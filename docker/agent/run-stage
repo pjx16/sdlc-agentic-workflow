@@ -29,6 +29,12 @@ args=(
   --dangerously-skip-permissions
 )
 
+# The assistant continues its conversation's CLI session.
+RESUME="$(jq -r '.resumeSession // empty' "$CONTEXT_DIR/stage.json")"
+if [ -n "$RESUME" ]; then
+  args+=(--resume "$RESUME")
+fi
+
 # A stage without a workspace runs in the context directory.
 if [ -d "$WORKSPACE_DIR" ]; then
   cd "$WORKSPACE_DIR"

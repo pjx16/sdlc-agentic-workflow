@@ -70,6 +70,7 @@ export function SettingsForm({ settings }: { settings: GlobalSettingsView }) {
         <Section title="Retention">
           <Num path="workspaceRetentionDays" label="Workspace retention (days)" />
           <Num path="logRetentionDays" label="Log retention (days)" />
+          <Num path="assistantTokenCap" label="Assistant token cap per conversation" />
         </Section>
 
         <Section title="Model aliases" description="What each alias passed to the CLI resolves to.">

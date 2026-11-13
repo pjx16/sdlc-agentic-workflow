@@ -5,7 +5,7 @@ export type WorkspaceAccess = 'rw' | 'ro' | 'none';
 /** Workspace mounting per stage (BUILD_PLAN 6.4 table). kbBuild and kbUpdate may only change `kbDir`. */
 export const STAGE_WORKSPACE: Record<StageName, WorkspaceAccess> = {
   kbBuild: 'rw', plan: 'ro', breakdown: 'ro', tests: 'rw', implement: 'rw', fix: 'rw',
-  review: 'ro', kbUpdate: 'rw',
+  review: 'ro', kbUpdate: 'rw', assist: 'ro',
 };
 
 /** `stage.json`, read by run-stage (BUILD_PLAN 6.4). `attempt` and `round` are extra, for the test stub and diagnostics. */
@@ -13,6 +13,8 @@ export interface StageJson {
   model: string;
   maxTurns: number;
   disallowedTools: string[];
+  /** Continue this CLI session (the assistant keeps one conversation per support ticket). */
+  resumeSession?: string;
   attempt: number;
   round: number;
 }
@@ -26,6 +28,7 @@ export interface StageConfigInput {
   maxTurns: number;
   attempt?: number;
   round?: number;
+  resumeSession?: string;
 }
 
 const ALWAYS_DISALLOWED = ['WebFetch', 'WebSearch'];
@@ -41,6 +44,7 @@ export function buildStageJson(input: StageConfigInput): StageJson {
     disallowedTools: disallowed,
     attempt: input.attempt ?? 1,
     round: input.round ?? 0,
+    ...(input.resumeSession ? { resumeSession: input.resumeSession } : {}),
   };
   return json;
 }

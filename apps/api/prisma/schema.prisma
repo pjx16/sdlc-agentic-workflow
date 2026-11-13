@@ -189,6 +189,7 @@ model GlobalSettings {
   verifyTimeoutSec        Int       @default(600)
   workspaceRetentionDays  Int       @default(7)
   logRetentionDays        Int       @default(30)
+  assistantTokenCap       Int       @default(200000)
   modelAliases            Json      @default("{\"haiku\":\"haiku\",\"sonnet\":\"sonnet\",\"opus\":\"opus\"}")
   updatedAt               DateTime  @updatedAt @db.Timestamptz(6)
 }
@@ -346,33 +347,67 @@ model ReviewFinding {
 /// Everything that needs a person becomes exactly one of these (BUILD_PLAN v1 6.5). A partial unique index
 /// (see the migration) keeps at most one OPEN ticket per dedupeKey.
 model SupportTicket {
-  id            String          @id @default(uuid())
+  id            String                 @id @default(uuid())
   kind          SupportKind
   title         String
   /// Markdown.
   body          String
-  priority      SupportPriority @default(blocking)
-  status        SupportStatus   @default(open)
+  priority      SupportPriority        @default(blocking)
+  status        SupportStatus          @default(open)
   projectId     String?
-  project       Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project       Project?               @relation(fields: [projectId], references: [id], onDelete: Cascade)
   /// Null for global items such as a credential.
   ticketId      String?
-  ticket        Ticket?         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticket        Ticket?                @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   stageRunId    String?
-  stageRun      StageRun?       @relation(fields: [stageRunId], references: [id], onDelete: Cascade)
+  stageRun      StageRun?              @relation(fields: [stageRunId], references: [id], onDelete: Cascade)
   stage         String
   /// For open_question: the answer the plan used.
   defaultAnswer String?
   /// The answer or the decision.
   response      String?
   resolvedBy    String?
-  createdAt     DateTime        @default(now()) @db.Timestamptz(6)
-  resolvedAt    DateTime?       @db.Timestamptz(6)
+  createdAt     DateTime               @default(now()) @db.Timestamptz(6)
+  resolvedAt    DateTime?              @db.Timestamptz(6)
   dedupeKey     String?
+  assistant     AssistantConversation?
 
   @@index([status])
   @@index([kind, status])
   @@index([ticketId])
+}
+
+/// One chat per support ticket (BUILD_PLAN v1 6.6). `pendingAt` is set when the person sends a message; the worker answers it.
+model AssistantConversation {
+  id              String             @id @default(uuid())
+  supportTicketId String             @unique
+  supportTicket   SupportTicket      @relation(fields: [supportTicketId], references: [id], onDelete: Cascade)
+  /// The CLI session to resume; reset when older turns are replaced by the summary.
+  sessionId       String?
+  summary         String?
+  messageCount    Int                @default(0)
+  tokens          Int                @default(0)
+  pendingAt       DateTime?          @db.Timestamptz(6)
+  createdAt       DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime           @updatedAt @db.Timestamptz(6)
+  messages        AssistantMessage[]
+
+  @@index([pendingAt])
+}
+
+model AssistantMessage {
+  id             String                @id @default(uuid())
+  conversationId String
+  conversation   AssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  /// user | assistant
+  role           String
+  text           String
+  /// { kind: answer | plan_edit | rerun_note, text } the person can apply with one click.
+  draft          Json?
+  stageRunId     String?
+  at             DateTime              @default(now()) @db.Timestamptz(6)
+
+  @@index([conversationId, at])
 }
 
 model UsageSnapshot {

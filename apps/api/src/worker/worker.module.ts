@@ -42,6 +42,7 @@ import { RestartRecovery } from './loop/restart-recovery';
 import { HOUSEKEEPERS, type Housekeeper, WorkerLoop } from './loop/worker-loop';
 import { HoldNotifier } from './ci/hold-notifier';
 import { SupportNotifier } from './support-notifier';
+import { AssistantRunner } from './assistant/assistant-runner';
 import { CiPoller } from './ci/ci-poller';
 import { JiraStatusSync } from '../jira/jira-status-sync';
 import { SupportRaiser } from '../support/support-raiser';
@@ -89,6 +90,7 @@ import { WorkerRunner } from './worker-runner';
     CiFixHandler,
     HoldNotifier,
     SupportNotifier,
+    AssistantRunner,
     OrphanCleanup,
     { provide: UsageRetention, useFactory: (p: PrismaService) => new UsageRetention(p), inject: [PrismaService] },
     { provide: CleanupService, useFactory: (p: PrismaService, c: WorkerConfig) => new CleanupService(p, c), inject: [PrismaService, WorkerConfig] },

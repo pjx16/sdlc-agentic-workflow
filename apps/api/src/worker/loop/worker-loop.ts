@@ -93,8 +93,8 @@ export class WorkerLoop {
         return (outcome = 'paused');
       }
 
-      // At most one StageRun runs at any time, system-wide (F4).
-      if ((await this.prisma.stageRun.count({ where: { status: 'running' } })) > 0) return (outcome = 'blocked');
+      // At most one pipeline StageRun runs at any time, system-wide (F4). The assistant is interactive and has its own runner (BUILD_PLAN v1 D7).
+      if ((await this.prisma.stageRun.count({ where: { status: 'running', stage: { not: 'assist' } } })) > 0) return (outcome = 'blocked');
 
       const ticket = await this.pickNext();
       if (!ticket) {

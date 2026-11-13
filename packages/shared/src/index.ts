@@ -14,3 +14,4 @@ export * from './subtask-flow';
 export * from './error-policy';
 export * from './event-messages';
 export * from './support';
+export * from './plan-diff';

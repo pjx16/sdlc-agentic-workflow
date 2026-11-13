@@ -3,7 +3,7 @@ import type { GlobalSettingsView } from './types';
 
 const NUMERIC_PATHS = [
   'usageThresholdPct', 'usageThresholdWeeklyPct', 'calibratedWindowTokens', 'pollIntervalSec',
-  'stageTimeoutMin', 'verifyTimeoutSec', 'workspaceRetentionDays', 'logRetentionDays',
+  'stageTimeoutMin', 'verifyTimeoutSec', 'workspaceRetentionDays', 'logRetentionDays', 'assistantTokenCap',
 ] as const;
 
 export function initialSettingsValues(s: GlobalSettingsView): FormValues {
@@ -16,6 +16,7 @@ export function initialSettingsValues(s: GlobalSettingsView): FormValues {
       verifyTimeoutSec: s.verifyTimeoutSec,
       workspaceRetentionDays: s.workspaceRetentionDays,
       logRetentionDays: s.logRetentionDays,
+      assistantTokenCap: s.assistantTokenCap,
     }),
     calibratedWindowTokens: s.calibratedWindowTokens === null ? '' : String(s.calibratedWindowTokens),
     modelAliases: { ...s.modelAliases },

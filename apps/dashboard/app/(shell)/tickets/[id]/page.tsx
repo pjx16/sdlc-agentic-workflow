@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { AssistantToggle } from '@/components/assistant-chat';
 import { BreakdownPanel } from '@/components/breakdown-panel';
 import { EventTimeline } from '@/components/event-timeline';
 import { HoldPanel } from '@/components/hold-panel';
@@ -11,7 +12,7 @@ import { StateBadge } from '@/components/state-badge';
 import { TransitionHistory } from '@/components/transition-history';
 import { apiGet } from '@/lib/server-api';
 import { formatDateTime, humanizeStatus } from '@/lib/ticket-status';
-import type { HoldInfo, TicketEventView, TicketFull, TransitionView } from '@/lib/types';
+import type { HoldInfo, SupportTicketView, TicketEventView, TicketFull, TransitionView } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,9 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
   const stopped = ticket.status === 'ON_HOLD' || ticket.status === 'FAILED';
   const hold = stopped ? await apiGet<HoldInfo>(`/tickets/${encodeURIComponent(id)}/hold`).catch(() => null) : null;
   const events = active === 'timeline' ? ((await apiGet<TicketEventView[]>(`/tickets/${encodeURIComponent(id)}/events`)) ?? []) : [];
+  // The ticket's current need (an approval, a question, a hold): the assistant helps with that one item.
+  const needs = (await apiGet<SupportTicketView[]>(`/support-tickets?ticketId=${encodeURIComponent(id)}`).catch(() => null)) ?? [];
+  const current = needs.find((n) => n.status === 'open');
   const transitions = active === 'history' ? ((await apiGet<TransitionView[]>(`/tickets/${encodeURIComponent(id)}/transitions`)) ?? []) : [];
 
   return (
@@ -52,6 +56,12 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
         <span className="text-muted">Updated {formatDateTime(ticket.updatedAt)}</span>
       </div>
       {hold ? <HoldPanel ticketId={ticket.id} info={hold} /> : <TicketActions ticketId={ticket.id} status={ticket.status} />}
+      {current && (
+        <div className="mt-4">
+          <p className="mb-2 text-sm text-muted">{current.title}</p>
+          <AssistantToggle supportTicketId={current.id} />
+        </div>
+      )}
       {ticket.body && <pre className="mt-6 whitespace-pre-wrap panel p-4 font-sans text-sm">{ticket.body}</pre>}
 
       <nav aria-label="Ticket sections" className="mt-8 flex gap-1 border-b border-border">

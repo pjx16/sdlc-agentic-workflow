@@ -17,6 +17,7 @@ const inputs: StageInputs = {
   kbDoc: '# KB\nthe doc', indexKeys: ['auth', 'billing'], plan: '# Plan\nDo it', subtask, testFiles: ['src/parser.test.ts'],
   exampleTestFile: 'src/util.test.ts', failureOutput: 'FAIL src/parser.test.ts\nexpected 1', acceptanceCriteria: ['It parses'],
   diff: 'diff --git a/x b/x', reviewChecklist: '- be correct', existingDoc: '# Old doc', docTemplate: '# Template',
+  assist: { pack: '### Question\n\nWhich db?', summary: null, history: [{ role: 'user', text: 'hi' }, { role: 'assistant', text: 'hello' }], message: 'what should I answer?' },
 };
 
 async function build(stage: StageName, over: Partial<BuildContextInput> = {}, inputOver: Partial<StageInputs> = {}) {
@@ -60,6 +61,7 @@ describe('prompt.md (BUILD_PLAN 6.4)', () => {
     fix: ['Failure output', 'Subtask', 'Output'],
     review: ['Acceptance criteria', 'Diff', 'Review checklist', 'Output'],
     kbUpdate: ['Diff', 'Existing doc', 'Doc template', 'Output'],
+    assist: ['Context', 'Conversation so far', 'Message', 'Output'],
   };
   it.each(STAGE_NAMES)('%s has its sections in the documented order', async (stage) => {
     const { runDir } = await build(stage);

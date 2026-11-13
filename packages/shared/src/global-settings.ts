@@ -14,6 +14,8 @@ export const GlobalSettingsSchema = z.object({
   verifyTimeoutSec: int(600, 10, 7200),
   workspaceRetentionDays: int(7, 1, 365),
   logRetentionDays: int(30, 1, 3650),
+  /** Tokens (input and output) one assistant conversation may use before it stops (BUILD_PLAN v1 6.6). */
+  assistantTokenCap: int(200_000, 1000, 10_000_000),
   modelAliases: z
     .object(Object.fromEntries(MODEL_ALIASES.map((m) => [m, z.string().trim().min(1, 'required').default(m)])) as Record<(typeof MODEL_ALIASES)[number], z.ZodDefault<z.ZodString>>)
     .prefault({}),

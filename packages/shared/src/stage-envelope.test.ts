@@ -13,6 +13,7 @@ const validData: Record<string, unknown> = {
   fix: { filesChanged: [] },
   review: { findings: [{ severity: 'high', file: 'a.ts', line: null, issue: 'i', rule: 'r', fix: 'f' }], previousFindings: [{ id: 'x', status: 'fixed' }] },
   kbUpdate: { featureKey: 'auth', docPath: 'docs/kb/auth.md', changed: true },
+  assist: { reply: 'Use a comma.', draft: { kind: 'answer', text: 'Comma' } },
 };
 
 describe('stage envelopes (BUILD_PLAN 6.5)', () => {
@@ -63,5 +64,16 @@ describe('stageJsonSchema', () => {
   it('describes the plan data fields', () => {
     expect(JSON.stringify(stageJsonSchema('plan'))).toContain('planMarkdown');
     expect(JSON.stringify(stageJsonSchema('review'))).toContain('still_open');
+  });
+});
+
+describe('assist data', () => {
+  it('the draft is optional and may only be one of the three kinds', () => {
+    const ok = (data: unknown) => stageEnvelopeSchema('assist').safeParse(done(data)).success;
+    expect(ok({ reply: 'Fine.' })).toBe(true);
+    expect(ok({ reply: 'Fine.', draft: null })).toBe(true);
+    expect(ok({ reply: 'Fine.', draft: { kind: 'plan_edit', text: '# p' } })).toBe(true);
+    expect(ok({ reply: 'Fine.', draft: { kind: 'delete_everything', text: 'x' } })).toBe(false);
+    expect(ok({ reply: '', draft: null })).toBe(false);
   });
 });

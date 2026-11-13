@@ -49,6 +49,7 @@ export const ProjectSettingsSchema = z.object({
       fix: stage('sonnet', 15),
       review: stage('sonnet', 10),
       kbUpdate: stage('sonnet', 15),
+      assist: stage('sonnet', 8),
     })
     .prefault({}),
   gates: z.object({ plan: z.boolean().default(true), breakdown: z.boolean().default(true) }).prefault({}),

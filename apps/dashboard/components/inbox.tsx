@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ago } from '@/lib/activity';
+import { AssistantToggle } from './assistant-chat';
 import type { InboxGroupView, SupportTicketView } from '@/lib/types';
 
 const KIND_LABEL: Record<SupportTicketView['kind'], string> = {
@@ -137,6 +138,7 @@ function Item({ t, now }: { t: SupportTicketView; now: number }) {
           {has('answer') && t.status === 'open' && <TextAction id={t.id} label="Your answer" placeholder="" action="answer" submit="Answer" onDone={done} busy={busy} setBusy={setBusy} />}
         </div>
       )}
+      {open && <div className="mt-3"><AssistantToggle supportTicketId={t.id} /></div>}
       {error && (
         <p role="alert" className="mt-2 text-xs text-red">
           {error}

@@ -45,6 +45,13 @@ export const ReviewData = z.object({
 export const KbBuildData = z.object({ featureKey: text, isNew: z.boolean(), docPath: text, globs: textList });
 export const KbUpdateData = z.object({ featureKey: text, docPath: text, changed: z.boolean() });
 
+/** What the assistant may hand back next to its reply: something the person applies with one click (BUILD_PLAN v1 6.6). */
+export const ASSIST_DRAFT_KINDS = ['answer', 'plan_edit', 'rerun_note'] as const;
+export const AssistData = z.object({
+  reply: text,
+  draft: z.object({ kind: z.enum(ASSIST_DRAFT_KINDS), text }).nullable().default(null),
+});
+
 export const STAGE_DATA = {
   kbBuild: KbBuildData,
   plan: PlanData,
@@ -54,6 +61,7 @@ export const STAGE_DATA = {
   fix: ChangeData,
   review: ReviewData,
   kbUpdate: KbUpdateData,
+  assist: AssistData,
 } as const satisfies Record<StageName, z.ZodType>;
 
 export type StageData<S extends StageName> = z.infer<(typeof STAGE_DATA)[S]>;

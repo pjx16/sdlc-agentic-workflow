@@ -67,6 +67,8 @@ export interface StageInputs {
   retryNote?: string;
   existingDoc?: string;
   docTemplate?: string;
+  /** The assistant: the context pack of one support ticket, what was said before, and the new message. */
+  assist?: { pack: string; summary?: string | null; history: { role: 'user' | 'assistant'; text: string }[]; message: string };
 }
 
 export interface BuildContextInput {
@@ -107,6 +109,7 @@ const DATA_SHAPES: Record<StageName, string> = {
   fix: '{ filesChanged[] }',
   review: '{ findings: [{ severity, file, line (nullable), issue, rule, fix }], previousFindings: [{ id, status: "fixed" | "still_open" }] }',
   kbUpdate: '{ featureKey, docPath, changed }',
+  assist: '{ reply, draft }. `reply` is your answer to the person, in plain words. `draft` is null, or { kind: "answer" | "plan_edit" | "rerun_note", text } when you have something they can apply with one click: the answer to the question, the whole edited plan, or the note for a rerun.',
 };
 
 interface Section {
@@ -223,6 +226,12 @@ function planSections(stage: StageName, i: StageInputs): Plan {
       sections.push({ heading: 'Acceptance criteria', body: list(i.acceptanceCriteria ?? []) }, diff(), { heading: 'Review checklist', body: i.reviewChecklist ?? '_No checklist._' });
       if (i.previousFindings && i.previousFindings.length > 0) sections.push({ heading: 'Previous findings', body: findingsText(i.previousFindings) });
       break;
+    case 'assist': {
+      const a = i.assist;
+      const said = a ? [a.summary ? `Summary of the earlier conversation: ${a.summary}` : '', ...a.history.map((m) => `${m.role === 'user' ? 'Person' : 'You'}: ${m.text}`)].filter(Boolean).join('\n\n') : '';
+      sections.push({ heading: 'Context', body: a?.pack ?? '_No context._' }, { heading: 'Conversation so far', body: said || '_Nothing yet._' }, { heading: 'Message', body: a?.message ?? '' });
+      break;
+    }
     case 'kbUpdate':
       sections.push(diff(), { heading: 'Existing doc', body: i.existingDoc ? fenced(i.existingDoc) : NO_KB }, { heading: 'Doc template', body: i.docTemplate ?? '_No template._' });
       break;

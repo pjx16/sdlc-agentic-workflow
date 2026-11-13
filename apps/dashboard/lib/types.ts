@@ -23,6 +23,7 @@ export interface GlobalSettingsView {
   verifyTimeoutSec: number;
   workspaceRetentionDays: number;
   logRetentionDays: number;
+  assistantTokenCap: number;
   modelAliases: { haiku: string; sonnet: string; opus: string };
   pipelinePaused: boolean;
   pausedReason: string | null;
@@ -245,6 +246,22 @@ export interface SupportTicketView {
   createdAt: string;
   resolvedAt: string | null;
   actions: string[];
+}
+
+export interface AssistantView {
+  canSend: boolean;
+  blockedReason: string | null;
+  pending: boolean;
+  tokens: number;
+  tokenCap: number;
+  capReached: boolean;
+  messages: {
+    id: string;
+    role: 'user' | 'assistant';
+    text: string;
+    at: string;
+    draft: { kind: 'answer' | 'plan_edit' | 'rerun_note'; text: string; appliedAt: string | null; diff: string | null } | null;
+  }[];
 }
 
 export interface InboxCountsView {

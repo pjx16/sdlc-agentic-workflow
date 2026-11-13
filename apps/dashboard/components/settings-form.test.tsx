@@ -12,7 +12,7 @@ const reply = (body: unknown, status = 200) => ({ ok: status < 400, status, json
 
 const settings: GlobalSettingsView = {
   usageThresholdPct: 50, usageThresholdWeeklyPct: 80, calibratedWindowTokens: null, pollIntervalSec: 120, stageTimeoutMin: 20,
-  verifyTimeoutSec: 600, workspaceRetentionDays: 7, logRetentionDays: 30,
+  verifyTimeoutSec: 600, workspaceRetentionDays: 7, logRetentionDays: 30, assistantTokenCap: 200000,
   modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
   pipelinePaused: false, pausedReason: null, resetsAt: null, usageIgnoredUntil: null, intakePaused: false,
 };

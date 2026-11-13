@@ -27,6 +27,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - `/inbox` replaces the Support page: Blocking, Approvals, Questions and FYI groups, one-click actions per kind (approve, reject with a note, answer, rerun with answers, resume, retry, mark failed, fixed, dismiss), a History tab, a "Needs you" section on the overview and a count badge on the sidebar.
 - Blocking tickets also get a Jira comment (once) and, when there is a PR, a PR comment.
 
+- Assistant chat: "Ask the assistant" on every inbox item and on the ticket page. The assistant gets only that item's context (a fixed set of parts per kind of ticket, built by code), can read the project's repository read-only with a small turn limit, and drafts an answer, an edited plan (shown as a diff) or a rerun note that you apply with one click through the normal action. It never changes anything itself. One conversation per ticket with CLI session resume; after 10 messages older turns are replaced by a short summary; a per-conversation token cap in Settings; at most one chat session at a time, running outside the worker loop's one-stage rule, refused while the pipeline is paused for limits, and counted by the usage gate.
+
 ### Removed
 - Jira MCP mode, the `jiraIntake` and `jiraSync` stages and their prompts, the MCP proxy port, and the MCP settings. Jira is REST only; existing MCP projects are migrated to REST (they need REST credentials in Settings → Connections).
 

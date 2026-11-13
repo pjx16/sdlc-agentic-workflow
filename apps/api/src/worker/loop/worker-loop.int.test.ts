@@ -140,6 +140,18 @@ describe('worker loop (BUILD_PLAN 6.6, F4)', () => {
     expect(await loop.tick()).toBe('idle');
   });
 
+  it('a running assistant chat does not block the pipeline, but a running stage does (BUILD_PLAN v1 D7)', async () => {
+    const loop = loopWith([handler('KB', () => ({ kind: 'continue' }))]);
+    await prisma.stageRun.deleteMany();
+    const run = (stage: string) => prisma.stageRun.create({ data: { projectId, stage, model: 'm', status: 'running', startedAt: new Date() } });
+    const chat = await run('assist');
+    await ticket('KB');
+    expect(await loop.tick()).not.toBe('blocked');
+    const stage = await run('implement');
+    expect(await loop.tick()).toBe('blocked');
+    await prisma.stageRun.deleteMany({ where: { id: { in: [chat.id, stage.id] } } });
+  });
+
   it('ends a pause caused by Claude\'s limit at the reset time, but never one the user chose', async () => {
     const loop = loopWith([]);
     await prisma.globalSettings.upsert({ where: { id: 'global' }, update: { pipelinePaused: true, pausedCode: 'CLAUDE_RATE_LIMIT', pausedReason: 'limit', resetsAt: new Date(clock + 60_000) }, create: { id: 'global', pipelinePaused: true, pausedCode: 'CLAUDE_RATE_LIMIT', pausedReason: 'limit', resetsAt: new Date(clock + 60_000) } });
