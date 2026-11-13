@@ -174,6 +174,8 @@ export class AgentRunner {
       const logPath = await log.close();
       const reason = `Container error: ${err instanceof Error ? err.message : String(err)}`;
       await this.store.finish(stageRunId, { status: 'failed', error: reason, logPath });
+      // A container error is still a run that ended: it leaves a snapshot too.
+      await this.gate?.afterStage({ limit: null, stageRunId, ownTokens: 0 }).catch((e: unknown) => this.logger.warn(`Usage gate failed: ${String(e)}`));
       return { kind: 'failed', reason, stageRunId };
     }
     const logPath = await log.close();

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RateLimit } from '../agent-runner/result-parser';
 import { evaluateUsage } from './usage-rules';
@@ -12,7 +13,7 @@ export interface UsageGatePort {
 }
 
 /**
- * After every AI stage (F14): stores a UsageSnapshot and evaluates the gate. On a pause it sets `pipelinePaused`, `pausedReason` and
+ * After every AI stage run, however it ended (F14, v1 6.2): stores a UsageSnapshot and evaluates the gate. On a pause it sets `pipelinePaused`, `pausedReason` and
  * `resetsAt` and writes the audit log; the pipeline never resumes by itself.
  */
 @Injectable()
@@ -32,11 +33,6 @@ export class UsageGate implements UsageGatePort {
   }
 
   async afterStage(args: { limit: RateLimit | null; rateLimitError?: boolean; stageRunId?: string; ownTokens?: number }): Promise<void> {
-    if (!args.limit && !args.rateLimitError) {
-      // No event: only an estimate is possible, and only with a calibration.
-      const row = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
-      if (!row?.calibratedWindowTokens) return;
-    }
     const row = await this.prisma.globalSettings.upsert({ where: { id: 'global' }, update: {}, create: { id: 'global' } });
     const decision = evaluateUsage({
       limit: args.limit,
@@ -49,8 +45,13 @@ export class UsageGate implements UsageGatePort {
       now: this.now(),
     });
     const s = decision.snapshot;
+    // Every run that ends leaves one snapshot (BUILD_PLAN v1 6.2). With no event and no calibration the percentages stay empty.
+    const run = args.stageRunId ? await this.prisma.stageRun.findUnique({ where: { id: args.stageRunId }, select: { model: true } }) : null;
     await this.prisma.usageSnapshot.create({
-      data: { at: this.now(), fiveHourPct: s.fiveHourPct, sevenDayPct: s.sevenDayPct, status: s.status, resetsAt: s.resetsAt, source: s.source, windowTokens: s.windowTokens },
+      data: {
+        at: this.now(), fiveHourPct: s.fiveHourPct, sevenDayPct: s.sevenDayPct, status: s.status, resetsAt: s.resetsAt, source: s.source, windowTokens: s.windowTokens,
+        stageRunId: args.stageRunId ?? null, model: run?.model ?? null, windows: (s.windows ?? undefined) as Prisma.InputJsonValue | undefined,
+      },
     });
     if (!decision.pause) return;
     this.logger.warn(`Pipeline paused: ${decision.reason}`);

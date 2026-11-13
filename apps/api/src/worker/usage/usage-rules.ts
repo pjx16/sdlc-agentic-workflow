@@ -20,7 +20,7 @@ export interface UsageDecision {
   reason: string;
   resetsAt: Date | null;
   /** What the snapshot records. */
-  snapshot: { fiveHourPct: number | null; sevenDayPct: number | null; status: string | null; resetsAt: Date | null; source: 'event' | 'estimate'; windowTokens: number };
+  snapshot: { fiveHourPct: number | null; sevenDayPct: number | null; status: string | null; resetsAt: Date | null; source: 'event' | 'estimate'; windowTokens: number; windows: Record<string, unknown> | null };
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -40,7 +40,7 @@ export function evaluateUsage(i: UsageInput): UsageDecision {
   const sevenDayPct = i.limit?.sevenDayPct ?? null;
   const status = i.rateLimitError ? 'rejected' : (i.limit?.status ?? null);
   const resetsAt = i.limit?.resetsAt ?? null;
-  const snapshot = { fiveHourPct, sevenDayPct, status, resetsAt, source: (i.limit?.fiveHourPct == null && estimate !== null ? 'estimate' : 'event') as 'event' | 'estimate', windowTokens: i.windowTokens };
+  const snapshot = { fiveHourPct, sevenDayPct, status, resetsAt, source: (i.limit && !(i.limit.fiveHourPct == null && estimate !== null) ? 'event' : 'estimate') as 'event' | 'estimate', windowTokens: i.windowTokens, windows: i.limit?.windows ?? null };
   const pause = (reason: string): UsageDecision => ({ pause: true, reason, resetsAt, snapshot });
   const keep: UsageDecision = { pause: false, reason: '', resetsAt, snapshot };
 

@@ -118,10 +118,41 @@ describe('UsageGate (F14, BUILD_PLAN 6.7)', () => {
     expect((await settings()).pipelinePaused).toBe(true);
   });
 
-  it('no event and no calibration: nothing is recorded or enforced', async () => {
+  it('no event and no calibration: a snapshot with empty percentages is still recorded, and nothing is enforced', async () => {
     await gate.afterStage({ limit: null, ownTokens: 99_000_000 });
-    expect(await prisma.usageSnapshot.count()).toBe(0);
+    expect(await prisma.usageSnapshot.findMany()).toMatchObject([{ fiveHourPct: null, sevenDayPct: null, source: 'estimate', stageRunId: null, model: null }]);
     expect((await settings()).pipelinePaused).toBe(false);
+  });
+
+  describe('one snapshot for every run that ends, linked to the run and its model', () => {
+    const run = (status: 'succeeded' | 'failed' | 'killed') => prisma.stageRun.create({ data: { projectId, stage: 'plan', model: 'claude-opus-x', attempt: 1, status } });
+
+    for (const status of ['succeeded', 'failed', 'killed'] as const) {
+      it(`${status} run, with an event`, async () => {
+        const r = await run(status);
+        await gate.afterStage({ limit: limit({ fiveHourPct: 12 }), stageRunId: r.id });
+        expect(await prisma.usageSnapshot.findMany()).toMatchObject([{ stageRunId: r.id, model: 'claude-opus-x', fiveHourPct: 12, source: 'event' }]);
+      });
+    }
+
+    it('container-error run (no stream at all): estimate snapshot, percentages empty', async () => {
+      const r = await run('failed');
+      await gate.afterStage({ limit: null, stageRunId: r.id, ownTokens: 0 });
+      expect(await prisma.usageSnapshot.findMany()).toMatchObject([{ stageRunId: r.id, model: 'claude-opus-x', fiveHourPct: null, source: 'estimate' }]);
+    });
+
+    it('a stream without an event but with a calibration gets an estimated percentage', async () => {
+      await reset({ calibratedWindowTokens: 1_000_000n });
+      const r = await run('succeeded');
+      await gate.afterStage({ limit: null, stageRunId: r.id, ownTokens: 100_000 });
+      expect(await prisma.usageSnapshot.findMany()).toMatchObject([{ fiveHourPct: 10, source: 'estimate' }]);
+    });
+
+    it('keeps every window the event carried', async () => {
+      const windows = { five_hour: { utilization: 0.1 }, seven_day: { utilization: 0.2 }, seven_day_opus: { utilization: 0.4 } };
+      await gate.afterStage({ limit: limit({ windows }) });
+      expect((await prisma.usageSnapshot.findFirstOrThrow()).windows).toEqual(windows);
+    });
   });
 
   it('an existing pause is not overwritten by a later one', async () => {

@@ -6,6 +6,8 @@ export interface RateLimit {
   sevenDayPct: number | null;
   status: string | null;
   resetsAt: Date | null;
+  /** Every window of the event as sent (kept so per-model weekly windows are not dropped). */
+  windows?: Record<string, unknown> | null;
 }
 
 export interface StageUsage {
@@ -61,6 +63,7 @@ function parseRateLimit(event: Json): RateLimit {
     sevenDayPct: toPercent(pick('seven_day')),
     status: typeof info.status === 'string' ? info.status : null,
     resetsAt: resets,
+    windows: Object.keys(windows).length > 0 ? windows : null,
   };
 }
 
