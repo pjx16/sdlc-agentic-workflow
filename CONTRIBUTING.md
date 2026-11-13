@@ -4,7 +4,7 @@ The project is in `0.0.x` pre-release and built in public. Bug reports and feedb
 
 ## How to help right now
 
-- Open an issue for bugs, questions, ideas or problems with the plan in [`BUILD_PLAN.md`](./BUILD_PLAN.md).
+- Open an issue for bugs, questions, ideas or problems with the plan in [`BUILD_PLAN.md`](./docs/build-plan/v0.0.0/BUILD_PLAN.md).
 - Check the scope (§2 of the plan) first: features outside it will not be accepted.
 
 ## Ground rules
