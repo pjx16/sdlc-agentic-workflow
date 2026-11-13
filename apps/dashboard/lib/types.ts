@@ -46,6 +46,14 @@ export interface IntakeStatusView {
 /** What the worker last reported; `online` comes from its heartbeat. */
 export interface WorkerStatusView {
   online: boolean;
+  state: 'idle' | 'busy' | 'stalled' | 'offline';
+  phase: string;
+  phaseDetail: string | null;
+  phaseSince: string | null;
+  startedAt: string | null;
+  pid: number | null;
+  version: string | null;
+  restartingRepeatedly: boolean;
   heartbeatAt: string;
   tickOutcome: string;
   tickDetail: string | null;

@@ -6,7 +6,7 @@ const NOW = Date.parse('2026-11-12T12:00:00Z');
 const at = (secondsAgo: number) => new Date(NOW - secondsAgo * 1000).toISOString();
 
 const intake = (over: Partial<IntakeStatusView> = {}): IntakeStatusView => ({ mode: 'rest', at: at(30), projects: 1, waiting: 0, created: 0, seen: 0, error: null, skipped: null, ...over });
-const worker = (over: Partial<WorkerStatusView> = {}): WorkerStatusView => ({ online: true, heartbeatAt: at(3), tickOutcome: 'idle', tickDetail: null, intake: [], ...over });
+const worker = (over: Partial<WorkerStatusView> = {}): WorkerStatusView => ({ online: true, state: 'idle', phase: 'idle', phaseDetail: null, phaseSince: at(3), startedAt: at(900), pid: 1, version: '1.0.0', restartingRepeatedly: false, heartbeatAt: at(3), tickOutcome: 'idle', tickDetail: null, intake: [], ...over });
 const system = (over: { worker?: WorkerStatusView | null; paused?: boolean; intakePaused?: boolean; running?: boolean; reason?: string | null } = {}): SystemView =>
   ({
     settings: { pipelinePaused: over.paused ?? false, pausedReason: over.reason ?? null, intakePaused: over.intakePaused ?? false, pollIntervalSec: 120 },
@@ -37,13 +37,22 @@ describe('describeActivity: the worker', () => {
     expect(l[0]?.text).toContain('npm run up:dev');
   });
   it('says offline (red) when the heartbeat is stale, and shows nothing else', () => {
-    const l = describeActivity(system({ worker: worker({ online: false, heartbeatAt: at(600) }) }), NOW);
+    const l = describeActivity(system({ worker: worker({ online: false, state: 'offline', heartbeatAt: at(600) }) }), NOW);
     expect(l).toHaveLength(1);
     expect(l[0]).toMatchObject({ tone: 'red' });
     expect(l[0]?.text).toContain('Offline: last seen 10 min ago');
   });
-  it('says online with the age of the heartbeat', () => {
-    expect(line(system(), 'worker')).toMatchObject({ tone: 'green', text: 'Online (checked 3s ago).' });
+  it('shows all four states: idle, busy with phase and time, stalled, offline', () => {
+    expect(line(system(), 'worker')).toMatchObject({ tone: 'green', text: 'Online, idle (checked 3s ago).' });
+    const busy = worker({ state: 'busy', phase: 'stage', phaseDetail: 'implement on SDA-12', phaseSince: at(185) });
+    expect(line(system({ worker: busy }), 'worker')).toMatchObject({ tone: 'green', text: 'Online, busy (stage: implement on SDA-12) for 3 min.' });
+    const stalled = worker({ state: 'stalled', phase: 'stage', phaseDetail: 'implement on SDA-12', phaseSince: at(3 * 3600) });
+    expect(line(system({ worker: stalled }), 'worker')).toMatchObject({ tone: 'amber' });
+    expect(line(system({ worker: stalled }), 'worker')?.text).toContain('Stalled');
+    expect(line(system({ worker: worker({ state: 'offline', online: false }) }), 'worker')).toMatchObject({ tone: 'red' });
+  });
+  it('shows a banner line when the worker keeps restarting', () => {
+    expect(line(system({ worker: worker({ restartingRepeatedly: true }) }), 'worker')).toMatchObject({ tone: 'red', text: expect.stringContaining('restarting repeatedly') });
   });
 });
 

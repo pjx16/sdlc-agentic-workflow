@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { type TestApp, createTestApp } from '../testing/test-app';
 import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import { SystemSettingsModule } from './system-settings.module';
+import { workerState } from './system-settings.service';
 
 describe('System and global settings API', () => {
   let db: TestDatabase;
@@ -130,4 +131,15 @@ describe('System and global settings API', () => {
     const events = await t.prisma.event.findMany({ where: { ticketId: null }, orderBy: { at: 'asc' } });
     expect(events.map((e) => e.type)).toEqual(expect.arrayContaining(['settings', 'state']));
   });
+});
+
+describe('workerState', () => {
+  const now = Date.parse('2026-11-14T12:00:00Z');
+  const row = (beatAgoS: number, phase: string, sinceAgoMin: number) => ({ heartbeatAt: new Date(now - beatAgoS * 1000), phase, phaseSince: new Date(now - sinceAgoMin * 60_000) });
+  it('is offline when the heartbeat is older than 30 seconds', () => expect(workerState(row(31, 'stage', 1), now, 20)).toBe('offline'));
+  it('is idle when idle, paused or not configured', () => {
+    for (const p of ['idle', 'paused', 'not_configured']) expect(workerState(row(3, p, 500), now, 20)).toBe('idle');
+  });
+  it('is busy while a phase is within the stage limit plus 5 minutes', () => expect(workerState(row(3, 'stage', 24), now, 20)).toBe('busy'));
+  it('is stalled when a phase outlasts the stage limit plus 5 minutes', () => expect(workerState(row(3, 'stage', 26), now, 20)).toBe('stalled'));
 });

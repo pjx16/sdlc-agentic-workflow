@@ -19,7 +19,18 @@ export interface GlobalSettingsView extends GlobalSettingsInput {
 
 /** What the worker last reported (see worker/status). `online` is derived from the heartbeat. */
 export interface WorkerStatusView {
+  /** Heartbeat is fresh. Kept for older callers; `state` is the full picture. */
   online: boolean;
+  /** idle: online, nothing running. busy: online and working. stalled: online but one phase has lasted too long. offline: no heartbeat. */
+  state: WorkerState;
+  phase: string;
+  phaseDetail: string | null;
+  phaseSince: string | null;
+  startedAt: string | null;
+  pid: number | null;
+  version: string | null;
+  /** The worker started three or more times in the last 10 minutes. */
+  restartingRepeatedly: boolean;
   heartbeatAt: string;
   /** idle | stepped | paused | blocked | not_configured */
   tickOutcome: string;
@@ -48,6 +59,19 @@ export interface RecentEvent {
   message: string;
   ticketId: string | null;
   ticketKey: string | null;
+}
+
+export type WorkerState = 'idle' | 'busy' | 'stalled' | 'offline';
+
+/** A busy phase is stalled when it has lasted longer than the stage time limit plus this much (BUILD_PLAN v1 6.1). */
+export const STALL_GRACE_MS = 5 * 60_000;
+
+/** The four dashboard states, from the heartbeat and the phase. Pure, so it is tested without a database. */
+export function workerState(w: { heartbeatAt: Date; phase: string; phaseSince: Date | null }, nowMs: number, stageTimeoutMin: number): WorkerState {
+  if (nowMs - w.heartbeatAt.getTime() >= WORKER_ONLINE_MS) return 'offline';
+  if (w.phase === 'idle' || w.phase === 'paused' || w.phase === 'not_configured') return 'idle';
+  if (w.phaseSince && nowMs - w.phaseSince.getTime() > stageTimeoutMin * 60_000 + STALL_GRACE_MS) return 'stalled';
+  return 'busy';
 }
 
 /** The worker is considered offline when its last heartbeat is older than this (it ticks every 5 seconds). */
@@ -115,11 +139,20 @@ export class SystemSettingsService {
     const usage = await this.prisma.usageSnapshot.findFirst({ orderBy: { at: 'desc' } });
     const worker = await this.prisma.workerStatus.findUnique({ where: { id: 'worker' } });
     const intakeRows = await this.prisma.workerStatus.findMany({ where: { id: { in: ['intake-rest', 'intake-mcp'] } }, orderBy: { id: 'asc' } });
+    const restarts = await this.prisma.event.count({ where: { type: 'worker', message: { startsWith: 'Worker started' }, at: { gte: new Date(Date.now() - 10 * 60_000) } } });
     const events = await this.prisma.event.findMany({ orderBy: { at: 'desc' }, take: 8, include: { ticket: { select: { key: true } } } });
     return {
       settings,
       worker: worker && {
         online: Date.now() - worker.heartbeatAt.getTime() < WORKER_ONLINE_MS,
+        state: workerState(worker, Date.now(), settings.stageTimeoutMin),
+        phase: worker.phase,
+        phaseDetail: worker.phaseDetail,
+        phaseSince: worker.phaseSince?.toISOString() ?? null,
+        startedAt: worker.startedAt?.toISOString() ?? null,
+        pid: worker.pid,
+        version: worker.version,
+        restartingRepeatedly: restarts >= 3,
         heartbeatAt: worker.heartbeatAt.toISOString(),
         tickOutcome: worker.tickOutcome,
         tickDetail: worker.tickDetail,

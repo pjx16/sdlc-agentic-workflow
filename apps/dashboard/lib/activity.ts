@@ -58,11 +58,20 @@ export function describeActivity(system: SystemView | null, now: number): Activi
     lines.push({ key: 'worker', label: 'Worker', tone: 'amber', text: 'Has not reported yet. If it is not running, nothing will happen: start it with `npm run up:dev` or `docker compose up -d`.' });
     return lines;
   }
-  if (!worker.online) {
+  if (worker.state === 'offline') {
     lines.push({ key: 'worker', label: 'Worker', tone: 'red', text: `Offline: last seen ${ago(worker.heartbeatAt, now)}. Nothing is polled or run until it is started again.` });
     return lines;
   }
-  lines.push({ key: 'worker', label: 'Worker', tone: 'green', text: `Online (checked ${ago(worker.heartbeatAt, now)}).` });
+  if (worker.restartingRepeatedly) {
+    lines.push({ key: 'worker', label: 'Worker', tone: 'red', text: 'Worker is restarting repeatedly (3 starts in the last 10 minutes). Check its logs.' });
+  } else if (worker.state === 'stalled') {
+    lines.push({ key: 'worker', label: 'Worker', tone: 'amber', text: `Stalled: online, but stuck in "${worker.phaseDetail ?? worker.phase}" for ${ago(worker.phaseSince, now).replace(' ago', '')}. It may be hung.` });
+  } else if (worker.state === 'busy') {
+    const what = worker.phaseDetail ? `${worker.phase}: ${worker.phaseDetail}` : worker.phase;
+    lines.push({ key: 'worker', label: 'Worker', tone: 'green', text: `Online, busy (${what}) for ${ago(worker.phaseSince, now).replace(' ago', '')}.` });
+  } else {
+    lines.push({ key: 'worker', label: 'Worker', tone: 'green', text: `Online, idle (checked ${ago(worker.heartbeatAt, now)}).` });
+  }
 
   const run = system.runningStage ?? null;
   if (system.settings.pipelinePaused) {
