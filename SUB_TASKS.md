@@ -1,6 +1,6 @@
 # sdlc-agent — Sub-Tasks
 
-Derived from [`BUILD_PLAN.md`](./BUILD_PLAN.md) (Nov 10, 2026 · @Piyush Jaiswal). This file divides the complete build plan into manageable development chunks (sub-tasks), grouped by the plan's milestones (§10).
+Derived from [`BUILD_PLAN.md`](./docs/build-plan/v0.0.0/BUILD_PLAN.md) (Nov 10, 2026 · @Piyush Jaiswal). This file divides the complete build plan into manageable development chunks (sub-tasks), grouped by the plan's milestones (§10).
 
 ## How to read this file
 

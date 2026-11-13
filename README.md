@@ -17,7 +17,7 @@ A self-hosted, Docker-based **shipping engine** for solo developers. It turns ti
 >
 > Feedback and bug reports are welcome, but expect breaking changes until `0.1.0`.
 
-**What has been tested.** The milestones in [`BUILD_PLAN.md`](./BUILD_PLAN.md) are implemented and covered by unit, integration and browser tests (a stand-in plays Claude in those). One small real ticket has run end to end with live Claude, from a pasted ticket to a merged PR (see [Live end-to-end run](#live-end-to-end-run)). Larger tickets, review findings, CI failures and Jira have not been exercised live.
+**What has been tested.** The milestones in [`BUILD_PLAN.md`](./docs/build-plan/v0.0.0/BUILD_PLAN.md) are implemented and covered by unit, integration and browser tests (a stand-in plays Claude in those). One small real ticket has run end to end with live Claude, from a pasted ticket to a merged PR (see [Live end-to-end run](#live-end-to-end-run)). Larger tickets, review findings, CI failures and Jira have not been exercised live.
 
 ## What it does
 
@@ -73,7 +73,7 @@ Key points:
 - **Dashboard:** single-user password login, live logs, queue, approvals, support queries, settings, guideline editing and minimal charts.
 - **Jira integration:** REST polling with a configurable JQL per project (default), or an optional Jira MCP mode for organisations that block API access. Pasting tickets works in every mode. Ticket states can be mapped to Jira statuses.
 
-The full flow, state machine and acceptance criteria are in [`BUILD_PLAN.md`](./BUILD_PLAN.md). For how the pieces fit together (services, trust boundaries, ticket lifecycle, worker loop, data model) and how that has changed over time, see [`docs/architecture`](./docs/architecture/README.md).
+The full flow, state machine and acceptance criteria are in [`BUILD_PLAN.md`](./docs/build-plan/v0.0.0/BUILD_PLAN.md). For how the pieces fit together (services, trust boundaries, ticket lifecycle, worker loop, data model) and how that has changed over time, see [`docs/architecture`](./docs/architecture/README.md).
 
 ## Design principles
 
@@ -301,7 +301,7 @@ The end-to-end suite starts its own Postgres container and the API and dashboard
 
 ## Roadmap
 
-The first build was split into 14 milestones, defined in [`BUILD_PLAN.md`](./BUILD_PLAN.md) and split into sub-tasks in [`SUB_TASKS.md`](./SUB_TASKS.md):
+The first build was split into 14 milestones, defined in [`BUILD_PLAN.md`](./docs/build-plan/v0.0.0/BUILD_PLAN.md) and split into sub-tasks in [`SUB_TASKS.md`](./SUB_TASKS.md):
 
 | # | Milestone | State |
 | --- | --- | --- |

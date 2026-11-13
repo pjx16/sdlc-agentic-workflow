@@ -1,6 +1,6 @@
 # Architecture, version 1.0.0
 
-How sdlc-agent 1.0.0 is put together. This is a snapshot: later versions get their own folder (see the [index](../README.md)). The product spec (what it must do) is [`BUILD_PLAN.md`](../../../BUILD_PLAN.md); this document describes what is built.
+How sdlc-agent 1.0.0 is put together. This is a snapshot: later versions get their own folder (see the [index](../README.md)). The product spec (what it must do) is [`BUILD_PLAN.md`](../../build-plan/v0.0.0/BUILD_PLAN.md); this document describes what is built.
 
 - Version: **1.0.0** (all 14 milestones implemented)
 - Last reviewed: 2026-11-12
