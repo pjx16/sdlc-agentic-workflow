@@ -4,7 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { FakeJira, FakeJiraClients } from '../../testing/fake-jira';
 import { type TestDatabase, createTestDatabase } from '../../testing/test-db';
 import { IntakePoller } from '../intake/intake-poller';
-import { recordIntake, recordTick } from './worker-status';
+import { HeartbeatTimer, recordIntake, recordTick } from './worker-status';
 
 let db: TestDatabase;
 let prisma: PrismaService;
@@ -54,6 +54,20 @@ describe('worker status', () => {
     expect(Date.now() - row.heartbeatAt.getTime()).toBeLessThan(5000);
     await recordTick(prisma, 'idle');
     expect(await status()).toMatchObject({ tickOutcome: 'idle', tickDetail: null });
+  });
+
+  it('keeps the heartbeat fresh while a loop iteration is still running', async () => {
+    const timer = new HeartbeatTimer(prisma, 50);
+    await timer.start();
+    const first = (await status()).heartbeatAt.getTime();
+    // A long stage: the loop writes nothing for the whole time, the timer still beats.
+    await new Promise((r) => setTimeout(r, 300));
+    const later = (await status()).heartbeatAt.getTime();
+    timer.stop();
+    expect(later).toBeGreaterThan(first);
+    // recordTick records the outcome only and leaves the heartbeat alone.
+    await recordTick(prisma, 'stepped', 'SDA-1 (IN_PROGRESS)');
+    expect((await status()).heartbeatAt.getTime()).toBe(later);
   });
 
   it('records an intake poll that found new tickets, and leaves an event', async () => {

@@ -2,10 +2,43 @@ import type { PrismaService } from '../../prisma/prisma.service';
 
 const ID = 'worker';
 
-/** The worker's heartbeat: written every iteration, so the dashboard can tell "online and idle" from "not running". */
+/** How often the heartbeat timer writes (BUILD_PLAN v1 6.1). The dashboard calls the worker offline after 30 s. */
+export const HEARTBEAT_INTERVAL_MS = 5000;
+
+/** The worker's heartbeat: a bare timestamp, written by a timer that does not depend on the loop. */
+export async function recordHeartbeat(prisma: Pick<PrismaService, 'workerStatus'>, now: Date = new Date()): Promise<void> {
+  await prisma.workerStatus
+    .upsert({ where: { id: ID }, update: { heartbeatAt: now }, create: { id: ID, heartbeatAt: now, tickOutcome: 'starting' } })
+    .catch(() => undefined);
+}
+
+/** The outcome of one loop iteration. It no longer doubles as the heartbeat: an iteration can run for minutes. */
 export async function recordTick(prisma: Pick<PrismaService, 'workerStatus'>, outcome: string, detail?: string): Promise<void> {
-  const data = { heartbeatAt: new Date(), tickOutcome: outcome, tickDetail: detail ?? null };
-  await prisma.workerStatus.upsert({ where: { id: ID }, update: data, create: { id: ID, ...data } }).catch(() => undefined);
+  const data = { tickOutcome: outcome, tickDetail: detail ?? null };
+  await prisma.workerStatus.upsert({ where: { id: ID }, update: data, create: { id: ID, heartbeatAt: new Date(), ...data } }).catch(() => undefined);
+}
+
+/** Writes the heartbeat on its own timer, whether or not a loop iteration is running. */
+export class HeartbeatTimer {
+  private timer: NodeJS.Timeout | null = null;
+
+  constructor(
+    private readonly prisma: Pick<PrismaService, 'workerStatus'>,
+    private readonly intervalMs: number = HEARTBEAT_INTERVAL_MS,
+  ) {}
+
+  /** Writes one beat now, then one every interval. Calling it twice does nothing. */
+  async start(): Promise<void> {
+    if (this.timer) return;
+    this.timer = setInterval(() => void recordHeartbeat(this.prisma), this.intervalMs);
+    this.timer.unref();
+    await recordHeartbeat(this.prisma);
+  }
+
+  stop(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
 }
 
 export interface IntakeRecord {
