@@ -68,6 +68,8 @@ export interface StageInputs {
   existingDoc?: string;
   docTemplate?: string;
   /** The assistant: the context pack of one support ticket, what was said before, and the new message. */
+  /** The stage is running again because a person sent the ticket back: their note, and what the stale attempt produced (BUILD_PLAN v1 6.8). */
+  rerun?: { note: string; previous?: string };
   /** Onboarding: the facts code collected, as plain text. */
   onboard?: { facts: string };
   assist?: { pack: string; summary?: string | null; history: { role: 'user' | 'assistant'; text: string }[]; message: string };
@@ -245,6 +247,12 @@ function planSections(stage: StageName, i: StageInputs): Plan {
     case 'kbUpdate':
       sections.push(diff(), { heading: 'Existing doc', body: i.existingDoc ? fenced(i.existingDoc) : NO_KB }, { heading: 'Doc template', body: i.docTemplate ?? '_No template._' });
       break;
+  }
+  if (i.rerun) {
+    sections.push({
+      heading: 'Rerun',
+      body: `A developer sent this ticket back to this stage. Do the work again, and address their note.\n\nNote: ${i.rerun.note}${i.rerun.previous ? `\n\nPrevious attempt (stale, kept so you can see what to change):\n\n${i.rerun.previous}` : ''}`,
+    });
   }
   if (i.retryNote) {
     sections.push({ heading: 'Previous attempt failed', body: `Your last attempt was rejected. Fix exactly this and return the result again:\n\n${i.retryNote}` });

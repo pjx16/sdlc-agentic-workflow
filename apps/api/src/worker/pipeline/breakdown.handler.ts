@@ -3,6 +3,7 @@ import { ProjectSettingsSchema, describeIssues, singleSubtask, validateBreakdown
 import { SubtasksService } from '../../subtasks/subtasks.service';
 import type { Ticket } from '../../generated/prisma/client';
 import type { Prisma } from '../../generated/prisma/client';
+import { writeArtifact } from '../../common/artifacts';
 import { PrismaService } from '../../prisma/prisma.service';
 import { featureKeyOf, lookup } from '../kb/kb-index';
 import { StageLauncher } from './stage-launcher';
@@ -63,6 +64,7 @@ export class BreakdownHandler implements StepHandler {
     const verdict = validateBreakdown(this.subtasksOf(result.envelope), { maxSubtasks });
     if (!verdict.ok) return { kind: 'hold', reason: 'needs_help', note: describeIssues(verdict.issues).slice(0, 500), stageRunId: result.stageRunId };
     await this.prisma.ticket.update({ where: { id: ticket.id }, data: { breakdownDraft: verdict.subtasks as unknown as Prisma.InputJsonValue } });
+    await writeArtifact(this.prisma, ticket.id, 'breakdown', { subtasks: verdict.subtasks }, result.stageRunId).catch(() => undefined);
 
     // With the gate off the subtasks are created at once (row 8); otherwise the ticket waits for approval (row 7).
     if (!settings.gates.breakdown) return this.approve(ticket, verdict.subtasks, 'Breakdown stored; the breakdown gate is off', result.stageRunId);
@@ -77,6 +79,7 @@ export class BreakdownHandler implements StepHandler {
   private async rejection(ticket: Ticket): Promise<string | null> {
     if (!ticket.breakdownDraft) return null;
     const last = await this.prisma.stateTransition.findFirst({ where: { ticketId: ticket.id, toStatus: 'BREAKDOWN' }, orderBy: [{ at: 'desc' }, { id: 'desc' }] });
+    if (last?.kind === 'rerun') return last.note ?? 'The developer asked for the breakdown to be redone.';
     return last?.fromStatus === 'AWAITING_BREAKDOWN_APPROVAL' && last.reason ? last.reason : null;
   }
 

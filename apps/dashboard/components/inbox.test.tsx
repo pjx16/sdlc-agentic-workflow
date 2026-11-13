@@ -21,7 +21,9 @@ const t = (over: Partial<SupportTicketView>): SupportTicketView => ({
   id: 'x1', kind: 'question', title: 'Which currency?', body: 'Which currency?', priority: 'blocking', status: 'open', group: 'questions', projectId: 'p1', ticketId: 't1', ticketKey: 'SDA-1', ticketTitle: 'Invoices',
   stage: 'plan', defaultAnswer: null, response: null, resolvedBy: null, createdAt: '2026-11-14T10:00:00Z', resolvedAt: null, actions: ['answer', 'dismiss'], ...over,
 });
-const sentBody = () => JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body));
+/** The first action posted (the inbox also reads the moves of a ticket with a GET). */
+const posted = () => (fetchMock.mock.calls as [string, RequestInit][]).find(([, init]) => init?.method === 'POST') as [string, RequestInit];
+const sentBody = () => JSON.parse(String(posted()[1].body));
 
 describe('Inbox', () => {
   it('groups items as Blocking, Approvals, Questions and FYI, and shows how long each has waited', () => {
@@ -48,7 +50,7 @@ describe('Inbox', () => {
     expect(send).toBeDisabled();
     await userEvent.type(screen.getByLabelText('Your answer'), 'EUR');
     await userEvent.click(send);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/support-tickets/x1/action');
+    expect(posted()[0]).toBe('/api/support-tickets/x1/action');
     expect(sentBody()).toEqual({ action: 'answer', answer: 'EUR' });
     expect(refresh).toHaveBeenCalled();
   });
@@ -120,6 +122,31 @@ describe('Inbox', () => {
     expect(screen.getByText(/resolved 1 h ago by system/)).toBeInTheDocument();
     expect(screen.getByText('The credential test passed')).toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+});
+
+describe('Rerun from the inbox', () => {
+  it('a hold with a ticket offers Rerun from here, from the moves the server lists', async () => {
+    fetchMock.mockImplementation(async (url: string) => (String(url).endsWith('/moves') ? reply([{ kind: 'rerun', to: 'PLANNING', label: 'Rerun Planning' }, { kind: 'resume', to: 'REVIEW', label: 'Resume' }]) : reply({})));
+    render(<Inbox tickets={[t({ kind: 'hold', group: 'blocking', actions: ['resume', 'dismiss'] })]} tab="open" now={NOW} />);
+    expect(await screen.findByRole('button', { name: 'Rerun from here' })).toBeInTheDocument();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/tickets/t1/moves');
+  });
+  it('offers nothing when the ticket has no finished stage to go back to, or the moves cannot be read', async () => {
+    fetchMock.mockResolvedValue(reply([{ kind: 'advance', to: 'KB', label: 'Move on' }]));
+    const { unmount } = render(<Inbox tickets={[t({ kind: 'hold', group: 'blocking', actions: ['resume'] })]} tab="open" now={NOW} />);
+    await screen.findByRole('button', { name: 'Resume' });
+    expect(screen.queryByRole('button', { name: 'Rerun from here' })).not.toBeInTheDocument();
+    unmount();
+    fetchMock.mockRejectedValue(new Error('offline'));
+    render(<Inbox tickets={[t({ kind: 'hold', group: 'blocking', actions: ['resume'] })]} tab="open" now={NOW} />);
+    await screen.findByRole('button', { name: 'Resume' });
+    expect(screen.queryByRole('button', { name: 'Rerun from here' })).not.toBeInTheDocument();
+  });
+  it('a question needs no rerun, so it never asks the server', () => {
+    fetchMock.mockResolvedValue(reply({}));
+    render(<Inbox tickets={[t({})]} tab="open" now={NOW} />);
+    expect(fetchMock.mock.calls.some(([u]) => String(u).endsWith('/moves'))).toBe(false);
   });
 });
 

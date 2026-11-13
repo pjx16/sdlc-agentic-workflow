@@ -175,10 +175,10 @@ describe('subtask TDD loop end to end (real containers, fake-claude)', () => {
     expect(r.github.opened).toHaveLength(1); // still just one
   }, 300_000);
 
-  it('a failing implementation triggers fix rounds and then needs_help', async () => {
+  it('a failing implementation triggers fix rounds and then a loop_limit hold', async () => {
     const r = await rig('tdd-bad-impl', { subtasks: 1 });
     const outcomes = await drive(r);
-    expect(outcomes.at(-1)).toMatchObject({ kind: 'hold', reason: 'needs_help' });
+    expect(outcomes.at(-1)).toMatchObject({ kind: 'hold', reason: 'loop_limit' });
     expect((outcomes.at(-1) as { note: string }).note).toContain('still fails after 2 fix round(s)');
     expect((outcomes.at(-1) as { note: string }).note).toContain('is not implemented');
     expect(await subtask(r.subtaskIds[0] as string)).toMatchObject({ status: 'VERIFY_GREEN', fixRounds: 2 });
@@ -191,7 +191,7 @@ describe('subtask TDD loop end to end (real containers, fake-claude)', () => {
     const r = await rig('tdd-tamper', { subtasks: 1 });
     const outcomes = await drive(r);
     // The implementation stayed broken and the test was rewritten to always pass; restoring the test makes the original decide.
-    expect(outcomes.at(-1)).toMatchObject({ kind: 'hold', reason: 'needs_help' });
+    expect(outcomes.at(-1)).toMatchObject({ kind: 'hold', reason: 'loop_limit' });
     const s = await subtask(r.subtaskIds[0] as string);
     expect(s.status).not.toBe('DONE');
     expect(readFileSync(path.join(r.ws, 'src/f1.test.ts'), 'utf8')).not.toContain('ALWAYS_PASS');

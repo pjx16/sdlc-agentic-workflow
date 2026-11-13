@@ -2,6 +2,7 @@ import path from 'node:path';
 import { Injectable } from '@nestjs/common';
 import { ProjectSettingsSchema, type StageEnvelope } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
+import { writeArtifact } from '../../common/artifacts';
 import { PrismaService } from '../../prisma/prisma.service';
 import { readTextNoFollowSync } from '../fs/safe-fs';
 import { squashAgentCommits } from '../git/commit-guard';
@@ -73,6 +74,7 @@ export class KbBuildService implements KbBuilder {
       await this.workspaces.commit(ticket.id, `docs(${ticket.key}): add ${data.featureKey} knowledge base doc`, { paths: [kbDir] });
     }
     await this.prisma.ticket.update({ where: { id: ticket.id }, data: { featureKey: data.featureKey } });
+    await writeArtifact(this.prisma, ticket.id, 'kb', { featureKey: data.featureKey, docPath: data.docPath, isNew: data.isNew }, result.stageRunId).catch(() => undefined);
     return { kind: 'transition', to: 'PLANNING', reason: `KB doc ${data.isNew ? 'built' : 'selected'}: ${data.featureKey}`, stageRunId: result.stageRunId };
   }
 

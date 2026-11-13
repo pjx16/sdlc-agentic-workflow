@@ -86,9 +86,10 @@ describe('CI polling and the CI fix round (F12)', () => {
     await poller.check(); // a ticket with a pending fix is not polled
     expect(h.github.calls.filter((c) => c === 'checks')).toHaveLength(1);
 
+    // The CI fix round is a back-edge with a limit of one: a second failure is a loop_limit hold.
     await h.prisma.ticket.update({ where: { id: t.id }, data: { ciFixPending: false, ciFixDone: true } });
     await poller.check();
-    expect(await h.reloadTicket(t.id)).toMatchObject({ status: 'ON_HOLD', holdReason: 'needs_help' });
+    expect(await h.reloadTicket(t.id)).toMatchObject({ status: 'ON_HOLD', holdReason: 'loop_limit' });
   });
 
   it('with pr.ciFixRound off a failure holds straight away', async () => {

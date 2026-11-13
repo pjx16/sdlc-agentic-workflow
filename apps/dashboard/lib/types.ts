@@ -120,6 +120,8 @@ export interface TransitionView {
   actor: string;
   reason: string | null;
   stageRunId: string | null;
+  kind?: string;
+  note?: string | null;
   jiraStatusApplied: string | null;
   jiraSyncResult: 'none' | 'applied' | 'failed';
   jiraSyncError: string | null;
@@ -186,6 +188,12 @@ export interface RunView {
   errorCode?: string | null;
   errorSource?: string | null;
   retryAt?: string | null;
+  /** Set when a rerun made the run obsolete: it is kept and shown greyed out (BUILD_PLAN v1 6.8). */
+  supersededAt?: string | null;
+  /** auto | user | orchestrator */
+  trigger?: string;
+  startSha?: string | null;
+  endSha?: string | null;
 }
 
 export interface TicketDetail extends TicketListItem {
@@ -278,6 +286,24 @@ export interface DryRunView {
   count: number;
   tickets: { key: string; summary: string; issueType: string }[];
   note: string | null;
+}
+
+export interface MoveView {
+  kind: 'advance' | 'rerun' | 'hold' | 'resume' | 'fail' | 'retry' | 'approve' | 'reject';
+  to: string;
+  label: string;
+}
+
+export interface ArtifactView {
+  id: string;
+  stage: string;
+  version: number;
+  data: unknown;
+  stale: boolean;
+  supersededAt: string | null;
+  stageRunId: string | null;
+  createdAt: string;
+  externalUrl: string | null;
 }
 
 export interface InboxCountsView {

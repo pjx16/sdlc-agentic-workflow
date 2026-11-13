@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { ArtifactVersions } from '@/components/artifact-versions';
+import { RerunPicker } from '@/components/rerun-picker';
 import { AssistantToggle } from '@/components/assistant-chat';
 import { BreakdownPanel } from '@/components/breakdown-panel';
 import { EventTimeline } from '@/components/event-timeline';
@@ -12,7 +14,7 @@ import { StateBadge } from '@/components/state-badge';
 import { TransitionHistory } from '@/components/transition-history';
 import { apiGet } from '@/lib/server-api';
 import { formatDateTime, humanizeStatus } from '@/lib/ticket-status';
-import type { HoldInfo, SupportTicketView, TicketEventView, TicketFull, TransitionView } from '@/lib/types';
+import type { ArtifactView, HoldInfo, MoveView, SupportTicketView, TicketEventView, TicketFull, TransitionView } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +22,7 @@ const TABS = [
   { id: 'plan', label: 'Plan' },
   { id: 'breakdown', label: 'Breakdown' },
   { id: 'timeline', label: 'Timeline' },
+  { id: 'versions', label: 'Versions' },
   { id: 'history', label: 'History' },
   { id: 'runs', label: 'Runs' },
 ] as const;
@@ -30,13 +33,15 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
   const ticket = await apiGet<TicketFull>(`/tickets/${encodeURIComponent(id)}`);
   if (!ticket) notFound();
   // A ticket waiting at a gate opens on that gate; otherwise on its history.
-  const active = tab === 'runs' || tab === 'plan' || tab === 'breakdown' || tab === 'history' || tab === 'timeline' ? tab : ticket.status === 'AWAITING_PLAN_APPROVAL' ? 'plan' : ticket.status === 'AWAITING_BREAKDOWN_APPROVAL' ? 'breakdown' : 'timeline';
+  const active = tab === 'runs' || tab === 'plan' || tab === 'breakdown' || tab === 'history' || tab === 'timeline' || tab === 'versions' ? tab : ticket.status === 'AWAITING_PLAN_APPROVAL' ? 'plan' : ticket.status === 'AWAITING_BREAKDOWN_APPROVAL' ? 'breakdown' : 'timeline';
   const stopped = ticket.status === 'ON_HOLD' || ticket.status === 'FAILED';
   const hold = stopped ? await apiGet<HoldInfo>(`/tickets/${encodeURIComponent(id)}/hold`).catch(() => null) : null;
   const events = active === 'timeline' ? ((await apiGet<TicketEventView[]>(`/tickets/${encodeURIComponent(id)}/events`)) ?? []) : [];
   // The ticket's current need (an approval, a question, a hold): the assistant helps with that one item.
   const needs = (await apiGet<SupportTicketView[]>(`/support-tickets?ticketId=${encodeURIComponent(id)}`).catch(() => null)) ?? [];
   const current = needs.find((n) => n.status === 'open');
+  const artifacts = active === 'versions' ? ((await apiGet<ArtifactView[]>(`/tickets/${encodeURIComponent(id)}/artifacts`)) ?? []) : [];
+  const moves = (await apiGet<MoveView[]>(`/tickets/${encodeURIComponent(id)}/moves`).catch(() => null)) ?? [];
   const transitions = active === 'history' ? ((await apiGet<TransitionView[]>(`/tickets/${encodeURIComponent(id)}/transitions`)) ?? []) : [];
 
   return (
@@ -56,6 +61,9 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
         <span className="text-muted">Updated {formatDateTime(ticket.updatedAt)}</span>
       </div>
       {hold ? <HoldPanel ticketId={ticket.id} info={hold} /> : <TicketActions ticketId={ticket.id} status={ticket.status} />}
+      <div className="mt-4">
+        <RerunPicker ticketId={ticket.id} moves={moves} />
+      </div>
       {current && (
         <div className="mt-4">
           <p className="mb-2 text-sm text-muted">{current.title}</p>
@@ -79,6 +87,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
       <div className="mt-6">
         {active === 'plan' && <PlanPanel ticketId={ticket.id} status={ticket.status} planMarkdown={ticket.planMarkdown} />}
         {active === 'breakdown' && <BreakdownPanel key={ticket.updatedAt} ticketId={ticket.id} status={ticket.status} draft={ticket.breakdownDraft} subtasks={ticket.subtasks} maxSubtasks={ticket.maxSubtasks} />}
+        {active === 'versions' && <ArtifactVersions artifacts={artifacts} />}
         {active === 'timeline' && <EventTimeline events={events} runs={ticket.stageRuns} />}
         {active === 'history' && <TransitionHistory transitions={transitions} />}
         {active === 'runs' && (

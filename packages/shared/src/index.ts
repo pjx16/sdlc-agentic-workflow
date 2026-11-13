@@ -16,3 +16,4 @@ export * from './event-messages';
 export * from './support';
 export * from './plan-diff';
 export * from './onboarding';
+export * from './moves';

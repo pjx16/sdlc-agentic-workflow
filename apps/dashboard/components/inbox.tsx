@@ -3,10 +3,11 @@
 import { INBOX_GROUPS, INBOX_GROUP_LABEL } from '@sdlc/shared';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ago } from '@/lib/activity';
 import { AssistantToggle } from './assistant-chat';
-import type { InboxGroupView, SupportTicketView } from '@/lib/types';
+import { RerunPicker } from './rerun-picker';
+import type { InboxGroupView, MoveView, SupportTicketView } from '@/lib/types';
 
 const KIND_LABEL: Record<SupportTicketView['kind'], string> = {
   approval: 'Approval', question: 'Question', open_question: 'Open question', hold: 'Hold', ci_infra: 'CI problem', onboarding: 'Onboarding', credential: 'Credential', pr_ready: 'PR ready',
@@ -53,6 +54,27 @@ async function post(id: string, action: string, extra: Record<string, unknown> =
   } catch {
     return 'Cannot reach the server.';
   }
+}
+
+/** "Rerun from here" on an inbox item: the stages the ticket can go back to are fetched when the item is shown. */
+function InboxRerun({ ticketId }: { ticketId: string }) {
+  const [moves, setMoves] = useState<MoveView[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/tickets/${encodeURIComponent(ticketId)}/moves`);
+        const body: unknown = r?.ok ? await r.json() : null;
+        if (alive && Array.isArray(body)) setMoves(body as MoveView[]);
+      } catch {
+        /* no rerun offered when the moves cannot be read */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [ticketId]);
+  return moves ? <div className="mt-3"><RerunPicker ticketId={ticketId} moves={moves} /></div> : null;
 }
 
 function Item({ t, now }: { t: SupportTicketView; now: number }) {
@@ -139,6 +161,7 @@ function Item({ t, now }: { t: SupportTicketView; now: number }) {
         </div>
       )}
       {open && <div className="mt-3"><AssistantToggle supportTicketId={t.id} /></div>}
+      {open && t.ticketId && (t.kind === 'hold' || t.kind === 'approval' || t.kind === 'ci_infra') && <InboxRerun ticketId={t.ticketId} />}
       {error && (
         <p role="alert" className="mt-2 text-xs text-red">
           {error}

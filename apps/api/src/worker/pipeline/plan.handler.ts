@@ -1,4 +1,5 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
+import { writeArtifact } from '../../common/artifacts';
 import { SupportRaiser } from '../../support/support-raiser';
 import { ProjectSettingsSchema, type StageEnvelope } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
@@ -75,6 +76,7 @@ export class PlanHandler implements StepHandler {
 
     const plan = composePlan((result.envelope as StageEnvelope).data as PlanData);
     await this.prisma.ticket.update({ where: { id: ticket.id }, data: { planMarkdown: plan } });
+    await writeArtifact(this.prisma, ticket.id, 'plan', { planMarkdown: plan }, result.stageRunId).catch(() => undefined);
     await this.raiseOpenQuestions(ticket, (result.envelope as StageEnvelope).data as PlanData, result.stageRunId).catch((err: unknown) => this.logger.warn(`Raising the open questions of ${ticket.key} failed: ${err instanceof Error ? err.message : String(err)}`));
     await this.commentOnJira(ticket, project.jiraMode, settings.jiraWriteBack.comments, plan);
 
@@ -98,6 +100,8 @@ export class PlanHandler implements StepHandler {
   private async rejection(ticket: Ticket): Promise<string | null> {
     if (!ticket.planMarkdown) return null;
     const last = await this.prisma.stateTransition.findFirst({ where: { ticketId: ticket.id, toStatus: 'PLANNING' }, orderBy: [{ at: 'desc' }, { id: 'desc' }] });
+    // A rejection at the gate (its reason is the note) or a rerun from further on (its note); either way the stage sees the previous plan.
+    if (last?.kind === 'rerun') return last.note ?? 'The developer asked for the plan to be redone.';
     return last?.fromStatus === 'AWAITING_PLAN_APPROVAL' && last.reason ? last.reason : null;
   }
 

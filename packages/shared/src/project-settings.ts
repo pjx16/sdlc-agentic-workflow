@@ -83,6 +83,14 @@ export const ProjectSettingsSchema = z.object({
       ciTimeoutMin: count(30, 1, 480),
     })
     .prefault({}),
+  /** How many times each back-edge may go round for one ticket (BUILD_PLAN v1 6.8). Fix and review rounds keep their limits under `limits`. */
+  loopLimits: z
+    .object({
+      ciFix: count(1, 0, 10),
+      userRerun: count(5, 1, 50),
+      orchestratorReplan: count(1, 0, 10),
+    })
+    .prefault({}),
   limits: z
     .object({
       maxSubtasks: count(8, 1, 50),

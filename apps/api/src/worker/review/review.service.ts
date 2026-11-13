@@ -3,6 +3,7 @@ import path from 'node:path';
 import { Injectable } from '@nestjs/common';
 import { ProjectSettingsSchema, type StageEnvelope } from '@sdlc/shared';
 import type { ReviewFinding, Ticket } from '../../generated/prisma/client';
+import { writeArtifact } from '../../common/artifacts';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { FindingInfo } from '../agent-runner/context-builder';
 import { GitRunner } from '../git/git-runner';
@@ -91,6 +92,7 @@ export class ReviewService {
       stored.push(await this.prisma.reviewFinding.create({ data: { ticketId: ticket.id, round, severity: f.severity, file: f.file, line: f.line, issue: f.issue, rule: f.rule, fix: f.fix, status: 'open' } }));
     }
     await this.prisma.ticket.update({ where: { id: ticket.id }, data: { reviewRound: round, lastReviewedSha: head } });
+    await writeArtifact(this.prisma, ticket.id, 'review', { round, summary: result.envelope.summary, findings: data.findings }, result.stageRunId).catch(() => undefined);
     return { kind: 'reviewed', round, summary: result.envelope.summary, findings: stored, fixed: fixedIds.length, stillOpen: previous.length - fixedIds.length, stageRunId: result.stageRunId };
   }
 

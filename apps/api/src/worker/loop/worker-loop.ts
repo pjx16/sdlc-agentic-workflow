@@ -54,6 +54,7 @@ export class WorkerLoop {
     @Optional() @Inject(HOUSEKEEPERS) private readonly housekeepers: Housekeeper[] = [],
     @Optional() private readonly holds?: { onHold(ticketId: string, reason: string, note?: string): Promise<void> },
     @Optional() private readonly creds?: CredentialsService,
+    @Optional() private readonly rerunPrep?: { prepare(ticket: Ticket): Promise<StepOutcome | null> },
   ) {
     this.schedule = new Schedule(now);
   }
@@ -141,7 +142,10 @@ export class WorkerLoop {
     if (!handler) return 'stay';
     let outcome: StepOutcome;
     try {
-      outcome = await handler.run(ticket);
+      // After a rerun the stale code is removed with a revert commit before the stage runs again (BUILD_PLAN v1 6.8).
+      const held = ticket.revertFromSha && this.rerunPrep ? await this.rerunPrep.prepare(ticket) : null;
+      if (held) outcome = held;
+      else outcome = await handler.run(held === null && ticket.revertFromSha ? await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } }) : ticket);
     } catch (err) {
       // An unexpected error in a step is an unrecoverable internal error (6.6 row 18).
       const message = err instanceof Error ? err.message : String(err);

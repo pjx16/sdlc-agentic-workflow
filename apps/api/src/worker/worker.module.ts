@@ -42,6 +42,7 @@ import { RestartRecovery } from './loop/restart-recovery';
 import { HOUSEKEEPERS, type Housekeeper, WorkerLoop } from './loop/worker-loop';
 import { HoldNotifier } from './ci/hold-notifier';
 import { SupportNotifier } from './support-notifier';
+import { RerunPrep } from './pipeline/rerun-prep';
 import { AssistantRunner } from './assistant/assistant-runner';
 import { OnboardingWorker } from './onboarding/onboarding-worker';
 import { CiPoller } from './ci/ci-poller';
@@ -92,6 +93,7 @@ import { WorkerRunner } from './worker-runner';
     CiFixHandler,
     HoldNotifier,
     SupportNotifier,
+    RerunPrep,
     AssistantRunner,
     OnboardingWorker,
     OrphanCleanup,
@@ -106,8 +108,8 @@ import { WorkerRunner } from './worker-runner';
     RestartRecovery,
     {
       provide: WorkerLoop,
-      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine, handlers: StepHandler[], housekeepers: Housekeeper[], holds: HoldNotifier, creds: CredentialsService) => new WorkerLoop(prisma, mirrors, intake, approvals, states, handlers, undefined, housekeepers, holds, creds),
-      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine, STEP_HANDLERS, HOUSEKEEPERS, HoldNotifier, CredentialsService],
+      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine, handlers: StepHandler[], housekeepers: Housekeeper[], holds: HoldNotifier, creds: CredentialsService, prep: RerunPrep) => new WorkerLoop(prisma, mirrors, intake, approvals, states, handlers, undefined, housekeepers, holds, creds, prep),
+      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine, STEP_HANDLERS, HOUSEKEEPERS, HoldNotifier, CredentialsService, RerunPrep],
     },
     WorkerRunner,
   ],
