@@ -14,3 +14,4 @@ playwright-report/
 
 packages/cli/assets/
 packages/cli/LICENSE
+.claude
