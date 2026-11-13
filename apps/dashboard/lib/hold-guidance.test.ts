@@ -35,11 +35,11 @@ describe('holdGuidance', () => {
     expect(g.happened).toContain('got stuck');
   });
 
-  it('awaiting_answer points to Support and has no buttons', () => {
+  it('awaiting_answer points to the Inbox and has no buttons', () => {
     const g = holdGuidance(info({ holdReason: 'awaiting_answer', canRedoTests: false }));
     expect(g.title).toBe('Waiting for your answer');
     expect(g.actions).toEqual([]);
-    expect(g.links).toEqual([{ href: '/support', text: 'Go to Support' }]);
+    expect(g.links).toEqual([{ href: '/inbox', text: 'Go to Inbox' }]);
   });
 
   it('a manual hold only needs Resume', () => {

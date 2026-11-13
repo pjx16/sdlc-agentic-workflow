@@ -23,6 +23,10 @@ All notable changes to this project are documented here. The format follows [Kee
 - Usage by model (exact tokens, cost and runs, split by stage and day, plus an estimated share of the 5-hour and weekly percentage) and two charts of how fast the 5-hour (points per hour) and weekly (points per day) usage is rising, split at resets, with gaps kept and a projection to the thresholds. Small versions on the overview.
 - Log lines carry `[ticket=... stage=... run=... subtask=...]` where known.
 
+- Inbox and support tickets: everything that needs a person becomes exactly one support ticket (`approval`, `question`, `open_question`, `hold`, `ci_infra`, `onboarding`, `credential`, `pr_ready`). The old support queries are migrated to question tickets. Tickets are raised from the plan and breakdown gates, `needs_input`, holds and failures, rejected Claude, Jira and GitHub credentials, human review and plan open questions, and never twice for the same problem. A ticket closes itself when its state ends (an approval when the ticket leaves the gate, a hold when it resumes, "PR ready" when the PR is merged, a credential when its test passes).
+- `/inbox` replaces the Support page: Blocking, Approvals, Questions and FYI groups, one-click actions per kind (approve, reject with a note, answer, rerun with answers, resume, retry, mark failed, fixed, dismiss), a History tab, a "Needs you" section on the overview and a count badge on the sidebar.
+- Blocking tickets also get a Jira comment (once) and, when there is a PR, a PR comment.
+
 ### Removed
 - Jira MCP mode, the `jiraIntake` and `jiraSync` stages and their prompts, the MCP proxy port, and the MCP settings. Jira is REST only; existing MCP projects are migrated to REST (they need REST credentials in Settings → Connections).
 

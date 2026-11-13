@@ -111,9 +111,28 @@ enum FindingStatus {
   accepted
 }
 
-enum SupportQueryStatus {
+enum SupportStatus {
   open
   answered
+  resolved
+  dismissed
+}
+
+enum SupportKind {
+  approval
+  question
+  open_question
+  hold
+  ci_infra
+  onboarding
+  credential
+  pr_ready
+}
+
+enum SupportPriority {
+  blocking
+  normal
+  fyi
 }
 
 enum UsageSource {
@@ -147,8 +166,9 @@ model Project {
   createdAt       DateTime     @default(now()) @db.Timestamptz(6)
   updatedAt       DateTime     @updatedAt @db.Timestamptz(6)
 
-  tickets   Ticket[]
-  stageRuns StageRun[]
+  tickets        Ticket[]
+  stageRuns      StageRun[]
+  supportTickets SupportTicket[]
 }
 
 /// One row (id "global").
@@ -210,12 +230,12 @@ model Ticket {
   createdAt       DateTime      @default(now()) @db.Timestamptz(6)
   updatedAt       DateTime      @updatedAt @db.Timestamptz(6)
 
-  transitions StateTransition[]
-  subtasks    Subtask[]
-  stageRuns   StageRun[]
-  findings    ReviewFinding[]
-  queries     SupportQuery[]
-  events      Event[]
+  transitions    StateTransition[]
+  subtasks       Subtask[]
+  stageRuns      StageRun[]
+  findings       ReviewFinding[]
+  supportTickets SupportTicket[]
+  events         Event[]
 
   @@unique([projectId, key])
   @@unique([projectId, externalKey])
@@ -301,9 +321,9 @@ model StageRun {
   errorCode        String?
   errorSource      String?
   /// When an automatic retry is due (CLAUDE_API_ERROR backoff).
-  retryAt          DateTime?       @db.Timestamptz(6)
+  retryAt          DateTime?      @db.Timestamptz(6)
 
-  queries SupportQuery[]
+  supportTickets SupportTicket[]
 
   @@index([status])
   @@index([ticketId, startedAt])
@@ -323,20 +343,36 @@ model ReviewFinding {
   status   FindingStatus @default(open)
 }
 
-model SupportQuery {
-  id         String             @id @default(uuid())
-  ticketId   String
-  ticket     Ticket             @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  stageRunId String
-  stageRun   StageRun           @relation(fields: [stageRunId], references: [id], onDelete: Cascade)
-  stage      String
-  question   String
-  answer     String?
-  status     SupportQueryStatus @default(open)
-  createdAt  DateTime           @default(now()) @db.Timestamptz(6)
-  answeredAt DateTime?          @db.Timestamptz(6)
+/// Everything that needs a person becomes exactly one of these (BUILD_PLAN v1 6.5). A partial unique index
+/// (see the migration) keeps at most one OPEN ticket per dedupeKey.
+model SupportTicket {
+  id            String          @id @default(uuid())
+  kind          SupportKind
+  title         String
+  /// Markdown.
+  body          String
+  priority      SupportPriority @default(blocking)
+  status        SupportStatus   @default(open)
+  projectId     String?
+  project       Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Null for global items such as a credential.
+  ticketId      String?
+  ticket        Ticket?         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  stageRunId    String?
+  stageRun      StageRun?       @relation(fields: [stageRunId], references: [id], onDelete: Cascade)
+  stage         String
+  /// For open_question: the answer the plan used.
+  defaultAnswer String?
+  /// The answer or the decision.
+  response      String?
+  resolvedBy    String?
+  createdAt     DateTime        @default(now()) @db.Timestamptz(6)
+  resolvedAt    DateTime?       @db.Timestamptz(6)
+  dedupeKey     String?
 
   @@index([status])
+  @@index([kind, status])
+  @@index([ticketId])
 }
 
 model UsageSnapshot {
@@ -359,21 +395,21 @@ model UsageSnapshot {
 
 /// Audit log. type: intake | state | stage | usage | jira | git | settings | support | error
 model Event {
-  id       String   @id @default(uuid())
-  ticketId String?
-  ticket   Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  type     String
-  message  String
-  at       DateTime @default(now()) @db.Timestamptz(6)
+  id         String   @id @default(uuid())
+  ticketId   String?
+  ticket     Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  type       String
+  message    String
+  at         DateTime @default(now()) @db.Timestamptz(6)
   /// info | warn | error
-  level    String   @default("info")
+  level      String   @default("info")
   /// system | orchestrator | claude | agent | jira | confluence | github | git | ci | user
-  source   String   @default("system")
+  source     String   @default("system")
   stageRunId String?
   subtaskId  String?
   /// An ERROR_CODES value, when the event is about a failure.
   errorCode  String?
-  data     Json?
+  data       Json?
 
   @@index([ticketId, at])
   @@index([at])
@@ -412,23 +448,23 @@ model AdminAccount {
 
 /// What the worker last did, so the dashboard can show that it is alive and what it is (not) doing. One row, written by the worker.
 model WorkerStatus {
-  id              String    @id @default("worker")
-  heartbeatAt     DateTime  @db.Timestamptz(6)
-  tickOutcome     String
-  tickDetail      String?
+  id             String    @id @default("worker")
+  heartbeatAt    DateTime  @db.Timestamptz(6)
+  tickOutcome    String
+  tickDetail     String?
   /// idle | cloning | intake | stage | housekeeping | paused | not_configured (BUILD_PLAN v1 6.1)
-  phase           String    @default("idle")
-  phaseDetail     String?
-  phaseSince      DateTime? @db.Timestamptz(6)
-  startedAt       DateTime? @db.Timestamptz(6)
-  pid             Int?
-  version         String?
-  intakeMode      String?
-  intakeAt        DateTime? @db.Timestamptz(6)
-  intakeProjects  Int       @default(0)
-  intakeWaiting   Int       @default(0)
-  intakeCreated   Int       @default(0)
-  intakeSeen      Int       @default(0)
-  intakeError     String?
-  intakeSkipped   String?
+  phase          String    @default("idle")
+  phaseDetail    String?
+  phaseSince     DateTime? @db.Timestamptz(6)
+  startedAt      DateTime? @db.Timestamptz(6)
+  pid            Int?
+  version        String?
+  intakeMode     String?
+  intakeAt       DateTime? @db.Timestamptz(6)
+  intakeProjects Int       @default(0)
+  intakeWaiting  Int       @default(0)
+  intakeCreated  Int       @default(0)
+  intakeSeen     Int       @default(0)
+  intakeError    String?
+  intakeSkipped  String?
 }

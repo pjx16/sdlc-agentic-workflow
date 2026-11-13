@@ -74,7 +74,7 @@ describe('Tickets API: list, detail, history, timeline (BUILD_PLAN 8)', () => {
     await t.prisma.subtask.create({ data: { ticketId: tk.id, seq: 1, title: 'first', status: 'DONE' } });
     const run = await t.prisma.stageRun.create({ data: { projectId: a, ticketId: tk.id, stage: 'plan', model: 'opus', status: 'succeeded', startedAt: new Date(), endedAt: new Date(), inputTokens: 5, outputTokens: 7, costUsd: 0.0123, numTurns: 3 } });
     await t.prisma.reviewFinding.create({ data: { ticketId: tk.id, round: 1, severity: 'high', file: 'a.ts', line: 3, issue: 'bad', rule: 'r', fix: 'f' } });
-    await t.prisma.supportQuery.create({ data: { ticketId: tk.id, stageRunId: run.id, stage: 'plan', question: 'Which db?' } });
+    await t.prisma.supportTicket.create({ data: { kind: 'question', title: 'Which db?', body: 'Which db?', ticketId: tk.id, stageRunId: run.id, stage: 'plan' } });
     const res = (await t.agent.get(`/tickets/${tk.id}`).expect(200)).body;
     expect(res).toMatchObject({ key: tk.key, projectName: 'Alpha', planMarkdown: '# Plan', maxSubtasks: 8 });
     expect(res.subtasks.map((s: { seq: number }) => s.seq)).toEqual([1, 2]);

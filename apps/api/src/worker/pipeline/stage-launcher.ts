@@ -33,8 +33,8 @@ export class StageLauncher {
     const settings = ProjectSettingsSchema.parse(project.settings);
     const global = await this.global();
     const stageSettings = settings.stages[stage];
-    const answered = await this.prisma.supportQuery.findMany({ where: { ticketId: ticket.id, stage, status: 'answered' }, orderBy: { createdAt: 'asc' } });
-    const qa = answered.map((q) => ({ question: q.question, answer: q.answer ?? '' }));
+    const answered = await this.prisma.supportTicket.findMany({ where: { ticketId: ticket.id, stage, kind: 'question', status: 'answered' }, orderBy: { createdAt: 'asc' } });
+    const qa = answered.map((q) => ({ question: q.body, answer: q.response ?? '' }));
     return this.runner.run({
       projectId: project.id,
       ticketId: ticket.id,

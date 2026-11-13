@@ -111,10 +111,10 @@ export class TicketsService {
         subtasks: { orderBy: { seq: 'asc' } },
         stageRuns: { orderBy: [{ startedAt: 'asc' }, { id: 'asc' }] },
         findings: { orderBy: [{ round: 'asc' }, { id: 'asc' }] },
-        queries: { orderBy: { createdAt: 'asc' } },
+        supportTickets: { where: { kind: 'question' }, orderBy: { createdAt: 'asc' } },
       },
     });
-    const { project, subtasks, stageRuns, findings, queries, ...ticket } = t;
+    const { project, subtasks, stageRuns, findings, supportTickets, ...ticket } = t;
     return {
       ...toTicketDto(ticket),
       projectName: project.name,
@@ -127,7 +127,7 @@ export class TicketsService {
         inputTokens: r.inputTokens, outputTokens: r.outputTokens, costUsd: Number(r.costUsd), numTurns: r.numTurns, error: r.error, errorCode: r.errorCode, errorSource: r.errorSource, retryAt: r.retryAt?.toISOString() ?? null,
       })),
       findings: findings.map((f) => ({ id: f.id, round: f.round, severity: f.severity, file: f.file, line: f.line, issue: f.issue, rule: f.rule, fix: f.fix, status: f.status })),
-      supportQueries: queries.map((q) => ({ id: q.id, stage: q.stage, question: q.question, answer: q.answer, status: q.status, createdAt: q.createdAt.toISOString(), answeredAt: iso(q.answeredAt) })),
+      supportQueries: supportTickets.map((q) => ({ id: q.id, stage: q.stage, question: q.body, answer: q.response, status: q.status === 'open' ? ('open' as const) : ('answered' as const), createdAt: q.createdAt.toISOString(), answeredAt: iso(q.resolvedAt) })),
     };
   }
 

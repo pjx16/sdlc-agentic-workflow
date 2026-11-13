@@ -63,7 +63,7 @@ describe('HoldPanel', () => {
     expect(screen.queryByRole('button', { name: 'Redo tests' })).toBeNull();
     rerender(<HoldPanel ticketId="t1" info={info({ holdReason: 'awaiting_answer' })} />);
     expect(screen.queryByRole('button')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Go to Support' })).toHaveAttribute('href', '/support');
+    expect(screen.getByRole('link', { name: 'Go to Inbox' })).toHaveAttribute('href', '/inbox');
   });
 
   it('shows the server error', async () => {

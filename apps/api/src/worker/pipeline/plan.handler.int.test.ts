@@ -80,6 +80,19 @@ describe('plan stage (F7)', () => {
     expect(saved).toBe('## Goal\nExport CSV\n\n## Risks\n\n- Large exports may time out\n\n## Open questions\n\n- Which delimiter?');
   });
 
+  it('raises one non-blocking open_question ticket per open question, and a new plan replaces them', async () => {
+    const t = await ticket();
+    answer = planAnswer({ openQuestions: ['Which delimiter?', 'Which encoding?'] });
+    await handler.run(t);
+    const open = () => prisma.supportTicket.findMany({ where: { ticketId: t.id, kind: 'open_question' }, orderBy: { title: 'asc' } });
+    expect((await open()).map((q) => [q.title, q.priority, q.status])).toEqual([['Which delimiter?', 'normal', 'open'], ['Which encoding?', 'normal', 'open']]);
+    answer = planAnswer({ openQuestions: ['Which locale?'] });
+    await handler.run(t);
+    const all = await open();
+    expect(all.filter((q) => q.status === 'open').map((q) => q.title)).toEqual(['Which locale?']);
+    expect(all.filter((q) => q.status === 'dismissed')).toHaveLength(2);
+  });
+
   it('goes straight to breakdown when the plan gate is off', async () => {
     await setProject({ settings: { gates: { plan: false } } });
     expect(await handler.run(await ticket())).toMatchObject({ kind: 'transition', to: 'BREAKDOWN', reason: 'Plan stored; the plan gate is off' });
@@ -167,6 +180,6 @@ describe('plan stage (F7)', () => {
     const asked = await prisma.stageRun.create({ data: { projectId, ticketId: t.id, stage: 'plan', model: 'opus', status: 'needs_input' } });
     failWith = { kind: 'needs_input', question: 'Which delimiter?', stageRunId: asked.id, attempts: 1 };
     expect(await handler.run(t)).toMatchObject({ kind: 'hold', reason: 'awaiting_answer' });
-    expect(await prisma.supportQuery.count({ where: { ticketId: t.id } })).toBe(1);
+    expect(await prisma.supportTicket.count({ where: { ticketId: t.id } })).toBe(1);
   });
 });

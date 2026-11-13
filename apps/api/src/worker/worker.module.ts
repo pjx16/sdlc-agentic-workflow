@@ -41,8 +41,10 @@ import { StageOutcomes } from './pipeline/stage-outcomes';
 import { RestartRecovery } from './loop/restart-recovery';
 import { HOUSEKEEPERS, type Housekeeper, WorkerLoop } from './loop/worker-loop';
 import { HoldNotifier } from './ci/hold-notifier';
+import { SupportNotifier } from './support-notifier';
 import { CiPoller } from './ci/ci-poller';
 import { JiraStatusSync } from '../jira/jira-status-sync';
+import { SupportRaiser } from '../support/support-raiser';
 import { CleanupService } from './cleanup/cleanup.service';
 import { UsageRetention } from './usage/usage-retention';
 import { OrphanCleanup } from './cleanup/orphan-cleanup';
@@ -65,7 +67,7 @@ import { WorkerRunner } from './worker-runner';
     { provide: USAGE_GATE, useFactory: (prisma: PrismaService) => new UsageGate(prisma), inject: [PrismaService] },
     AgentRunner,
     VerifyService,
-    { provide: IntakePoller, useFactory: (prisma: PrismaService, clients: JiraClients) => new IntakePoller(prisma, clients), inject: [PrismaService, JiraClients] },
+    { provide: IntakePoller, useFactory: (prisma: PrismaService, clients: JiraClients, raiser: SupportRaiser) => new IntakePoller(prisma, clients, undefined, raiser), inject: [PrismaService, JiraClients, SupportRaiser] },
     SubtasksService,
     ApprovalPoller,
     StageOutcomes,
@@ -86,6 +88,7 @@ import { WorkerRunner } from './worker-runner';
     ReviewHandler,
     CiFixHandler,
     HoldNotifier,
+    SupportNotifier,
     OrphanCleanup,
     { provide: UsageRetention, useFactory: (p: PrismaService) => new UsageRetention(p), inject: [PrismaService] },
     { provide: CleanupService, useFactory: (p: PrismaService, c: WorkerConfig) => new CleanupService(p, c), inject: [PrismaService, WorkerConfig] },

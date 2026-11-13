@@ -8,6 +8,7 @@ export class FakeGitHub implements GitHubClient {
   comments: { number: number; body: string }[] = [];
   nextNumber = 100;
   failOpenWith: Error | null = null;
+  failComment: Error | null = null;
   checksResult: PrCheck[] = [];
   state: PrState = { state: 'OPEN', mergedAt: null };
   failLog = '';
@@ -26,6 +27,7 @@ export class FakeGitHub implements GitHubClient {
   }
   async comment(_repo: string, number: number, body: string) {
     this.calls.push('comment');
+    if (this.failComment) throw this.failComment;
     this.comments.push({ number, body });
   }
   async checks(): Promise<PrCheck[]> {

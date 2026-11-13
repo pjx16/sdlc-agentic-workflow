@@ -73,6 +73,7 @@ export interface SystemView {
   settings: GlobalSettingsView;
   worker?: WorkerStatusView | null;
   recentEvents?: RecentEvent[];
+  inboxBadge?: number;
   runningStage: { id: string; stage: string; model: string; projectId: string; ticketId: string | null; startedAt: string | null } | null;
   usage: { at: string; fiveHourPct: number | null; sevenDayPct: number | null; status: string | null; resetsAt: string | null; source: string } | null;
 }
@@ -222,17 +223,33 @@ export interface TicketFull extends TicketWithPlan {
   maxSubtasks: number;
 }
 
-export interface SupportQueryView {
+export type SupportKindView = 'approval' | 'question' | 'open_question' | 'hold' | 'ci_infra' | 'onboarding' | 'credential' | 'pr_ready';
+export type InboxGroupView = 'blocking' | 'approvals' | 'questions' | 'fyi';
+
+export interface SupportTicketView {
   id: string;
-  ticketId: string;
-  ticketKey: string;
-  ticketTitle: string;
+  kind: SupportKindView;
+  title: string;
+  body: string;
+  priority: 'blocking' | 'normal' | 'fyi';
+  status: 'open' | 'answered' | 'resolved' | 'dismissed';
+  group: InboxGroupView;
+  projectId: string | null;
+  ticketId: string | null;
+  ticketKey: string | null;
+  ticketTitle: string | null;
   stage: string;
-  question: string;
-  answer: string | null;
-  status: 'open' | 'answered';
+  defaultAnswer: string | null;
+  response: string | null;
+  resolvedBy: string | null;
   createdAt: string;
-  answeredAt: string | null;
+  resolvedAt: string | null;
+  actions: string[];
+}
+
+export interface InboxCountsView {
+  badge: number;
+  groups: Record<InboxGroupView, number>;
 }
 
 export type MetricsRange = '24h' | '7d' | '30d';

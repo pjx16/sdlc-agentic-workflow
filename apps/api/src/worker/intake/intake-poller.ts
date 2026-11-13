@@ -3,6 +3,7 @@ import { mapJiraIssueType } from '@sdlc/shared';
 import { JiraUnavailableError, type JiraTicket } from '../../jira/jira-client';
 import { JiraClients, JiraNotConfiguredError } from '../../jira/jira-clients';
 import { Prisma, type Project } from '../../generated/prisma/client';
+import { SupportRaiser, isAuthFailure } from '../../support/support-raiser';
 import { PrismaService } from '../../prisma/prisma.service';
 import { recordIntake } from '../status/worker-status';
 
@@ -31,6 +32,7 @@ export class IntakePoller {
     private readonly prisma: PrismaService,
     private readonly clients: JiraClients,
     private readonly now: () => number = () => Date.now(),
+    private readonly raiser?: SupportRaiser,
   ) {}
 
   /** Milliseconds of intake backoff still to run (0 when polling is allowed). */
@@ -73,6 +75,7 @@ export class IntakePoller {
         const message = err instanceof Error ? err.message : String(err);
         result.errors.push({ project: project.name, message });
         if (!(err instanceof JiraNotConfiguredError)) this.logger.warn(`Polling "${project.name}" failed: ${message}`);
+        if (isAuthFailure(err)) await this.raiser?.credentialFailed('jira', `Jira refused the credential while polling "${project.name}": ${message}`).catch(() => undefined);
       }
     }
     return this.finish(mode, result);

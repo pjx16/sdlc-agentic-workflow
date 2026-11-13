@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { SupportRaiser } from '../../support/support-raiser';
 import { ProjectSettingsSchema, type StageEnvelope } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
 import { jiraMarker } from '../../jira/jira-client';
@@ -39,7 +40,12 @@ export class PlanHandler implements StepHandler {
     private readonly launcher: StageLauncher,
     private readonly outcomes: StageOutcomes,
     private readonly jira: JiraClients,
-  ) {}
+    @Optional() raiser?: SupportRaiser,
+  ) {
+    this.raiser = raiser ?? new SupportRaiser(prisma);
+  }
+
+  private readonly raiser: SupportRaiser;
 
   async run(ticket: Ticket): Promise<StepOutcome> {
     const project = await this.prisma.project.findUniqueOrThrow({ where: { id: ticket.projectId } });
@@ -69,11 +75,23 @@ export class PlanHandler implements StepHandler {
 
     const plan = composePlan((result.envelope as StageEnvelope).data as PlanData);
     await this.prisma.ticket.update({ where: { id: ticket.id }, data: { planMarkdown: plan } });
+    await this.raiseOpenQuestions(ticket, (result.envelope as StageEnvelope).data as PlanData, result.stageRunId).catch((err: unknown) => this.logger.warn(`Raising the open questions of ${ticket.key} failed: ${err instanceof Error ? err.message : String(err)}`));
     await this.commentOnJira(ticket, project.jiraMode, settings.jiraWriteBack.comments, plan);
 
     return settings.gates.plan
       ? { kind: 'transition', to: 'AWAITING_PLAN_APPROVAL', reason: 'Plan ready for approval', stageRunId: result.stageRunId }
       : { kind: 'transition', to: 'BREAKDOWN', reason: 'Plan stored; the plan gate is off', stageRunId: result.stageRunId };
+  }
+
+  /**
+   * Each open question of the plan becomes a support ticket that does not block: the plan went ahead with its own default (BUILD_PLAN v1 6.5).
+   * A new plan replaces the questions of the old one.
+   */
+  private async raiseOpenQuestions(ticket: Ticket, plan: PlanData, stageRunId: string): Promise<void> {
+    await this.raiser.close({ ticketId: ticket.id, kind: 'open_question' }, 'dismissed', 'system', 'Replaced by a new plan');
+    for (const [i, question] of plan.openQuestions.entries()) {
+      await this.raiser.raise({ kind: 'open_question', ticketId: ticket.id, stageRunId, stage: 'plan', title: question.slice(0, 120), body: question, dedupeKey: `open_question:${ticket.id}:${stageRunId}:${i}` });
+    }
   }
 
   /** The developer's note, when the latest move into PLANNING was a rejection at the plan gate (row 6). */

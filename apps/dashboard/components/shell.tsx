@@ -23,7 +23,7 @@ export async function Shell({ children }: { children: ReactNode }) {
   const label = pipelineLabel(system);
   return (
     <div className="flex min-h-screen">
-      <Sidebar pipeline={label} />
+      <Sidebar pipeline={label} inboxBadge={system?.inboxBadge ?? 0} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-border bg-surface/60 px-8 py-3 backdrop-blur">
           <div className="eyebrow">Autonomous delivery pipeline</div>

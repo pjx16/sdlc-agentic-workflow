@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { SupportRaiser, isAuthFailure } from '../support/support-raiser';
 import { ProjectSettingsSchema, type TicketStatus } from '@sdlc/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import type { TransitionListener, TransitionResult } from '../state/state-machine.service';
@@ -16,6 +17,7 @@ export class JiraStatusSync implements TransitionListener {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clients: JiraClients,
+    @Optional() private readonly raiser?: SupportRaiser,
   ) {}
 
   async onTransition({ ticket, transition }: TransitionResult): Promise<void> {
@@ -33,6 +35,7 @@ export class JiraStatusSync implements TransitionListener {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Jira move of ${ticket.key} to "${target}" failed: ${message}`);
+      if (isAuthFailure(err)) await this.raiser?.credentialFailed('jira', `Jira refused the credential while moving ${ticket.key}: ${message}`).catch(() => undefined);
       await this.prisma.stateTransition
         .update({ where: { id: transition.id }, data: { jiraStatusApplied: target, jiraSyncResult: 'failed', jiraSyncError: message.slice(0, 500) } })
         .catch(() => undefined);

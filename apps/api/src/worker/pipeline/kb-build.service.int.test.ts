@@ -197,7 +197,7 @@ describe('kbBuild stage (F6)', () => {
     const asked = await prisma.stageRun.create({ data: { projectId, ticketId: t.id, stage: 'kbBuild', model: 'sonnet', status: 'needs_input' } });
     failWith = { kind: 'needs_input', question: 'Which feature is this?', stageRunId: asked.id, attempts: 1 };
     expect(await service.run(t)).toMatchObject({ kind: 'hold', reason: 'awaiting_answer' });
-    expect(await prisma.supportQuery.count({ where: { ticketId: t.id } })).toBe(1);
+    expect(await prisma.supportTicket.count({ where: { ticketId: t.id } })).toBe(1);
     failWith = { kind: 'killed', stageRunId: 'run-k', attempts: 1 };
     expect(await service.run(await ticket())).toMatchObject({ kind: 'hold', reason: 'manual' });
   });

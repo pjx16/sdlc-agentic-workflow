@@ -1,11 +1,12 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { SupportRaiser, isAuthFailure } from '../../support/support-raiser';
 import { ProjectSettingsSchema } from '@sdlc/shared';
 import { CredentialsService } from '../../credentials/credentials.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GITHUB_CLIENT, type GitHubClient, parseRepo } from '../github/github-client';
 import { buildPrDescription } from '../github/pr-description';
 import { renderReviewSummary } from '../review/review-comment';
-import { withRetry, type RetryOptions } from '../common/retry-policy';
+import { PolicyError, withRetry, type RetryOptions } from '../common/retry-policy';
 import { WorkerConfig } from '../worker-config';
 
 /** Opens (once) and describes the ticket's draft pull request (F9). */
@@ -21,6 +22,7 @@ export class PrService {
     private readonly config: WorkerConfig,
     private readonly creds: CredentialsService,
     @Inject(GITHUB_CLIENT) private readonly github: GitHubClient,
+    @Optional() private readonly raiser?: SupportRaiser,
   ) {}
 
   /** The description, assembled from what is on record right now. */
@@ -54,6 +56,7 @@ export class PrService {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Opening the draft PR for ${ticket.key} failed: ${message}`);
+      if (isAuthFailure(err instanceof PolicyError ? (err.cause ?? err) : err)) await this.raiser?.credentialFailed('github', `GitHub refused the credential while opening the PR for ${ticket.key}: ${message}`).catch(() => undefined);
       await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Warning: could not open the draft PR: ${message}`.slice(0, 500) } });
       return null;
     }
