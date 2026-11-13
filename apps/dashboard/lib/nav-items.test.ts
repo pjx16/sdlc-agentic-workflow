@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { NAV_ITEMS, isActive } from './nav-items';
 
 describe('navigation', () => {
-  it('lists the seven rail entries in order', () => {
-    expect(NAV_ITEMS.map((i) => i.label)).toEqual(['Overview', 'Tickets', 'Support', 'Projects', 'Guidelines', 'Usage', 'Settings']);
+  it('lists the rail entries in order', () => {
+    expect(NAV_ITEMS.map((i) => i.label)).toEqual(['Overview', 'Tickets', 'Support', 'Projects', 'Guidelines', 'Usage', 'Operations', 'Settings']);
     expect(new Set(NAV_ITEMS.map((i) => i.href)).size).toBe(NAV_ITEMS.length);
   });
 

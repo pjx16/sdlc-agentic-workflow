@@ -29,6 +29,18 @@ export interface TransitionDto {
   jiraSyncError: string | null;
 }
 
+export interface TicketEventDto {
+  id: string;
+  at: string;
+  level: 'info' | 'warn' | 'error';
+  source: string;
+  type: string;
+  message: string;
+  errorCode: string | null;
+  stageRunId: string | null;
+  subtaskId: string | null;
+}
+
 export interface TimelineBar {
   id: string;
   stage: string;
@@ -127,6 +139,13 @@ export class TicketsService {
       id: r.id, at: r.at.toISOString(), fromStatus: r.fromStatus, toStatus: r.toStatus, actor: r.actor, reason: r.reason, stageRunId: r.stageRunId,
       jiraStatusApplied: r.jiraStatusApplied, jiraSyncResult: r.jiraSyncResult, jiraSyncError: r.jiraSyncError,
     }));
+  }
+
+  /** GET /tickets/:id/events: the plain-English stream of everything that happened to the ticket, oldest first (BUILD_PLAN v1 6.4). */
+  async events(id: string): Promise<TicketEventDto[]> {
+    await this.findOr404(id);
+    const rows = await this.prisma.event.findMany({ where: { ticketId: id }, orderBy: [{ at: 'asc' }, { id: 'asc' }], take: 1000 });
+    return rows.map((e) => ({ id: e.id, at: e.at.toISOString(), level: e.level as TicketEventDto['level'], source: e.source, type: e.type, message: e.message, errorCode: e.errorCode, stageRunId: e.stageRunId, subtaskId: e.subtaskId }));
   }
 
   /** GET /tickets/:id/timeline: stage runs as bars (stage, start, end, outcome). */

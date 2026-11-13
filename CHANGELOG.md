@@ -18,6 +18,11 @@ All notable changes to this project are documented here. The format follows [Kee
 - The dashboard shows a source badge (Claude, Agent, Workspace, Jira, Confluence, GitHub, Git, User), the message, the suggested action and the next retry time on every failed run, and names Claude in the pause banner.
 - Jira writes are safe to repeat: comments carry a hidden marker, a transition reads the status first, sub-tasks are found by a marker label before one is created. Git pushes and draft PRs retry by policy.
 
+- Events carry a level, a source, the run, the subtask and an error code, and every message is one plain-English sentence from typed helpers (`packages/shared/src/event-messages.ts`). The ticket page has a Timeline tab: state changes, stage runs with duration, turns and cost, errors and decisions, with a "problems only" filter.
+- Operations page (`/operations`): worker state, uptime, restarts and queue depth; stuck tickets (30 minutes ready with nothing running, 24 hours waiting for a person); failure rate by stage and error code for 24 hours and 7 days; loops, retries and average duration, tokens and cost by stage; error rates for Claude, Jira, Confluence and GitHub; the 20 newest errors.
+- Usage by model (exact tokens, cost and runs, split by stage and day, plus an estimated share of the 5-hour and weekly percentage) and two charts of how fast the 5-hour (points per hour) and weekly (points per day) usage is rising, split at resets, with gaps kept and a projection to the thresholds. Small versions on the overview.
+- Log lines carry `[ticket=... stage=... run=... subtask=...]` where known.
+
 ### Removed
 - Jira MCP mode, the `jiraIntake` and `jiraSync` stages and their prompts, the MCP proxy port, and the MCP settings. Jira is REST only; existing MCP projects are migrated to REST (they need REST credentials in Settings → Connections).
 

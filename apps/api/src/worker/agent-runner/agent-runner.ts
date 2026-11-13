@@ -4,6 +4,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { CredentialsService } from '../../credentials/credentials.service';
 import { ERROR_POLICY, classifyClaudeError, describeError, nextBackoffMin, stageJsonSchema, type ClaudeMdMode, type ErrorCode, type ModelAlias, type ProjectStack, type StageEnvelope, type StageName } from '@sdlc/shared';
 import type { FixReason } from '../../generated/prisma/client';
+import { logLine } from '../../common/log-context';
 import { USAGE_GATE, type UsageGatePort } from '../usage/usage-gate';
 import { WorkerConfig } from '../worker-config';
 import { buildStageContext, type StageInputs } from './context-builder';
@@ -17,6 +18,8 @@ import { STAGE_RUN_STORE, type StageRunStore } from './stage-run-store';
 export interface StageRequest {
   projectId: string;
   ticketId?: string;
+  /** For log lines only. */
+  ticketKey?: string;
   subtaskId?: string;
   stage: StageName;
   /** Set on `fix` runs. */
@@ -98,7 +101,7 @@ export class AgentRunner {
       used.set(code, n);
       const waitMin = nextBackoffMin(code, n);
       const reason = outcome.kind === 'failed' ? outcome.reason : describeError('TURN_LIMIT', { agent: req.stage });
-      this.logger.warn(`Stage ${req.stage} attempt ${attempt} failed (${code}): ${reason}`);
+      this.logger.warn(logLine({ ticket: req.ticketKey, stage: req.stage, run: outcome.stageRunId }, `attempt ${attempt} failed (${code}): ${reason}`));
       if (waitMin === null) return { ...outcome, attempts: attempt } as StageResult;
 
       const policy = ERROR_POLICY[code].recovery;

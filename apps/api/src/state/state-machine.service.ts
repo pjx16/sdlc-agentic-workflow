@@ -1,6 +1,7 @@
 import { HttpStatus, Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { ErrorCodes, checkTransition, type Actor, type HoldReason, type TicketStatus } from '@sdlc/shared';
+import { ErrorCodes, checkTransition, events, type Actor, type HoldReason, type TicketStatus } from '@sdlc/shared';
 import { ApiException } from '../common/api-exception';
+import { writeEvent } from '../common/event-log';
 import type { StateTransition, Ticket } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -80,7 +81,7 @@ export class StateMachine {
       if (count === 0) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'The ticket changed while it was being updated');
 
       const transition = await tx.stateTransition.create({ data: { ticketId, fromStatus: from, toStatus: to, actor, reason: reason ?? null, stageRunId: stageRunId ?? null } });
-      await tx.event.create({ data: { ticketId, type: 'state', message: `${ticket.key}: ${from} -> ${to}${reason ? ` (${reason})` : ''}` } });
+      await writeEvent(tx, events.transition({ ticketKey: ticket.key, from, to, reason, actor }), { ticketId, stageRunId });
       return { ticket: await tx.ticket.findUniqueOrThrow({ where: { id: ticketId } }), transition };
     });
 

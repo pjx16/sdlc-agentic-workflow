@@ -120,6 +120,50 @@ export interface TransitionView {
   jiraSyncError: string | null;
 }
 
+export interface TicketEventView {
+  id: string;
+  at: string;
+  level: 'info' | 'warn' | 'error';
+  source: string;
+  type: string;
+  message: string;
+  errorCode: string | null;
+  stageRunId: string | null;
+  subtaskId: string | null;
+}
+
+export interface OperationsView {
+  worker: { state: 'idle' | 'busy' | 'stalled' | 'offline' | 'unknown'; phase: string | null; phaseDetail: string | null; phaseSince: string | null; uptimeSec: number | null; restarts24h: number; queueDepth: number };
+  stuck: { id: string; key: string; status: string; since: string; minutes: number; why: string }[];
+  failures: Record<'last24h' | 'last7d', { byStage: { stage: string; runs: number; failed: number; rate: number; byCode: Record<string, number> }[]; byCode: { code: string; count: number }[] }>;
+  load: { stage: string; runs: number; retries: number; loops: number; avgDurationSec: number; avgTokens: number; avgCostUsd: number }[];
+  integrations: { source: string; total: number; errors: number; rate: number }[];
+  recentErrors: { id: string; at: string; source: string; message: string; errorCode: string | null; ticketId: string | null; ticketKey: string | null }[];
+}
+
+export interface RateSeriesView {
+  unit: 'pts/hour' | 'pts/day';
+  segments: { startedBy: 'first' | 'reset' | 'gap'; points: { at: string; pct: number; rate: number | null }[] }[];
+  latest: { at: string; pct: number; rate: number | null } | null;
+  projection: { thresholdPct: number; reachesAt: string | null; note: string } | null;
+}
+export interface UsageRateView {
+  thresholds: { fiveHourPct: number; weeklyPct: number };
+  fiveHour: RateSeriesView;
+  weekly: RateSeriesView;
+}
+export interface ModelUsageView {
+  from: string;
+  to: string;
+  estimateNote: string;
+  models: {
+    model: string; runs: number; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; costUsd: number; tokenShare: number; costShare: number;
+    byStage: { stage: string; runs: number; tokens: number; costUsd: number }[];
+    perDay: { day: string; tokens: number; costUsd: number; runs: number }[];
+    estimate: { fiveHourPts: number; fiveHourShare: number; weeklyPts: number; weeklyShare: number };
+  }[];
+}
+
 export interface RunView {
   id: string;
   stage: string;

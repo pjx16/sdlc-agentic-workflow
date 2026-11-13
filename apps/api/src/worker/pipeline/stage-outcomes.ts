@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { ERROR_POLICY, describeError } from '@sdlc/shared';
+import { ERROR_POLICY, describeError, events, type ErrorCode } from '@sdlc/shared';
+import { writeEvent } from '../../common/event-log';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { StageResult } from '../agent-runner/agent-runner';
 import type { StepOutcome } from './step-handler';
@@ -61,6 +62,6 @@ export class StageOutcomes {
   private async pause(code: string, reason: string, resetsAt: Date | null, ticketId: string): Promise<void> {
     const data = { pipelinePaused: true, pausedReason: reason, pausedCode: code, resetsAt };
     await this.prisma.globalSettings.upsert({ where: { id: 'global' }, update: data, create: { id: 'global', ...data } });
-    await this.prisma.event.create({ data: { ticketId, type: 'error', message: reason.slice(0, 500) } });
+    await writeEvent(this.prisma, events.paused({ reason, code: code as ErrorCode }), { ticketId });
   }
 }

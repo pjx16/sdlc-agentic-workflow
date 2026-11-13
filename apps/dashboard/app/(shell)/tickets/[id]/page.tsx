@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BreakdownPanel } from '@/components/breakdown-panel';
+import { EventTimeline } from '@/components/event-timeline';
 import { HoldPanel } from '@/components/hold-panel';
 import { PlanPanel } from '@/components/plan-panel';
 import { TicketTimeline } from '@/components/charts/ticket-timeline';
@@ -10,13 +11,14 @@ import { StateBadge } from '@/components/state-badge';
 import { TransitionHistory } from '@/components/transition-history';
 import { apiGet } from '@/lib/server-api';
 import { formatDateTime, humanizeStatus } from '@/lib/ticket-status';
-import type { HoldInfo, TicketFull, TransitionView } from '@/lib/types';
+import type { HoldInfo, TicketEventView, TicketFull, TransitionView } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
 const TABS = [
   { id: 'plan', label: 'Plan' },
   { id: 'breakdown', label: 'Breakdown' },
+  { id: 'timeline', label: 'Timeline' },
   { id: 'history', label: 'History' },
   { id: 'runs', label: 'Runs' },
 ] as const;
@@ -27,9 +29,10 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
   const ticket = await apiGet<TicketFull>(`/tickets/${encodeURIComponent(id)}`);
   if (!ticket) notFound();
   // A ticket waiting at a gate opens on that gate; otherwise on its history.
-  const active = tab === 'runs' || tab === 'plan' || tab === 'breakdown' || tab === 'history' ? tab : ticket.status === 'AWAITING_PLAN_APPROVAL' ? 'plan' : ticket.status === 'AWAITING_BREAKDOWN_APPROVAL' ? 'breakdown' : 'history';
+  const active = tab === 'runs' || tab === 'plan' || tab === 'breakdown' || tab === 'history' || tab === 'timeline' ? tab : ticket.status === 'AWAITING_PLAN_APPROVAL' ? 'plan' : ticket.status === 'AWAITING_BREAKDOWN_APPROVAL' ? 'breakdown' : 'timeline';
   const stopped = ticket.status === 'ON_HOLD' || ticket.status === 'FAILED';
   const hold = stopped ? await apiGet<HoldInfo>(`/tickets/${encodeURIComponent(id)}/hold`).catch(() => null) : null;
+  const events = active === 'timeline' ? ((await apiGet<TicketEventView[]>(`/tickets/${encodeURIComponent(id)}/events`)) ?? []) : [];
   const transitions = active === 'history' ? ((await apiGet<TransitionView[]>(`/tickets/${encodeURIComponent(id)}/transitions`)) ?? []) : [];
 
   return (
@@ -66,6 +69,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
       <div className="mt-6">
         {active === 'plan' && <PlanPanel ticketId={ticket.id} status={ticket.status} planMarkdown={ticket.planMarkdown} />}
         {active === 'breakdown' && <BreakdownPanel key={ticket.updatedAt} ticketId={ticket.id} status={ticket.status} draft={ticket.breakdownDraft} subtasks={ticket.subtasks} maxSubtasks={ticket.maxSubtasks} />}
+        {active === 'timeline' && <EventTimeline events={events} runs={ticket.stageRuns} />}
         {active === 'history' && <TransitionHistory transitions={transitions} />}
         {active === 'runs' && (
           <div className="space-y-6">

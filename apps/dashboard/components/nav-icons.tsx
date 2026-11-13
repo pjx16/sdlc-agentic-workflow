@@ -35,6 +35,11 @@ const paths: Record<NavItem['icon'], React.ReactNode> = {
       <circle cx="12" cy="17" r="1" />
     </>
   ),
+  operations: (
+    <>
+      <path d="M3 12h4l3-8 4 16 3-8h4" />
+    </>
+  ),
   settings: (
     <>
       <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />

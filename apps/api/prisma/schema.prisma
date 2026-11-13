@@ -365,8 +365,19 @@ model Event {
   type     String
   message  String
   at       DateTime @default(now()) @db.Timestamptz(6)
+  /// info | warn | error
+  level    String   @default("info")
+  /// system | orchestrator | claude | agent | jira | confluence | github | git | ci | user
+  source   String   @default("system")
+  stageRunId String?
+  subtaskId  String?
+  /// An ERROR_CODES value, when the event is about a failure.
+  errorCode  String?
+  data     Json?
 
   @@index([ticketId, at])
+  @@index([at])
+  @@index([level, at])
 }
 
 /// Dashboard login session. Only the SHA-256 of the token is stored.

@@ -9,6 +9,7 @@ import { StateMachine } from '../../state/state-machine.service';
 import { MirrorService } from '../git/mirror.service';
 import { IntakePoller } from '../intake/intake-poller';
 import { STEP_HANDLERS, type StepHandler, type StepOutcome } from '../pipeline/step-handler';
+import { logLine } from '../../common/log-context';
 import { recordTick, setPhase } from '../status/worker-status';
 import { Schedule } from './schedule';
 
@@ -143,7 +144,7 @@ export class WorkerLoop {
     } catch (err) {
       // An unexpected error in a step is an unrecoverable internal error (6.6 row 18).
       const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(`Step for ${ticket.key} in ${ticket.status} failed: ${message}`);
+      this.logger.error(logLine({ ticket: ticket.key }, `step in ${ticket.status} failed: ${message}`));
       await this.states.fail(ticket.id, message.slice(0, 500)).catch((e: unknown) => this.logger.error(String(e)));
       return 'failed';
     }

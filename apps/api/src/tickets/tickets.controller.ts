@@ -21,6 +21,11 @@ export class TicketsController {
     return this.tickets.transitions(id);
   }
 
+  @Get(':id/events')
+  events(@Param('id') id: string) {
+    return this.tickets.events(id);
+  }
+
   @Get(':id/timeline')
   timeline(@Param('id') id: string) {
     return this.tickets.timeline(id);

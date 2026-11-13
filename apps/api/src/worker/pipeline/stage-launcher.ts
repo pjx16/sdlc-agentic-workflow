@@ -38,6 +38,7 @@ export class StageLauncher {
     return this.runner.run({
       projectId: project.id,
       ticketId: ticket.id,
+      ticketKey: ticket.key,
       subtaskId: opts.subtaskId,
       stage,
       reason: opts.reason,
