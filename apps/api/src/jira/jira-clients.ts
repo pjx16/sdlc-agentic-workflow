@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { CredentialsService } from '../credentials/credentials.service';
 import type { JiraClient } from './jira-client';
 import { JiraRestClient } from './jira-rest-client';
-import { JiraMcpError } from './jira-mcp-client';
 
 /** The Jira credentials are missing: REST mode cannot work until JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN are set. */
 export class JiraNotConfiguredError extends Error {
@@ -20,23 +19,9 @@ export class JiraClients {
 
   constructor(private readonly creds: CredentialsService) {}
 
-  /** MCP mode needs the worker (it runs agent containers); the worker registers its client here. */
-  private mcp: JiraClient | null = null;
-
-  /** True in the worker: the API process cannot run the Jira stages. */
-  hasMcp(): boolean {
-    return this.mcp !== null;
-  }
-
-  useMcp(client: JiraClient): void {
-    this.mcp = client;
-  }
-
-  /** The client for a project's `jiraMode` (`rest` or `mcp`). */
-  async forMode(mode: 'rest' | 'mcp'): Promise<JiraClient> {
-    if (mode === 'rest') return this.forRest();
-    if (!this.mcp) throw new JiraMcpError('Jira MCP mode is only available in the worker');
-    return this.mcp;
+  /** The client for a project's `jiraMode`. Jira is reached over REST only (BUILD_PLAN v1 D5). */
+  async forMode(_mode: 'rest' = 'rest'): Promise<JiraClient> {
+    return this.forRest();
   }
 
   async forRest(): Promise<JiraClient> {

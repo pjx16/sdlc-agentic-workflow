@@ -14,7 +14,7 @@ let n = 0;
 const project = (over: Record<string, unknown> = {}) =>
   prisma.project.create({ data: { name: `p${++n}`, repoUrl: 'https://x/y', stack: 'ts_node', testCmdTemplate: 'x {files}', localKeyPrefix: `S${n}`, jiraMode: 'rest', jiraProjectKey: 'ABC', jiraJql: 'project = ABC', mirrorStatus: 'ok', ...over } });
 const status = () => prisma.workerStatus.findUniqueOrThrow({ where: { id: 'worker' } });
-const intake = (mode: 'rest' | 'mcp' = 'rest') => prisma.workerStatus.findUniqueOrThrow({ where: { id: `intake-${mode}` } });
+const intake = (mode: 'rest' = 'rest') => prisma.workerStatus.findUniqueOrThrow({ where: { id: `intake-${mode}` } });
 
 beforeAll(async () => {
   db = await createTestDatabase();
@@ -40,11 +40,10 @@ beforeEach(async () => {
 });
 
 describe('worker status', () => {
-  it('keeps a separate record per mode, so a REST poll with no projects does not hide an MCP poll', async () => {
-    await recordIntake(prisma, { mode: 'mcp', projects: 1, waiting: 0, created: 2, seen: 2 });
+  it('keeps the latest intake poll result, replacing the earlier one', async () => {
+    await recordIntake(prisma, { mode: 'rest', projects: 1, waiting: 0, created: 2, seen: 2 });
     await recordIntake(prisma, { mode: 'rest', projects: 0, waiting: 0, created: 0, seen: 0 });
-    expect(await intake('mcp')).toMatchObject({ intakeProjects: 1, intakeCreated: 2 });
-    expect(await intake('rest')).toMatchObject({ intakeProjects: 0 });
+    expect(await intake('rest')).toMatchObject({ intakeProjects: 0, intakeCreated: 0 });
   });
 
   it('records a heartbeat with the outcome and detail', async () => {

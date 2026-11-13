@@ -100,26 +100,6 @@ describe('Jira status mapping (F15)', () => {
       expect((await lastTransition(t2.id)).jiraSyncError).toContain('not configured');
     });
 
-    it('MCP mode moves the issue through the MCP client where the worker has one, and leaves the transition unsynced where it has not', async () => {
-      const p = await project({ jiraMode: 'mcp' });
-      const t = await ticket(p.id);
-      await sm.transition(t.id, 'KB', 'system');
-      expect((await lastTransition(t.id)).jiraSyncResult).toBe('applied');
-      expect(jira.calls).toHaveLength(1);
-
-      jira.calls = [];
-      class ApiOnlyClients extends FakeJiraClients {
-        override hasMcp() {
-          return false;
-        }
-      }
-      const apiSm = new StateMachine(prisma, [new JiraStatusSync(prisma, new ApiOnlyClients(jira))]);
-      const t2 = await ticket(p.id);
-      await apiSm.transition(t2.id, 'KB', 'user');
-      expect(jira.calls).toEqual([]);
-      expect((await lastTransition(t2.id)).jiraSyncResult).toBe('none');
-    });
-
     it('skips pasted tickets, projects with Jira off, and write-back turned off', async () => {
       const p = await project();
       const pasted = await prisma.ticket.create({ data: { projectId: p.id, key: 'P-1', source: 'paste', title: 't' } });

@@ -40,7 +40,7 @@ export interface WorkerStatusView {
 }
 
 export interface IntakeStatusView {
-  mode: 'rest' | 'mcp';
+  mode: 'rest';
   at: string | null;
   /** Projects polled (Jira mode on, mirror ready). */
   projects: number;
@@ -138,7 +138,7 @@ export class SystemSettingsService {
     const running = await this.prisma.stageRun.findFirst({ where: { status: 'running' }, orderBy: { startedAt: 'desc' } });
     const usage = await this.prisma.usageSnapshot.findFirst({ orderBy: { at: 'desc' } });
     const worker = await this.prisma.workerStatus.findUnique({ where: { id: 'worker' } });
-    const intakeRows = await this.prisma.workerStatus.findMany({ where: { id: { in: ['intake-rest', 'intake-mcp'] } }, orderBy: { id: 'asc' } });
+    const intakeRows = await this.prisma.workerStatus.findMany({ where: { id: { in: ['intake-rest'] } }, orderBy: { id: 'asc' } });
     const restarts = await this.prisma.event.count({ where: { type: 'worker', message: { startsWith: 'Worker started' }, at: { gte: new Date(Date.now() - 10 * 60_000) } } });
     const events = await this.prisma.event.findMany({ orderBy: { at: 'desc' }, take: 8, include: { ticket: { select: { key: true } } } });
     return {
@@ -157,7 +157,7 @@ export class SystemSettingsService {
         tickOutcome: worker.tickOutcome,
         tickDetail: worker.tickDetail,
         intake: intakeRows.map((r) => ({
-          mode: r.id === 'intake-mcp' ? ('mcp' as const) : ('rest' as const),
+          mode: 'rest' as const,
           at: r.intakeAt?.toISOString() ?? null,
           projects: r.intakeProjects,
           waiting: r.intakeWaiting,

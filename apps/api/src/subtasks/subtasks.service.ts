@@ -52,16 +52,14 @@ export class SubtasksService {
   async publishToJira(ticketId: string): Promise<{ created: number; failed: number }> {
     const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { project: true, subtasks: { orderBy: { seq: 'asc' } } } });
     const settings = ProjectSettingsSchema.parse(ticket.project.settings);
-    if (ticket.source !== 'jira' || !ticket.externalKey || (ticket.project.jiraMode !== 'rest' && ticket.project.jiraMode !== 'mcp') || !settings.jiraWriteBack.createSubtasks) return { created: 0, failed: 0 };
-    // MCP mode runs a jiraSync stage per sub-task, which only the worker can do; its sweep publishes them later.
-    if (ticket.project.jiraMode === 'mcp' && !this.jira.hasMcp()) return { created: 0, failed: 0 };
+    if (ticket.source !== 'jira' || !ticket.externalKey || ticket.project.jiraMode !== 'rest' || !settings.jiraWriteBack.createSubtasks) return { created: 0, failed: 0 };
 
     let created = 0;
     let failed = 0;
     for (const subtask of ticket.subtasks) {
       if (subtask.externalKey) continue;
       try {
-        const { key } = await (await this.jira.forMode(ticket.project.jiraMode as 'rest' | 'mcp')).createSubtask(ticket.externalKey, {
+        const { key } = await (await this.jira.forRest()).createSubtask(ticket.externalKey, {
           summary: subtask.title,
           description: this.describe(subtask),
           issueTypeName: settings.jiraSubtaskTypeName,

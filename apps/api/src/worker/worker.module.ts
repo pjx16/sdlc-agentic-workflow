@@ -43,9 +43,6 @@ import { HOUSEKEEPERS, type Housekeeper, WorkerLoop } from './loop/worker-loop';
 import { HoldNotifier } from './ci/hold-notifier';
 import { CiPoller } from './ci/ci-poller';
 import { JiraStatusSync } from '../jira/jira-status-sync';
-import { JiraMcpClient } from '../jira/jira-mcp-client';
-import { JiraMcpStages } from './jira-mcp/jira-mcp-stages';
-import { McpIntake } from './intake/mcp-intake';
 import { CleanupService } from './cleanup/cleanup.service';
 import { UsageRetention } from './usage/usage-retention';
 import { OrphanCleanup } from './cleanup/orphan-cleanup';
@@ -67,9 +64,6 @@ import { WorkerRunner } from './worker-runner';
     { provide: LOG_SINK, useClass: FileLogSink },
     { provide: USAGE_GATE, useFactory: (prisma: PrismaService) => new UsageGate(prisma), inject: [PrismaService] },
     AgentRunner,
-    { provide: JiraMcpStages, useFactory: (prisma: PrismaService, runner: AgentRunner, config: WorkerConfig) => new JiraMcpStages(prisma, runner, config), inject: [PrismaService, AgentRunner, WorkerConfig] },
-    // Registers the MCP client with the shared JiraClients, so MCP-mode projects use it for intake and write-back.
-    { provide: 'JIRA_MCP_REGISTRATION', useFactory: (clients: JiraClients, stages: JiraMcpStages) => clients.useMcp(new JiraMcpClient(stages)), inject: [JiraClients, JiraMcpStages] },
     VerifyService,
     { provide: IntakePoller, useFactory: (prisma: PrismaService, clients: JiraClients) => new IntakePoller(prisma, clients), inject: [PrismaService, JiraClients] },
     SubtasksService,
@@ -95,10 +89,9 @@ import { WorkerRunner } from './worker-runner';
     OrphanCleanup,
     { provide: UsageRetention, useFactory: (p: PrismaService) => new UsageRetention(p), inject: [PrismaService] },
     { provide: CleanupService, useFactory: (p: PrismaService, c: WorkerConfig) => new CleanupService(p, c), inject: [PrismaService, WorkerConfig] },
-    { provide: McpIntake, useFactory: (p: PrismaService, i: IntakePoller, a: ApprovalPoller, st: SubtasksService, sync: JiraStatusSync) => new McpIntake(p, i, undefined, a, st, sync), inject: [PrismaService, IntakePoller, ApprovalPoller, SubtasksService, JiraStatusSync] },
     { provide: CiPoller, useFactory: (p: PrismaService, st: StateMachine, pr: PrService, gh: GitHubClient, hn: HoldNotifier) => new CiPoller(p, st, pr, gh, undefined, hn), inject: [PrismaService, StateMachine, PrService, GITHUB_CLIENT, HoldNotifier] },
     { provide: MergePoller, useFactory: (p: PrismaService, st: StateMachine, gh: GitHubClient) => new MergePoller(p, st, gh), inject: [PrismaService, StateMachine, GITHUB_CLIENT] },
-    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, mcp: McpIntake, cleanup: CleanupService, orphans: OrphanCleanup, retention: UsageRetention): Housekeeper[] => [ci, merge, mcp, cleanup, orphans, retention], inject: [CiPoller, MergePoller, McpIntake, CleanupService, OrphanCleanup, UsageRetention] },
+    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, cleanup: CleanupService, orphans: OrphanCleanup, retention: UsageRetention): Housekeeper[] => [ci, merge, cleanup, orphans, retention], inject: [CiPoller, MergePoller, CleanupService, OrphanCleanup, UsageRetention] },
     NewTicketHandler,
     KbHandler,
     { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler, InProgressHandler, ReviewHandler, KbUpdateHandler, HumanReviewHandler, CiFixHandler] },

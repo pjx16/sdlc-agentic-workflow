@@ -46,10 +46,10 @@ describe('System and global settings API', () => {
     expect((await t.agent.get('/system').expect(200)).body.worker).toBeNull();
 
     await t.prisma.workerStatus.create({ data: { heartbeatAt: new Date(), tickOutcome: 'not_configured', tickDetail: 'claude_token' } });
-    await t.prisma.workerStatus.create({ data: { id: 'intake-mcp', heartbeatAt: new Date(), tickOutcome: 'intake', intakeMode: 'mcp', intakeAt: new Date(), intakeProjects: 1, intakeError: 'boom' } });
+    await t.prisma.workerStatus.create({ data: { id: 'intake-rest', heartbeatAt: new Date(), tickOutcome: 'intake', intakeMode: 'rest', intakeAt: new Date(), intakeProjects: 1, intakeError: 'boom' } });
     await t.prisma.event.create({ data: { type: 'jira', message: 'Jira (MCP) intake: 1 new ticket' } });
     const online = (await t.agent.get('/system').expect(200)).body;
-    expect(online.worker).toMatchObject({ online: true, tickOutcome: 'not_configured', tickDetail: 'claude_token', intake: [{ mode: 'mcp', projects: 1, error: 'boom', created: 0 }] });
+    expect(online.worker).toMatchObject({ online: true, tickOutcome: 'not_configured', tickDetail: 'claude_token', intake: [{ mode: 'rest', projects: 1, error: 'boom', created: 0 }] });
     expect(online.recentEvents[0]).toMatchObject({ type: 'jira', message: 'Jira (MCP) intake: 1 new ticket', ticketKey: null });
 
     await t.prisma.workerStatus.update({ where: { id: 'worker' }, data: { heartbeatAt: new Date(Date.now() - 5 * 60_000) } });

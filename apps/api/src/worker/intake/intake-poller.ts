@@ -38,7 +38,7 @@ export class IntakePoller {
     return Math.max(0, this.backoffUntil - this.now());
   }
 
-  async poll(mode: 'rest' | 'mcp' = 'rest', only?: (project: Project) => boolean): Promise<PollResult> {
+  async poll(mode: 'rest' = 'rest', only?: (project: Project) => boolean): Promise<PollResult> {
     const result: PollResult = { projects: 0, created: 0, duplicates: 0, errors: [], subtasksIgnored: 0 };
 
     // Pausing intake and pausing the pipeline are separate switches: only the intake switch stops polling.
@@ -51,7 +51,7 @@ export class IntakePoller {
     for (const project of projects.filter((p) => !only || only(p))) {
       result.projects++;
       try {
-        const tickets = await (await this.clients.forMode(mode)).searchTickets(project);
+        const tickets = await (await this.clients.forRest()).searchTickets(project);
         for (const jt of tickets) {
           if (await this.isSubtask(jt)) {
             result.subtasksIgnored++;
@@ -79,7 +79,7 @@ export class IntakePoller {
   }
 
   /** Remembers the outcome of this poll for the dashboard, then returns it. */
-  private async finish(mode: 'rest' | 'mcp', result: PollResult): Promise<PollResult> {
+  private async finish(mode: 'rest', result: PollResult): Promise<PollResult> {
     const waiting = await this.prisma.project.count({ where: { enabled: true, jiraMode: mode, mirrorStatus: { not: 'ok' } } }).catch(() => 0);
     await recordIntake(this.prisma, {
       mode,
