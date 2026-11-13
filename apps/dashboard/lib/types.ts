@@ -146,6 +146,7 @@ export interface OperationsView {
   load: { stage: string; runs: number; retries: number; loops: number; avgDurationSec: number; avgTokens: number; avgCostUsd: number }[];
   integrations: { source: string; total: number; errors: number; rate: number }[];
   recentErrors: { id: string; at: string; source: string; message: string; errorCode: string | null; ticketId: string | null; ticketKey: string | null }[];
+  orchestrator: { decisions: number; fallbacks: number; fallbackRate: number; costUsd: number; inputTokens: number; outputTokens: number };
 }
 
 export interface RateSeriesView {

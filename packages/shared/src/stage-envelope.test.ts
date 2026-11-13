@@ -17,6 +17,7 @@ const validData: Record<string, unknown> = {
   qualityReview: { findings: [], previousFindings: [] },
   securityReview: { findings: [], previousFindings: [] },
   ciTriage: { kind: 'flaky', summary: 'timeout' },
+  orchestrate: { move: { kind: 'advance', to: 'AWAITING_CI' }, reason: 'Only a test changed.' },
   kbUpdate: { featureKey: 'auth', docPath: 'docs/kb/auth.md', changed: true },
   assist: { reply: 'Use a comma.', draft: { kind: 'answer', text: 'Comma' } },
   repoProfile: { stack: 'nestjs', installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx jest {files}', kbDir: 'docs/kb', testFilePattern: '**/*.spec.ts', exampleTestFile: null },

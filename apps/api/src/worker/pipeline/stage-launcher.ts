@@ -29,6 +29,8 @@ export interface LaunchOptions {
   round?: number;
   reason?: FixReason;
   subtaskId?: string;
+  /** Extended thinking budget in tokens (the orchestrator, at a decision point). */
+  thinkingTokens?: number;
   validate?: StageRequest['validate'];
 }
 
@@ -73,6 +75,7 @@ export class StageLauncher {
       stageTimeoutMin: global.stageTimeoutMin,
       inputs: { ...inputs, ...(qa.length > 0 ? { qa } : {}), ...(rerun ? { rerun } : {}) },
       workspacePath,
+      thinkingTokens: opts.thinkingTokens,
       validate: opts.validate,
     });
     // No commit yet: the run covers an empty range. The commit that follows (WorkspaceService.commit) moves `endSha` forward.
