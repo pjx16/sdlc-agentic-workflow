@@ -135,17 +135,37 @@ describe('NEW and KB step handlers', () => {
       const run = await prisma.stageRun.create({ data: { projectId, ticketId: t.id, stage: 'plan', model: 'opus', status: 'failed' } });
       const o = outcomes();
       expect(await o.forResult(t.id, 'plan', { kind: 'failed', reason: 'bad output', stageRunId: run.id, attempts: 2 })).toMatchObject({ kind: 'hold', reason: 'needs_help' });
-      expect(await o.forResult(t.id, 'plan', { kind: 'turn_limit', stageRunId: run.id, attempts: 1 })).toMatchObject({ kind: 'hold', reason: 'needs_help', note: 'The plan stage reached its turn limit' });
+      expect(await o.forResult(t.id, 'plan', { kind: 'turn_limit', stageRunId: run.id, attempts: 1 })).toMatchObject({ kind: 'hold', reason: 'needs_help', note: 'plan ran out of turns.' });
       expect(await o.forResult(t.id, 'plan', { kind: 'killed', stageRunId: run.id, attempts: 1 })).toMatchObject({ kind: 'hold', reason: 'manual' });
       expect(await o.forResult(t.id, 'plan', { kind: 'needs_input', question: 'Which db?', stageRunId: run.id, attempts: 1 })).toMatchObject({ kind: 'hold', reason: 'awaiting_answer' });
       expect((await prisma.supportQuery.findMany({ where: { ticketId: t.id } }))[0]).toMatchObject({ question: 'Which db?', status: 'open', stage: 'plan' });
     });
 
+    it('follows the error policy: a container error or timeout fails the ticket, other failures hold it', async () => {
+      const t = await ticket();
+      const o = outcomes();
+      const failed = (errorCode: never) => ({ kind: 'failed' as const, reason: 'x', errorCode, stageRunId: 'r', attempts: 2 });
+      expect(await o.forResult(t.id, 'implement', failed('CONTAINER_ERROR' as never))).toMatchObject({ kind: 'fail' });
+      expect(await o.forResult(t.id, 'implement', failed('TIMEOUT' as never))).toMatchObject({ kind: 'fail' });
+      for (const code of ['INVALID_OUTPUT', 'BLOCKED', 'CLAUDE_API_ERROR', 'CLAUDE_CONTEXT_TOO_LONG']) {
+        expect(await o.forResult(t.id, 'implement', failed(code as never))).toMatchObject({ kind: 'hold', reason: 'needs_help' });
+      }
+    });
+
+    it('CLAUDE_AUTH pauses every Claude stage with the code, and the ticket does not fail', async () => {
+      await prisma.globalSettings.deleteMany();
+      const t = await ticket();
+      expect(await outcomes().forResult(t.id, 'plan', { kind: 'claude_auth', stageRunId: 'r', attempts: 1 })).toEqual({ kind: 'stay' });
+      expect(await prisma.globalSettings.findUniqueOrThrow({ where: { id: 'global' } })).toMatchObject({ pipelinePaused: true, pausedCode: 'CLAUDE_AUTH', pausedReason: expect.stringContaining('rejected the credential') });
+      expect((await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } })).status).not.toBe('FAILED');
+    });
+
     it('pauses the pipeline on a rate limit and leaves the ticket where it is', async () => {
+      await prisma.globalSettings.deleteMany();
       const t = await ticket();
       const resetsAt = new Date('2026-12-01T00:00:00Z');
       expect(await outcomes().forResult(t.id, 'plan', { kind: 'rate_limited', resetsAt, stageRunId: 'x', attempts: 1 })).toEqual({ kind: 'stay' });
-      expect(await prisma.globalSettings.findUniqueOrThrow({ where: { id: 'global' } })).toMatchObject({ pipelinePaused: true, pausedReason: expect.stringContaining('usage limit'), resetsAt });
+      expect(await prisma.globalSettings.findUniqueOrThrow({ where: { id: 'global' } })).toMatchObject({ pipelinePaused: true, pausedReason: expect.stringContaining('usage limit'), pausedCode: 'CLAUDE_USAGE_LIMIT', resetsAt });
     });
   });
 });

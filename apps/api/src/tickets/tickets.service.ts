@@ -112,7 +112,7 @@ export class TicketsService {
       subtasks: subtasks.map((s) => ({ id: s.id, seq: s.seq, title: s.title, description: s.description, status: s.status, fixRounds: s.fixRounds, acceptanceCriteria: s.acceptanceCriteria, files: s.files, dependsOn: s.dependsOn })),
       stageRuns: stageRuns.map((r) => ({
         id: r.id, stage: r.stage, model: r.model, attempt: r.attempt, round: r.round, status: r.status, startedAt: iso(r.startedAt), endedAt: iso(r.endedAt),
-        inputTokens: r.inputTokens, outputTokens: r.outputTokens, costUsd: Number(r.costUsd), numTurns: r.numTurns, error: r.error,
+        inputTokens: r.inputTokens, outputTokens: r.outputTokens, costUsd: Number(r.costUsd), numTurns: r.numTurns, error: r.error, errorCode: r.errorCode, errorSource: r.errorSource, retryAt: r.retryAt?.toISOString() ?? null,
       })),
       findings: findings.map((f) => ({ id: f.id, round: f.round, severity: f.severity, file: f.file, line: f.line, issue: f.issue, rule: f.rule, fix: f.fix, status: f.status })),
       supportQueries: queries.map((q) => ({ id: q.id, stage: q.stage, question: q.question, answer: q.answer, status: q.status, createdAt: q.createdAt.toISOString(), answeredAt: iso(q.answeredAt) })),

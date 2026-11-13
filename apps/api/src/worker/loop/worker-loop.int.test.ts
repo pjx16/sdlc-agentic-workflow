@@ -140,6 +140,18 @@ describe('worker loop (BUILD_PLAN 6.6, F4)', () => {
     expect(await loop.tick()).toBe('idle');
   });
 
+  it('ends a pause caused by Claude\'s limit at the reset time, but never one the user chose', async () => {
+    const loop = loopWith([]);
+    await prisma.globalSettings.upsert({ where: { id: 'global' }, update: { pipelinePaused: true, pausedCode: 'CLAUDE_RATE_LIMIT', pausedReason: 'limit', resetsAt: new Date(clock + 60_000) }, create: { id: 'global', pipelinePaused: true, pausedCode: 'CLAUDE_RATE_LIMIT', pausedReason: 'limit', resetsAt: new Date(clock + 60_000) } });
+    expect(await loop.tick()).toBe('paused'); // before the reset
+    clock += 120_000;
+    expect(await loop.tick()).not.toBe('paused');
+    expect(await prisma.globalSettings.findUniqueOrThrow({ where: { id: 'global' } })).toMatchObject({ pipelinePaused: false, pausedCode: null, resetsAt: null });
+    await prisma.globalSettings.update({ where: { id: 'global' }, data: { pipelinePaused: true, pausedCode: null, resetsAt: new Date(clock - 1000) } });
+    expect(await loop.tick()).toBe('paused'); // a manual or threshold pause stays until someone resumes
+    await prisma.globalSettings.update({ where: { id: 'global' }, data: { pipelinePaused: false } });
+  });
+
   it('does not run a step while the pipeline is paused, but pausing never interrupts housekeeping', async () => {
     const t = await ticket('NEW');
     await prisma.globalSettings.create({ data: { id: 'global', pipelinePaused: true } });

@@ -160,6 +160,8 @@ model GlobalSettings {
   usageIgnoredUntil       DateTime? @db.Timestamptz(6)
   pipelinePaused          Boolean   @default(false)
   pausedReason            String?
+  /// The ERROR_CODES value behind the pause, when there is one (CLAUDE_AUTH, CLAUDE_USAGE_LIMIT, ...).
+  pausedCode              String?
   resetsAt                DateTime? @db.Timestamptz(6)
   intakePaused            Boolean   @default(false)
   pollIntervalSec         Int       @default(120)
@@ -295,6 +297,11 @@ model StageRun {
   resultJson       Json?
   logPath          String?
   error            String?
+  /// An ERROR_CODES value (packages/shared/src/error-policy.ts) and who it belongs to.
+  errorCode        String?
+  errorSource      String?
+  /// When an automatic retry is due (CLAUDE_API_ERROR backoff).
+  retryAt          DateTime?       @db.Timestamptz(6)
 
   queries SupportQuery[]
 

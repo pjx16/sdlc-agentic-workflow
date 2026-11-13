@@ -4,6 +4,7 @@ import type { Ticket } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CommitGuardError, describeViolations, squashAgentCommits, workspaceViolationsSync } from '../git/commit-guard';
 import { PushRejectedError } from '../git/commit';
+import { PolicyError } from '../common/retry-policy';
 import { GitRunner } from '../git/git-runner';
 import { makeWritableForAgent } from '../git/workspace';
 import { WorkspaceService } from '../git/workspace.service';
@@ -86,7 +87,7 @@ export class ReviewHandler implements StepHandler {
       await this.workspaces.commit(ticket.id, `fix(${ticket.key}): address review round ${ticket.reviewRound}`);
       await this.workspaces.push(ticket.id);
     } catch (err) {
-      if (err instanceof CommitGuardError || err instanceof PushRejectedError) return { kind: 'hold', reason: 'needs_help', note: err.message.slice(0, 500), stageRunId: result.stageRunId };
+      if (err instanceof CommitGuardError || err instanceof PushRejectedError || err instanceof PolicyError) return { kind: 'hold', reason: 'needs_help', note: err.message.slice(0, 500), stageRunId: result.stageRunId };
       throw err;
     }
     this.logger.log(`${ticket.key}: fix for review round ${ticket.reviewRound} committed`);

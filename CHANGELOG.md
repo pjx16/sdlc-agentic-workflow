@@ -13,6 +13,11 @@ All notable changes to this project are documented here. The format follows [Kee
 - The worker no longer shows as offline while it runs a long stage: the heartbeat is written by its own timer every 5 seconds. The dashboard shows idle, busy (with phase and time), stalled and offline, and a banner when the worker restarts repeatedly. The `worker` service has a Docker healthcheck.
 - A usage snapshot is now recorded after every run (done, failed, killed or container error), linked to the run and model, with every window the event carried. Snapshots older than 90 days are reduced to one per hour.
 
+### Added
+- Error codes and recovery (`packages/shared/src/error-policy.ts`): every failure gets a code, a source and a recovery rule. Claude API errors retry 3 times (1, 4, 10 minutes), a turn limit retries once with 1.5x turns, invalid output retries once with the validation errors in the prompt, a container error or timeout retries once and then fails the ticket, a rejected Claude credential pauses all Claude stages until a new one is saved, and rate or usage limits pause until the reset time and then resume by themselves.
+- The dashboard shows a source badge (Claude, Agent, Workspace, Jira, Confluence, GitHub, Git, User), the message, the suggested action and the next retry time on every failed run, and names Claude in the pause banner.
+- Jira writes are safe to repeat: comments carry a hidden marker, a transition reads the status first, sub-tasks are found by a marker label before one is created. Git pushes and draft PRs retry by policy.
+
 ### Removed
 - Jira MCP mode, the `jiraIntake` and `jiraSync` stages and their prompts, the MCP proxy port, and the MCP settings. Jira is REST only; existing MCP projects are migrated to REST (they need REST credentials in Settings → Connections).
 

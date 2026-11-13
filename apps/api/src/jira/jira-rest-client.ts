@@ -1,6 +1,6 @@
 import { defaultJiraJql } from '@sdlc/shared';
 import { adfToText, markdownToAdf } from './adf';
-import {
+import { markerLabel,
   JiraHttpError, JiraStatusNotFoundError, JiraUnavailableError,
   type JiraClient, type JiraIssueStatus, type JiraProjectRef, type JiraSubtaskInput, type JiraTicket,
 } from './jira-client';
@@ -83,11 +83,18 @@ export class JiraRestClient implements JiraClient {
     };
   }
 
-  async comment(key: string, markdown: string): Promise<void> {
-    await this.request('POST', `/rest/api/3/issue/${encodeURIComponent(key)}/comment`, { body: markdownToAdf(markdown) });
+  async comment(key: string, markdown: string, marker?: string): Promise<void> {
+    if (marker) {
+      const existing = await this.request<Json>('GET', `/rest/api/3/issue/${encodeURIComponent(key)}/comment?maxResults=1000`);
+      if (JSON.stringify(existing.comments ?? []).includes(marker)) return;
+    }
+    await this.request('POST', `/rest/api/3/issue/${encodeURIComponent(key)}/comment`, { body: markdownToAdf(marker ? `${markdown}\n\n${marker}` : markdown) });
   }
 
   async transition(key: string, statusName: string): Promise<void> {
+    // Read the current status first: moving an issue to the status it is in is a repeat, not a change.
+    const current = await this.request<Json>('GET', `/rest/api/3/issue/${encodeURIComponent(key)}?fields=status`);
+    if (String(current.fields?.status?.name ?? '').trim().toLowerCase() === statusName.trim().toLowerCase()) return;
     const res = await this.request<Json>('GET', `/rest/api/3/issue/${encodeURIComponent(key)}/transitions`);
     const transitions: Json[] = res.transitions ?? [];
     const wanted = statusName.trim().toLowerCase();
@@ -98,6 +105,13 @@ export class JiraRestClient implements JiraClient {
 
   async createSubtask(parentKey: string, subtask: JiraSubtaskInput): Promise<{ key: string }> {
     const projectKey = parentKey.slice(0, parentKey.lastIndexOf('-'));
+    const label = subtask.marker ? markerLabel(subtask.marker) : null;
+    if (label) {
+      // An earlier attempt may have created it and failed before we stored the key: look for the marker label first.
+      const found = await this.request<Json>('POST', '/rest/api/3/search/jql', { jql: `parent = "${parentKey}" AND labels = "${label}"`, fields: ['summary'], maxResults: 1 });
+      const hit = (found.issues ?? [])[0];
+      if (hit?.key) return { key: String(hit.key) };
+    }
     const created = await this.request<Json>('POST', '/rest/api/3/issue', {
       fields: {
         project: { key: projectKey },
@@ -105,6 +119,7 @@ export class JiraRestClient implements JiraClient {
         summary: subtask.summary,
         description: markdownToAdf(subtask.description),
         issuetype: { name: subtask.issueTypeName ?? 'Sub-task' },
+        ...(label ? { labels: [label] } : {}),
       },
     });
     return { key: String(created.key) };

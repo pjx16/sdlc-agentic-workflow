@@ -5,12 +5,16 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { GITHUB_CLIENT, type GitHubClient, parseRepo } from '../github/github-client';
 import { buildPrDescription } from '../github/pr-description';
 import { renderReviewSummary } from '../review/review-comment';
+import { withRetry, type RetryOptions } from '../common/retry-policy';
 import { WorkerConfig } from '../worker-config';
 
 /** Opens (once) and describes the ticket's draft pull request (F9). */
 @Injectable()
 export class PrService {
   private readonly logger = new Logger(PrService.name);
+
+  /** Waits and scale of the retry policy; tests shrink them. */
+  retry: RetryOptions = {};
 
   constructor(
     private readonly prisma: PrismaService,
@@ -41,7 +45,9 @@ export class PrService {
     if (!ticket.branch) return null;
     try {
       const repo = parseRepo(ticket.project.repoUrl);
-      const opened = await this.github.openDraftPr({ repo, base: ticket.project.baseBranch, head: ticket.branch, title: `${ticket.key}: ${ticket.title}`, body: await this.describe(ticketId) });
+      const body = await this.describe(ticketId);
+      const branch = ticket.branch;
+      const opened = await withRetry('GITHUB_ERROR', () => this.github.openDraftPr({ repo, base: ticket.project.baseBranch, head: branch, title: `${ticket.key}: ${ticket.title}`, body }), { isFinal: (e) => /HTTP 4\d\d/.test(e instanceof Error ? e.message : ''), ...this.retry });
       await this.prisma.ticket.update({ where: { id: ticketId }, data: { prNumber: opened.number, prUrl: opened.url } });
       await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Opened draft PR #${opened.number}: ${opened.url}` } });
       return opened.number;

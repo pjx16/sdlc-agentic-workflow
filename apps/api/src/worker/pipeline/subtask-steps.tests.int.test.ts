@@ -181,7 +181,7 @@ describe('tests stage (F9)', () => {
   it('turns a stage that fails, asks a question or is killed into the documented hold', async () => {
     const t = await h.ticket();
     h.agent.override = { kind: 'turn_limit', stageRunId: 'x', attempts: 1 };
-    expect(await steps.tests(t, await h.subtask(t.id, 1))).toMatchObject({ kind: 'hold', reason: 'needs_help', note: 'The tests stage reached its turn limit' });
+    expect(await steps.tests(t, await h.subtask(t.id, 1))).toMatchObject({ kind: 'hold', reason: 'needs_help', note: 'tests ran out of turns.' });
     h.agent.override = { kind: 'killed', stageRunId: 'x', attempts: 1 };
     expect(await steps.tests(t, await h.subtask(t.id, 2))).toMatchObject({ kind: 'hold', reason: 'manual' });
   });

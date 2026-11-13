@@ -7,6 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { readTextNoFollowSync } from '../fs/safe-fs';
 import { CommitGuardError, squashAgentCommits } from '../git/commit-guard';
 import { PushRejectedError } from '../git/commit';
+import { PolicyError } from '../common/retry-policy';
 import { GitRunner } from '../git/git-runner';
 import { makeWritableForAgent } from '../git/workspace';
 import { WorkspaceService } from '../git/workspace.service';
@@ -90,7 +91,7 @@ export class KbUpdateService {
       await this.workspaces.commit(ticket.id, `docs(${ticket.key}): update ${match.entry.key} knowledge base`, { paths: [kbDir] });
       await this.workspaces.push(ticket.id);
     } catch (err) {
-      if (err instanceof CommitGuardError || err instanceof PushRejectedError) return { kind: 'outcome', outcome: { kind: 'hold', reason: 'needs_help', note: err.message.slice(0, 500), stageRunId: result.stageRunId } };
+      if (err instanceof CommitGuardError || err instanceof PushRejectedError || err instanceof PolicyError) return { kind: 'outcome', outcome: { kind: 'hold', reason: 'needs_help', note: err.message.slice(0, 500), stageRunId: result.stageRunId } };
       throw err;
     }
     return { kind: 'updated', note: `${match.entry.key} knowledge base updated` };

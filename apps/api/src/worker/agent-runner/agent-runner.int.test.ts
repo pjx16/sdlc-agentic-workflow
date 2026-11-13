@@ -104,7 +104,7 @@ describe('fake stage end to end, in a real container', () => {
 
   it('a schema failure is retried once and then fails; both attempts are recorded', async () => {
     const res = await runnerFor('schema-fail').run(request());
-    expect(res).toMatchObject({ kind: 'failed', attempts: 2 });
+    expect(res).toMatchObject({ kind: 'failed', errorCode: 'INVALID_OUTPUT', attempts: 2 });
     expect((res as { reason: string }).reason).toContain('data.planMarkdown');
     const runs = await prisma.stageRun.findMany({ where: { id: (res as { stageRunId: string }).stageRunId } });
     expect(runs[0]).toMatchObject({ attempt: 2, status: 'failed' });
@@ -124,8 +124,8 @@ describe('fake stage end to end, in a real container', () => {
   it('kills a stage that exceeds the stage timeout, retries once, then fails', async () => {
     const started = Date.now();
     const res = await runnerFor('slow').run(request({ stageTimeoutMin: 0.05 })); // 3 seconds
-    expect(res).toMatchObject({ kind: 'failed', attempts: 2 });
-    expect((res as { reason: string }).reason).toContain('Timed out');
+    expect(res).toMatchObject({ kind: 'failed', errorCode: 'TIMEOUT', attempts: 2 });
+    expect((res as { reason: string }).reason).toContain('took longer than');
     expect(Date.now() - started).toBeLessThan(60_000);
   }, 120_000);
 
@@ -147,8 +147,8 @@ describe('fake stage end to end, in a real container', () => {
     expect(await prisma.stageRun.findUniqueOrThrow({ where: { id: runId } })).toMatchObject({ status: 'killed', killRequested: true });
   }, 120_000);
 
-  it('holds at the turn limit without retrying, and reports needs_input and rate limits', async () => {
-    expect(await runnerFor('turn-limit').run(request())).toMatchObject({ kind: 'turn_limit', attempts: 1 });
+  it('retries once at the turn limit, and reports needs_input and rate limits', async () => {
+    expect(await runnerFor('turn-limit').run(request())).toMatchObject({ kind: 'turn_limit', attempts: 2 });
     expect(await runnerFor('needs-input').run(request())).toMatchObject({ kind: 'needs_input', question: 'Which database should be used?' });
     const limited = await runnerFor('rate-limit').run(request());
     expect(limited).toMatchObject({ kind: 'rate_limited', attempts: 1 });

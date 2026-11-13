@@ -9,6 +9,7 @@ import type { SubtaskInfo } from '../agent-runner/context-builder';
 import { changedFilesSync } from '../git/changes';
 import { CommitGuardError, describeViolations, squashAgentCommits, workspaceViolationsSync } from '../git/commit-guard';
 import { PushRejectedError } from '../git/commit';
+import { PolicyError } from '../common/retry-policy';
 import { GitRunner, HARDENING_FLAGS } from '../git/git-runner';
 import { makeWritableForAgent } from '../git/workspace';
 import { WorkspaceService, installedHash, manifestHash, recordInstalled } from '../git/workspace.service';
@@ -353,7 +354,7 @@ export class SubtaskStepsService implements SubtaskSteps {
     try {
       await this.workspaces.push(ticket.id);
     } catch (err) {
-      if (err instanceof PushRejectedError) return { kind: 'hold', reason: 'needs_help', note: err.message.slice(0, 500) };
+      if (err instanceof PushRejectedError || err instanceof PolicyError) return { kind: 'hold', reason: 'needs_help', note: err.message.slice(0, 500) };
       throw err;
     }
     await this.setStatus(subtask.id, 'DONE', { featCommit, lastFailure: null });

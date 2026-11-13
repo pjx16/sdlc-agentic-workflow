@@ -81,7 +81,12 @@ export class WorkerLoop {
         }
       }
 
-      const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
+      let settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
+      // A pause caused by Claude's rate or usage limit ends by itself at the reset time (BUILD_PLAN v1 6.3).
+      if (settings?.pipelinePaused && (settings.pausedCode === 'CLAUDE_RATE_LIMIT' || settings.pausedCode === 'CLAUDE_USAGE_LIMIT') && settings.resetsAt && settings.resetsAt.getTime() <= this.now()) {
+        settings = await this.prisma.globalSettings.update({ where: { id: 'global' }, data: { pipelinePaused: false, pausedReason: null, pausedCode: null, resetsAt: null } });
+        await this.prisma.event.create({ data: { type: 'usage', message: 'Claude limit reset: the pipeline resumes' } }).catch(() => undefined);
+      }
       if (settings?.pipelinePaused) {
         await phase('paused');
         return (outcome = 'paused');
@@ -149,6 +154,9 @@ export class WorkerLoop {
       case 'hold':
         await this.states.hold(ticket.id, outcome.reason, 'system', outcome.note, outcome.stageRunId);
         await this.holds?.onHold(ticket.id, outcome.reason, outcome.note).catch((e: unknown) => this.logger.warn(`Hold notice failed: ${String(e)}`));
+        break;
+      case 'fail':
+        await this.states.fail(ticket.id, outcome.reason.slice(0, 500));
         break;
       case 'continue':
       case 'stay':

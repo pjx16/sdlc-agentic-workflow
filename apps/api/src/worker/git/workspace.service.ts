@@ -9,7 +9,8 @@ import { type CmdResult, VerifyService } from '../verify/verify.service';
 import { WorkerConfig } from '../worker-config';
 import { readNoFollowSync, readTextNoFollowSync, writeTextNoFollowSync } from '../fs/safe-fs';
 import { assertSafeKey, branchName } from './branch';
-import { type CommitResult, commitAll, pushBranch } from './commit';
+import { PolicyError, withRetry, type RetryOptions } from '../common/retry-policy';
+import { type CommitResult, PushRejectedError, commitAll, pushBranch } from './commit';
 import { GitRunner } from './git-runner';
 import { makeWritableForAgent, prepareWorkspace } from './workspace';
 
@@ -53,6 +54,8 @@ export class WorkspaceService {
     private readonly creds: CredentialsService,
   ) {}
 
+  /** Waits and scale of the retry policy; tests shrink them. */
+  retry: RetryOptions = {};
   async prepare(ticketId: string): Promise<WorkspaceResult> {
     const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { project: true } });
     const { project } = ticket;
@@ -104,7 +107,15 @@ export class WorkspaceService {
     const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
     if (!ticket.branch) throw new Error(`${ticket.key} has no branch yet`);
     const project = await this.prisma.project.findUniqueOrThrow({ where: { id: ticket.projectId } });
-    await pushBranch(this.git, this.config.workspacePath(ticket.projectId, ticket.key), ticket.branch, project.repoUrl, this.config.pushUrlPrefixes);
+    const branch = ticket.branch;
+    // A failed push is retried by the GIT_ERROR policy (3 times, 1, 4 and 10 minutes). A rejected push is never retried: the remote moved on.
+    await withRetry('GIT_ERROR', () => pushBranch(this.git, this.config.workspacePath(ticket.projectId, ticket.key), branch, project.repoUrl, this.config.pushUrlPrefixes), {
+      ...this.retry,
+      isFinal: (e) => e instanceof PushRejectedError,
+      onRetry: ({ attempt, message }) => this.logger.warn(`Push of ${branch} failed (attempt ${attempt}): ${message}`),
+    }).catch((e: unknown) => {
+      throw e instanceof PolicyError && e.cause instanceof PushRejectedError ? e.cause : e;
+    });
     await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Pushed ${ticket.branch}` } });
   }
 }

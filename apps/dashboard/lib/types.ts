@@ -26,6 +26,7 @@ export interface GlobalSettingsView {
   modelAliases: { haiku: string; sonnet: string; opus: string };
   pipelinePaused: boolean;
   pausedReason: string | null;
+  pausedCode?: string | null;
   resetsAt: string | null;
   usageIgnoredUntil: string | null;
   intakePaused: boolean;
@@ -133,6 +134,9 @@ export interface RunView {
   costUsd: number;
   numTurns: number;
   error: string | null;
+  errorCode?: string | null;
+  errorSource?: string | null;
+  retryAt?: string | null;
 }
 
 export interface TicketDetail extends TicketListItem {

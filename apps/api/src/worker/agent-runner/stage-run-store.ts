@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { errorSourceOf, type ErrorCode } from '@sdlc/shared';
 import type { FixReason, Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RateLimit, StageUsage } from './result-parser';
@@ -22,6 +23,8 @@ export interface FinishStageRun {
   resultJson?: unknown;
   logPath?: string;
   error?: string;
+  errorCode?: ErrorCode;
+  retryAt?: Date;
 }
 
 /** Persistence for StageRun records, behind an interface so the runner can be unit-tested without a database. */
@@ -31,6 +34,8 @@ export interface StageRunStore {
   isKillRequested(id: string): Promise<boolean>;
   finish(id: string, result: FinishStageRun): Promise<void>;
   saveRateLimit(limit: RateLimit): Promise<void>;
+  /** When the next automatic retry of a failed run is due. */
+  setRetryAt(id: string, at: Date): Promise<void>;
 }
 
 export const STAGE_RUN_STORE = Symbol('STAGE_RUN_STORE');
@@ -72,6 +77,9 @@ export class PrismaStageRunStore implements StageRunStore {
         status: r.status,
         endedAt: new Date(),
         error: r.error ?? null,
+        errorCode: r.errorCode ?? null,
+        errorSource: r.errorCode ? errorSourceOf(r.errorCode) : null,
+        retryAt: r.retryAt ?? null,
         logPath: r.logPath ?? null,
         resultJson: r.resultJson === undefined ? undefined : (r.resultJson as Prisma.InputJsonValue),
         ...(r.usage
@@ -88,6 +96,10 @@ export class PrismaStageRunStore implements StageRunStore {
           : {}),
       },
     });
+  }
+
+  async setRetryAt(id: string, at: Date): Promise<void> {
+    await this.prisma.stageRun.update({ where: { id }, data: { retryAt: at } });
   }
 
   /** Keeps the latest rate_limit_event for the usage gate (milestone 10). */

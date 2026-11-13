@@ -12,6 +12,8 @@ const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
 export interface GlobalSettingsView extends GlobalSettingsInput {
   pipelinePaused: boolean;
   pausedReason: string | null;
+  /** The ERROR_CODES value behind the pause (CLAUDE_AUTH, CLAUDE_USAGE_LIMIT, ...), or null for a manual or threshold pause. */
+  pausedCode: string | null;
   resetsAt: string | null;
   usageIgnoredUntil: string | null;
   intakePaused: boolean;
@@ -103,6 +105,7 @@ function toView(row: GlobalSettings): GlobalSettingsView {
     ...parsed,
     pipelinePaused: row.pipelinePaused,
     pausedReason: row.pausedReason,
+    pausedCode: row.pausedCode,
     resetsAt: row.resetsAt?.toISOString() ?? null,
     usageIgnoredUntil: row.usageIgnoredUntil?.toISOString() ?? null,
     intakePaused: row.intakePaused,
@@ -212,7 +215,7 @@ export class SystemSettingsService {
     await this.row();
     const row = await this.prisma.globalSettings.update({
       where: { id: GLOBAL_ID },
-      data: { pipelinePaused: false, pausedReason: null, resetsAt: null },
+      data: { pipelinePaused: false, pausedReason: null, pausedCode: null, resetsAt: null },
     });
     await this.event('state', 'Pipeline resumed');
     return toView(row);

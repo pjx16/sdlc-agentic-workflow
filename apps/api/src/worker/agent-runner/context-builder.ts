@@ -63,6 +63,8 @@ export interface StageInputs {
   previousFindings?: FindingInfo[];
   /** Earlier questions this stage asked for the ticket and the developer's answers (F13), oldest first. */
   qa?: { question: string; answer: string }[];
+  /** Set on an automatic retry: why the last attempt failed (validation errors, or what the guard found), so the agent can avoid it. */
+  retryNote?: string;
   existingDoc?: string;
   docTemplate?: string;
 }
@@ -224,6 +226,9 @@ function planSections(stage: StageName, i: StageInputs): Plan {
     case 'kbUpdate':
       sections.push(diff(), { heading: 'Existing doc', body: i.existingDoc ? fenced(i.existingDoc) : NO_KB }, { heading: 'Doc template', body: i.docTemplate ?? '_No template._' });
       break;
+  }
+  if (i.retryNote) {
+    sections.push({ heading: 'Previous attempt failed', body: `Your last attempt was rejected. Fix exactly this and return the result again:\n\n${i.retryNote}` });
   }
   if (i.qa && i.qa.length > 0) {
     sections.push({

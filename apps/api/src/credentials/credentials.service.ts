@@ -109,6 +109,13 @@ export class CredentialsService implements OnModuleInit {
     await this.prisma.credential.upsert({ where: { key }, update: data, create: { key, ...data } });
     this.invalidate();
     await this.resolve();
+    if (key === 'claude_token') await this.resumeAfterAuthPause();
+  }
+
+  /** A new Claude token replaces the one Claude rejected: the pause that rejection caused ends (BUILD_PLAN v1 6.3, CLAUDE_AUTH). */
+  private async resumeAfterAuthPause(): Promise<void> {
+    const r = await this.prisma.globalSettings.updateMany({ where: { pausedCode: 'CLAUDE_AUTH' }, data: { pipelinePaused: false, pausedReason: null, pausedCode: null, resetsAt: null } });
+    if (r.count > 0) await this.prisma.event.create({ data: { type: 'usage', message: 'A new Claude credential was saved: the pipeline resumes' } }).catch(() => undefined);
   }
 
   async remove(key: CredentialKey): Promise<void> {

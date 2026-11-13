@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { KillRunButton } from './kill-run-button';
 import { formatDateTime, formatDuration } from '@/lib/ticket-status';
 import type { RunView } from '@/lib/types';
+import { ErrorNote } from './error-note';
 
 /** The stage runs of a ticket; each links to its live or finished log. */
 export function RunsTable({ runs }: { runs: RunView[] }) {
@@ -32,7 +33,7 @@ export function RunsTable({ runs }: { runs: RunView[] }) {
                   <KillRunButton runId={r.id} />
                 </>
               )}
-              {r.error && <span className="block text-xs text-red">{r.error}</span>}
+              {r.error && <ErrorNote code={r.errorCode} message={r.error} retryAt={r.retryAt} />}
             </td>
             <td className="py-3 text-muted">{formatDateTime(r.startedAt)}</td>
             <td className="py-3 text-muted">{formatDuration(r.startedAt, r.endedAt)}</td>

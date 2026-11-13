@@ -223,7 +223,7 @@ describe('breakdown stage (F8)', () => {
 
   it('turns a failed or killed stage into the documented hold', async () => {
     failWith = { kind: 'turn_limit', stageRunId: 'r', attempts: 1 };
-    expect(await handler.run(await ticket())).toMatchObject({ kind: 'hold', reason: 'needs_help', note: 'The breakdown stage reached its turn limit' });
+    expect(await handler.run(await ticket())).toMatchObject({ kind: 'hold', reason: 'needs_help', note: 'breakdown ran out of turns.' });
     failWith = { kind: 'killed', stageRunId: 'r', attempts: 1 };
     expect(await handler.run(await ticket())).toMatchObject({ kind: 'hold', reason: 'manual' });
   });

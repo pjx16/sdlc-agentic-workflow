@@ -56,7 +56,7 @@ export class UsageGate implements UsageGatePort {
     if (!decision.pause) return;
     this.logger.warn(`Pipeline paused: ${decision.reason}`);
     if (!row.pipelinePaused) {
-      await this.prisma.globalSettings.update({ where: { id: 'global' }, data: { pipelinePaused: true, pausedReason: decision.reason.slice(0, 300), resetsAt: decision.resetsAt } });
+      await this.prisma.globalSettings.update({ where: { id: 'global' }, data: { pipelinePaused: true, pausedReason: decision.reason.slice(0, 300), pausedCode: s.status === 'rejected' ? 'CLAUDE_USAGE_LIMIT' : null, resetsAt: decision.resetsAt } });
       await this.prisma.event.create({ data: { type: 'usage', message: `Pipeline paused: ${decision.reason}`.slice(0, 500) } });
     }
   }

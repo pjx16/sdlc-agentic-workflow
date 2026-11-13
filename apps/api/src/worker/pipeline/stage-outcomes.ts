@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ERROR_POLICY, describeError } from '@sdlc/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { StageResult } from '../agent-runner/agent-runner';
 import type { StepOutcome } from './step-handler';
@@ -25,26 +26,41 @@ export class StageOutcomes {
         }
         await this.prisma.supportQuery.create({ data: { ticketId, stageRunId: result.stageRunId, stage, question: result.question } });
         return { kind: 'hold', reason: 'awaiting_answer', note: result.question.slice(0, 200), stageRunId: result.stageRunId };
-      case 'failed':
-        return { kind: 'hold', reason: 'needs_help', note: `The ${stage} stage failed twice: ${result.reason}`.slice(0, 500), stageRunId: result.stageRunId };
+      case 'failed': {
+        // The runner has used up the retries of this error's policy. The policy says whether the ticket is held or failed.
+        const code = result.errorCode ?? 'INVALID_OUTPUT';
+        const recovery = ERROR_POLICY[code].recovery;
+        const note = `${stage}: ${result.reason}`.slice(0, 500);
+        if (recovery.kind === 'retry' && recovery.then === 'fail') return { kind: 'fail', reason: note, stageRunId: result.stageRunId };
+        return { kind: 'hold', reason: 'needs_help', note, stageRunId: result.stageRunId };
+      }
       case 'turn_limit':
-        return { kind: 'hold', reason: 'needs_help', note: `The ${stage} stage reached its turn limit`, stageRunId: result.stageRunId };
+        return { kind: 'hold', reason: 'needs_help', note: describeError('TURN_LIMIT', { agent: stage }), stageRunId: result.stageRunId };
+      case 'claude_auth': {
+        await this.pause('CLAUDE_AUTH', describeError('CLAUDE_AUTH'), null, ticketId);
+        return { kind: 'stay' };
+      }
       case 'killed':
         return { kind: 'hold', reason: 'manual', note: `The ${stage} stage was killed from the dashboard`, stageRunId: result.stageRunId };
       case 'rate_limited': {
-        // The usage gate treats a rate-limit error as `rejected` and has paused the pipeline (6.7); the stage is re-queued, not counted as an
-        // attempt. If the gate was not running (tests, or it failed), make sure the pause is in place.
+        // The usage gate treats a rate-limit error as `rejected` and has usually paused the pipeline already (6.7); the stage is re-queued,
+        // not counted as an attempt. If the gate was not running (tests, or it failed), make sure the pause is in place.
+        const code = result.errorCode ?? 'CLAUDE_USAGE_LIMIT';
         const current = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
         if (!current?.pipelinePaused) {
-          await this.prisma.globalSettings.upsert({
-            where: { id: 'global' },
-            update: { pipelinePaused: true, pausedReason: 'Claude rejected the request: the usage limit is reached', resetsAt: result.resetsAt },
-            create: { id: 'global', pipelinePaused: true, pausedReason: 'Claude rejected the request: the usage limit is reached', resetsAt: result.resetsAt },
-          });
+          await this.pause(code, 'Claude rejected the request: the usage limit is reached', result.resetsAt, ticketId);
+        } else if (!current.pausedCode) {
+          await this.prisma.globalSettings.update({ where: { id: 'global' }, data: { pausedCode: code } });
         }
         await this.prisma.event.create({ data: { ticketId, type: 'usage', message: `The ${stage} stage was rate limited: the pipeline is paused` } });
         return { kind: 'stay' };
       }
     }
+  }
+
+  private async pause(code: string, reason: string, resetsAt: Date | null, ticketId: string): Promise<void> {
+    const data = { pipelinePaused: true, pausedReason: reason, pausedCode: code, resetsAt };
+    await this.prisma.globalSettings.upsert({ where: { id: 'global' }, update: data, create: { id: 'global', ...data } });
+    await this.prisma.event.create({ data: { ticketId, type: 'error', message: reason.slice(0, 500) } });
   }
 }

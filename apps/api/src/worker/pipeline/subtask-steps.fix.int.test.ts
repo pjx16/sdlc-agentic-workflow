@@ -111,7 +111,7 @@ describe('fix rounds (F9)', () => {
     const { t, s } = await atGreen();
     await h.prisma.subtask.update({ where: { id: s.id }, data: { status: 'FIXING', lastFailure: 'x' } });
     h.agent.override = { kind: 'turn_limit', stageRunId: 'x', attempts: 1 };
-    expect(await steps.fix(t, await h.reload(s.id))).toMatchObject({ kind: 'hold', reason: 'needs_help', note: 'The fix stage reached its turn limit' });
+    expect(await steps.fix(t, await h.reload(s.id))).toMatchObject({ kind: 'hold', reason: 'needs_help', note: 'fix ran out of turns.' });
     expect((await h.reload(s.id)).status).toBe('FIXING');
   });
 });

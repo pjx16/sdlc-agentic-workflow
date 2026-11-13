@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ProjectSettingsSchema, type StageEnvelope } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
+import { jiraMarker } from '../../jira/jira-client';
 import { JiraClients } from '../../jira/jira-clients';
 import { PrismaService } from '../../prisma/prisma.service';
 import { featureKeyOf, lookup } from '../kb/kb-index';
@@ -86,7 +87,7 @@ export class PlanHandler implements StepHandler {
   private async commentOnJira(ticket: Ticket, jiraMode: string, enabled: boolean, plan: string): Promise<void> {
     if (!enabled || jiraMode !== 'rest' || ticket.source !== 'jira' || !ticket.externalKey) return;
     try {
-      await (await this.jira.forRest()).comment(ticket.externalKey, `## Plan for ${ticket.key}\n\n${plan}`);
+      await (await this.jira.forRest()).comment(ticket.externalKey, `## Plan for ${ticket.key}\n\n${plan}`, jiraMarker(ticket.key, 'plan', plan));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Posting the plan to ${ticket.externalKey} failed: ${message}`);

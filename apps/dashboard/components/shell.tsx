@@ -33,7 +33,7 @@ export async function Shell({ children }: { children: ReactNode }) {
           </div>
         </header>
         {setup && !setup.ready && <SetupBanner missing={setup.missing} adminCreated={setup.adminCreated} />}
-        {system?.settings.pipelinePaused && <PauseBanner reason={system.settings.pausedReason} resetsAt={system.settings.resetsAt} />}
+        {system?.settings.pipelinePaused && <PauseBanner code={system.settings.pausedCode} reason={system.settings.pausedReason} resetsAt={system.settings.resetsAt} />}
         <main className="flex-1 p-8">{children}</main>
       </div>
     </div>

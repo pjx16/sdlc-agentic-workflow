@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ProjectSettingsSchema, type SubtaskDraft } from '@sdlc/shared';
 import { JiraClients } from '../jira/jira-clients';
+import { jiraMarker } from '../jira/jira-client';
 import type { Prisma, Subtask } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -63,6 +64,7 @@ export class SubtasksService {
           summary: subtask.title,
           description: this.describe(subtask),
           issueTypeName: settings.jiraSubtaskTypeName,
+          marker: jiraMarker(ticket.key, `subtask-${subtask.seq}`, subtask.title),
         });
         await this.prisma.subtask.update({ where: { id: subtask.id }, data: { externalKey: key } });
         created++;

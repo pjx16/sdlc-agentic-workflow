@@ -87,23 +87,77 @@ describe('AgentRunner (BUILD_PLAN 6.4, 6.8)', () => {
     expect(timeout).toMatchObject({ kind: 'done', attempts: 2 });
     const twice = await setup({ runMs: 5000 }).runner.run(request({ stageTimeoutMin: 0.0005 }));
     expect(twice).toMatchObject({ kind: 'failed', attempts: 2 });
-    expect((twice as { reason: string }).reason).toContain('Timed out');
+    expect((twice as { reason: string; errorCode: string }).reason).toContain('took longer than');
+    expect(twice).toMatchObject({ errorCode: 'TIMEOUT' });
   });
 
   it('treats blocked and orchestrator-validation failures as failed attempts', async () => {
     const blocked = { lines: stream({ status: 'blocked', summary: 'cannot' }) };
-    expect(await setup(blocked).runner.run(request())).toMatchObject({ kind: 'failed', attempts: 2 });
+    // BLOCKED is not retried: the policy holds the ticket with the reason.
+    expect(await setup(blocked).runner.run(request())).toMatchObject({ kind: 'failed', errorCode: 'BLOCKED', attempts: 1 });
     const res = await setup(good).runner.run(request({ validate: () => 'featureKey is not in the index' }));
-    expect(res).toMatchObject({ kind: 'failed' });
+    expect(res).toMatchObject({ kind: 'failed', errorCode: 'INVALID_OUTPUT', attempts: 2 });
     expect((res as { reason: string }).reason).toContain('featureKey is not in the index');
   });
 
-  it('holds immediately at the turn limit, without a retry', async () => {
+  it('retries once at the turn limit with 1.5x the turns, then gives up', async () => {
     const turnLimit: FakeBehaviour = { exitCode: 1, lines: [JSON.stringify({ type: 'result', subtype: 'error_max_turns', is_error: true, num_turns: 16, terminal_reason: 'max_turns', result: null, errors: ['Reached maximum number of turns (15)'] })] };
     const { runner, engine, store } = setup(turnLimit);
-    expect(await runner.run(request())).toMatchObject({ kind: 'turn_limit', attempts: 1 });
-    expect(engine.created).toHaveLength(1);
-    expect(store.runs.get('run-1')?.finished?.error).toBe('Reached the turn limit');
+    expect(await runner.run(request({ maxTurns: 10 }))).toMatchObject({ kind: 'turn_limit', errorCode: 'TURN_LIMIT', attempts: 2 });
+    expect(engine.created).toHaveLength(2);
+    expect(store.runs.get('run-1')?.finished).toMatchObject({ error: 'Reached the turn limit', errorCode: 'TURN_LIMIT' });
+  });
+
+  describe('Claude-side errors (BUILD_PLAN v1 6.3)', () => {
+    const errorLines = (text: string, extra: Record<string, unknown> = {}) => [JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, errors: [text], ...extra })];
+
+    it('CLAUDE_AUTH: no retry, no failure of the ticket; the run is marked with the code', async () => {
+      const { runner, engine, store } = setup({ exitCode: 1, lines: errorLines('authentication_error: invalid bearer token') });
+      expect(await runner.run(request())).toMatchObject({ kind: 'claude_auth', attempts: 1 });
+      expect(engine.created).toHaveLength(1);
+      expect(store.runs.get('run-1')?.finished).toMatchObject({ errorCode: 'CLAUDE_AUTH' });
+    });
+
+    it('CLAUDE_USAGE_LIMIT and CLAUDE_RATE_LIMIT: pause-and-requeue results with their own code', async () => {
+      const usage = await setup({ exitCode: 1, lines: errorLines('Claude usage limit reached') }).runner.run(request());
+      expect(usage).toMatchObject({ kind: 'rate_limited', errorCode: 'CLAUDE_USAGE_LIMIT' });
+      const rate = await setup({ exitCode: 1, lines: errorLines('too many requests', { api_error_status: 429 }) }).runner.run(request());
+      expect(rate).toMatchObject({ kind: 'rate_limited', errorCode: 'CLAUDE_RATE_LIMIT' });
+    });
+
+    it('CLAUDE_API_ERROR: retries three times with 1, 4 and 10 minute waits, then gives up', async () => {
+      const { runner, engine, store } = setup({ exitCode: 1, lines: errorLines('API Error: 529 overloaded_error') });
+      const waits: number[] = [];
+      runner.sleep = async (ms) => void waits.push(ms);
+      expect(await runner.run(request())).toMatchObject({ kind: 'failed', errorCode: 'CLAUDE_API_ERROR', attempts: 4 });
+      expect(engine.created).toHaveLength(4);
+      expect(waits).toEqual([60_000, 240_000, 600_000]);
+      expect(store.retryAt.size).toBe(3); // the next attempt's time is stored on the failed run
+    });
+
+    it('CLAUDE_API_ERROR then success: recovers without failing', async () => {
+      const { runner } = setup([{ exitCode: 1, lines: errorLines('overloaded') }, good]);
+      runner.sleep = async () => undefined;
+      expect(await runner.run(request())).toMatchObject({ kind: 'done', attempts: 2 });
+    });
+
+    it('CLAUDE_CONTEXT_TOO_LONG: no retry', async () => {
+      const { runner, engine } = setup({ exitCode: 1, lines: errorLines('Prompt is too long') });
+      expect(await runner.run(request())).toMatchObject({ kind: 'failed', errorCode: 'CLAUDE_CONTEXT_TOO_LONG', attempts: 1 });
+      expect(engine.created).toHaveLength(1);
+    });
+  });
+
+  it('INVALID_OUTPUT: retries once with the validation errors in the prompt', async () => {
+    const bad = { lines: [JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: 'no json here' })] };
+    const { runner, engine } = setup([bad, good]);
+    expect(await runner.run(request())).toMatchObject({ kind: 'done', attempts: 2 });
+    expect(engine.created).toHaveLength(2);
+  });
+
+  it('CONTAINER_ERROR: a container that cannot start is retried once, then reported with its code', async () => {
+    const res = await setup({ exitCode: 125, lines: [] }).runner.run(request());
+    expect(res).toMatchObject({ kind: 'failed', errorCode: 'CONTAINER_ERROR', attempts: 2 });
   });
 
   it('reports a rate-limit rejection without retrying, so the caller can pause and re-queue', async () => {
