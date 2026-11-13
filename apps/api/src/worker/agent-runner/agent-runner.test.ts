@@ -130,16 +130,6 @@ describe('AgentRunner (BUILD_PLAN 6.4, 6.8)', () => {
     expect(engine.handles[0]).toMatchObject({ killed: true, removed: true });
   }, 15_000);
 
-  it('gives Jira stages the MCP proxy port, the Jira env and no workspace', async () => {
-    const { runner, engine } = setup({ lines: stream({ status: 'done', summary: 'ok', data: { tickets: [] } }) });
-    const res = await runner.run(request({ stage: 'jiraIntake', workspacePath: undefined, modelAlias: 'haiku', jira: { tools: ['getJiraIssue'], mcpConfigJson: '{}', env: { JIRA_BASIC: 'abc' } } }));
-    expect(res.kind).toBe('done');
-    const created = engine.created[0];
-    expect(created?.Env).toContain('HTTPS_PROXY=http://proxy:3129');
-    expect(created?.Env).toContain('JIRA_BASIC=abc');
-    expect((created?.HostConfig?.Binds ?? []).some((b) => b.includes(':/workspace'))).toBe(false);
-  });
-
   it('refuses a stage that needs a workspace but has none', async () => {
     await expect(setup(good).runner.run(request({ workspacePath: undefined }))).rejects.toThrow('needs a workspace');
   });

@@ -27,7 +27,7 @@ describe('shipped guideline files (BUILD_PLAN 6.9)', () => {
   });
 
   it('every stage file states its goal, inputs, steps, rules, the data shape and what to do when it cannot go on', () => {
-    for (const f of ['kb-build', 'plan', 'breakdown', 'tests', 'implement', 'fix', 'review', 'kb-update', 'jira-intake', 'jira-sync']) {
+    for (const f of ['kb-build', 'plan', 'breakdown', 'tests', 'implement', 'fix', 'review', 'kb-update']) {
       const t = read(`stages/${f}.md`);
       for (const needle of ['## Goal', '## Inputs', '## Steps', '## Rules', '## Output `data`', '`needs_input`']) expect(t, `${f} ${needle}`).toContain(needle);
     }
@@ -40,13 +40,6 @@ describe('shipped guideline files (BUILD_PLAN 6.9)', () => {
     for (const f of ['kb-build', 'kb-update']) expect(read(`stages/${f}.md`), f).toContain('features.json');
     expect(read('stages/kb-update.md')).toContain('do not exist yet');
     expect(read('stages/kb-update.md')).toMatch(/never\s+edit `features.json`/i);
-  });
-
-  it('the Jira stages name the tools and the extra fields the code reads', () => {
-    expect(read('stages/jira-intake.md')).toContain('searchJiraIssuesUsingJql');
-    expect(read('stages/jira-intake.md')).toContain('"status"');
-    expect(read('stages/jira-sync.md')).toContain('transitionJiraIssue');
-    expect(read('stages/jira-sync.md')).toContain('createdKey');
   });
 
   it('stack guidelines cover conventions, error handling, tests and what to avoid', () => {

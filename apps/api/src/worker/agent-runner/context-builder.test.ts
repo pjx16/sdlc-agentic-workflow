@@ -16,8 +16,7 @@ const inputs: StageInputs = {
   ticket: { key: 'ABC-1', title: 'Add parser', body: 'First paragraph of the body.\n\nSecond paragraph with more detail.' },
   kbDoc: '# KB\nthe doc', indexKeys: ['auth', 'billing'], plan: '# Plan\nDo it', subtask, testFiles: ['src/parser.test.ts'],
   exampleTestFile: 'src/util.test.ts', failureOutput: 'FAIL src/parser.test.ts\nexpected 1', acceptanceCriteria: ['It parses'],
-  diff: 'diff --git a/x b/x', reviewChecklist: '- be correct', existingDoc: '# Old doc', docTemplate: '# Template', jql: 'project = ABC',
-  projectKey: 'ABC', ticketSchema: '{"type":"object"}', syncPayload: '{"op":"comment"}',
+  diff: 'diff --git a/x b/x', reviewChecklist: '- be correct', existingDoc: '# Old doc', docTemplate: '# Template',
 };
 
 async function build(stage: StageName, over: Partial<BuildContextInput> = {}, inputOver: Partial<StageInputs> = {}) {
@@ -61,8 +60,6 @@ describe('prompt.md (BUILD_PLAN 6.4)', () => {
     fix: ['Failure output', 'Subtask', 'Output'],
     review: ['Acceptance criteria', 'Diff', 'Review checklist', 'Output'],
     kbUpdate: ['Diff', 'Existing doc', 'Doc template', 'Output'],
-    jiraIntake: ['JQL', 'Project key', 'Ticket schema', 'Output'],
-    jiraSync: ['Operation', 'Output'],
   };
   it.each(STAGE_NAMES)('%s has its sections in the documented order', async (stage) => {
     const { runDir } = await build(stage);
@@ -151,13 +148,6 @@ describe('prompt.md (BUILD_PLAN 6.4)', () => {
     expect(read((await build('implement')).runDir, 'kb.md')).toBe('# KB\nthe doc');
   });
 
-  it('keeps Jira stages self-contained: everything inline, no context files', async () => {
-    const intake = await build('jiraIntake', { mcpConfigJson: '{"mcpServers":{}}' });
-    expect(intake.files.sort()).toEqual(['mcp.json', 'prompt.md', 'schema.json', 'stage.json', 'system.md']);
-    expect(read(intake.runDir, 'prompt.md')).toContain('project = ABC');
-    expect(read(intake.runDir, 'mcp.json')).toBe('{"mcpServers":{}}');
-  });
-
   it('writes schema.json verbatim', async () => {
     expect(JSON.parse(read((await build('plan', { schema: { type: 'object', required: ['status'] } })).runDir, 'schema.json'))).toEqual({ type: 'object', required: ['status'] });
   });
@@ -207,12 +197,6 @@ describe('stage.json', () => {
     }
   });
 
-  it('gives Jira stages only the listed MCP tools and no file or shell tools', () => {
-    const j = buildStageJson({ stage: 'jiraIntake', modelAlias: 'haiku', modelAliases: aliases, maxTurns: 10, jiraTools: ['getJiraIssue', 'searchJiraIssuesUsingJql'] });
-    expect(j.allowedTools).toEqual(['mcp__atlassian__getJiraIssue', 'mcp__atlassian__searchJiraIssuesUsingJql']);
-    expect(j.mcpConfig).toBe(true);
-    expect(j.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Read', 'Edit', 'Write', 'Grep', 'Glob', 'WebFetch', 'WebSearch']));
-  });
 });
 
 describe('earlier questions and answers (F13)', () => {

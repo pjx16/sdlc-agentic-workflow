@@ -126,7 +126,6 @@ describe('Jira intake polling (F3)', () => {
     const ok = await project();
     await project({ enabled: false });
     await project({ jiraMode: 'off' });
-    await project({ jiraMode: 'mcp' });
     await project({ mirrorStatus: 'pending' });
     await project({ mirrorStatus: 'failed' });
     jira.tickets = [jt('ABC-1')];

@@ -49,15 +49,12 @@ export const ProjectSettingsSchema = z.object({
       fix: stage('sonnet', 15),
       review: stage('sonnet', 10),
       kbUpdate: stage('sonnet', 15),
-      jiraIntake: stage('haiku', 10),
-      jiraSync: stage('haiku', 8),
     })
     .prefault({}),
   gates: z.object({ plan: z.boolean().default(true), breakdown: z.boolean().default(true) }).prefault({}),
   intake: z
     .object({
       paste: z.boolean().default(true),
-      mcpPollIntervalSec: z.number().int().min(60, 'must be at least 60').max(86_400).default(900),
     })
     .prefault({}),
   jiraWriteBack: z

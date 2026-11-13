@@ -5,10 +5,8 @@ export type WorkspaceAccess = 'rw' | 'ro' | 'none';
 /** Workspace mounting per stage (BUILD_PLAN 6.4 table). kbBuild and kbUpdate may only change `kbDir`. */
 export const STAGE_WORKSPACE: Record<StageName, WorkspaceAccess> = {
   kbBuild: 'rw', plan: 'ro', breakdown: 'ro', tests: 'rw', implement: 'rw', fix: 'rw',
-  review: 'ro', kbUpdate: 'rw', jiraIntake: 'none', jiraSync: 'none',
+  review: 'ro', kbUpdate: 'rw',
 };
-
-export const isJiraStage = (stage: StageName): boolean => stage === 'jiraIntake' || stage === 'jiraSync';
 
 /** `stage.json`, read by run-stage (BUILD_PLAN 6.4). `attempt` and `round` are extra, for the test stub and diagnostics. */
 export interface StageJson {
@@ -16,7 +14,6 @@ export interface StageJson {
   maxTurns: number;
   disallowedTools: string[];
   allowedTools?: string[];
-  mcpConfig?: boolean;
   attempt: number;
   round: number;
 }
@@ -30,20 +27,14 @@ export interface StageConfigInput {
   maxTurns: number;
   attempt?: number;
   round?: number;
-  /** Jira stages only: the project's MCP tool names (bare), and the MCP server's name in the config file. */
-  jiraTools?: string[];
-  mcpServerName?: string;
 }
 
 const ALWAYS_DISALLOWED = ['WebFetch', 'WebSearch'];
 const READ_ONLY_EXTRA = ['Edit', 'Write', 'NotebookEdit'];
-const JIRA_EXTRA = ['Bash', 'Read', 'Edit', 'Write', 'Grep', 'Glob'];
 
 export function buildStageJson(input: StageConfigInput): StageJson {
-  const jira = isJiraStage(input.stage);
   const disallowed = [...ALWAYS_DISALLOWED];
-  if (jira) disallowed.push(...JIRA_EXTRA);
-  else if (STAGE_WORKSPACE[input.stage] === 'ro') disallowed.push(...READ_ONLY_EXTRA);
+  if (STAGE_WORKSPACE[input.stage] === 'ro') disallowed.push(...READ_ONLY_EXTRA);
 
   const json: StageJson = {
     model: input.modelAliases[input.modelAlias],
@@ -52,11 +43,6 @@ export function buildStageJson(input: StageConfigInput): StageJson {
     attempt: input.attempt ?? 1,
     round: input.round ?? 0,
   };
-  if (jira) {
-    const server = input.mcpServerName ?? 'atlassian';
-    json.allowedTools = (input.jiraTools ?? []).map((t) => `mcp__${server}__${t}`);
-    json.mcpConfig = true;
-  }
   return json;
 }
 

@@ -17,10 +17,10 @@ describe('ProjectSettings defaults (section 7)', () => {
     expect(s.stages.fix).toEqual({ enabled: true, model: 'sonnet', maxTurns: 15 });
     expect(s.stages.review).toEqual({ enabled: true, model: 'sonnet', maxTurns: 10 });
     expect(s.stages.kbUpdate).toEqual({ enabled: true, model: 'sonnet', maxTurns: 15 });
-    expect(s.stages.jiraIntake).toEqual({ enabled: true, model: 'haiku', maxTurns: 10 });
-    expect(s.stages.jiraSync).toEqual({ enabled: true, model: 'haiku', maxTurns: 8 });
+    expect(Object.keys(s.stages)).not.toContain('jiraIntake');
+    expect(Object.keys(s.stages)).not.toContain('jiraSync');
     expect(s.gates).toEqual({ plan: true, breakdown: true });
-    expect(s.intake).toEqual({ paste: true, mcpPollIntervalSec: 900 });
+    expect(s.intake).toEqual({ paste: true });
     expect(s.jiraWriteBack).toEqual({ comments: true, transitions: true, createSubtasks: true });
     expect(s.jiraSubtaskTypeName).toBe('Sub-task');
     expect(s.pr).toEqual({ earlyDraft: true, ciFixRound: true, ciTimeoutMin: 30 });
@@ -144,12 +144,11 @@ describe('GlobalSettings', () => {
       stageTimeoutMin: 20, verifyTimeoutSec: 600, workspaceRetentionDays: 7, logRetentionDays: 30,
       modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
     });
-    expect(DEFAULT_GLOBAL_SETTINGS.jiraMcp.readTools).toContain('searchJiraIssuesUsingJql');
-    expect(DEFAULT_GLOBAL_SETTINGS.jiraMcp.writeTools).toContain('transitionJiraIssue');
+    expect(Object.keys(DEFAULT_GLOBAL_SETTINGS)).not.toContain('jiraMcp');
   });
   it('validates ranges with field-level errors', () => {
-    const f = zodFields(GlobalSettingsSchema.safeParse({ usageThresholdPct: 0, pollIntervalSec: 1, stageTimeoutMin: 'x', modelAliases: { haiku: '' }, jiraMcp: { readTools: [''] } }).error!);
-    expect(Object.keys(f).sort()).toEqual(['jiraMcp.readTools.0', 'modelAliases.haiku', 'pollIntervalSec', 'stageTimeoutMin', 'usageThresholdPct']);
+    const f = zodFields(GlobalSettingsSchema.safeParse({ usageThresholdPct: 0, pollIntervalSec: 1, stageTimeoutMin: 'x', modelAliases: { haiku: '' } }).error!);
+    expect(Object.keys(f).sort()).toEqual(['modelAliases.haiku', 'pollIntervalSec', 'stageTimeoutMin', 'usageThresholdPct']);
   });
 });
 

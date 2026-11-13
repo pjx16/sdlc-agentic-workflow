@@ -24,7 +24,6 @@ enum ClaudeMdMode {
 
 enum JiraMode {
   rest
-  mcp
   off
 }
 
@@ -169,7 +168,6 @@ model GlobalSettings {
   workspaceRetentionDays  Int       @default(7)
   logRetentionDays        Int       @default(30)
   modelAliases            Json      @default("{\"haiku\":\"haiku\",\"sonnet\":\"sonnet\",\"opus\":\"opus\"}")
-  jiraMcp                 Json      @default("{\"readTools\":[],\"writeTools\":[]}")
   updatedAt               DateTime  @updatedAt @db.Timestamptz(6)
 }
 

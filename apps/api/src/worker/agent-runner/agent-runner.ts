@@ -11,7 +11,7 @@ import type { ContainerSpec } from './container-options';
 import { ContainerRunner } from './container-runner';
 import { LOG_SINK, type LogSink } from './log-sink';
 import { isRateLimited, parseStream, type ParsedStream, type RateLimit } from './result-parser';
-import { STAGE_WORKSPACE, isJiraStage } from './stage-config';
+import { STAGE_WORKSPACE } from './stage-config';
 import { STAGE_RUN_STORE, type StageRunStore } from './stage-run-store';
 
 const MAX_ATTEMPTS = 2; // BUILD_PLAN 6.8: retry once with a fresh run
@@ -31,10 +31,8 @@ export interface StageRequest {
   maxTurns: number;
   stageTimeoutMin: number;
   inputs: StageInputs;
-  /** Required for every stage that has a workspace (all but the Jira stages). */
+  /** Required for every stage that has a workspace (every stage). */
   workspacePath?: string;
-  /** Jira MCP stages only: tool names, the MCP config file contents and extra env (the Jira credential). */
-  jira?: { tools: string[]; mcpConfigJson: string; env: Record<string, string>; serverName?: string };
   /** Orchestrator validation of a valid envelope (for example "featureKey must be in the index"). Return a message to fail the attempt. */
   validate?: (envelope: StageEnvelope) => string | null;
 }
@@ -100,7 +98,6 @@ export class AgentRunner {
     | { kind: 'rate_limited'; resetsAt: Date | null; stageRunId: string }
     | { kind: 'killed'; stageRunId: string }
   > {
-    const jira = isJiraStage(req.stage);
     const access = STAGE_WORKSPACE[req.stage];
     if (access !== 'none' && !req.workspacePath) throw new Error(`Stage ${req.stage} needs a workspace`);
 
@@ -118,15 +115,13 @@ export class AgentRunner {
       schema: stageJsonSchema(req.stage),
       config: {
         stage: req.stage, modelAlias: req.modelAlias, modelAliases: req.modelAliases, maxTurns: req.maxTurns, attempt, round: req.round ?? 0,
-        jiraTools: req.jira?.tools, mcpServerName: req.jira?.serverName,
       },
       runsDir: path.join(this.config.dataDir, 'runs'),
       guidelinesDir: this.config.guidelinesDir,
       workspacePath: req.workspacePath,
-      mcpConfigJson: req.jira?.mcpConfigJson,
     });
 
-    const proxy = `http://proxy:${jira ? 3129 : 3128}`;
+    const proxy = `http://proxy:3128`;
     const spec: ContainerSpec = {
       name: `sdlc-run-${stageRunId}`,
       image: this.config.agentImage,
@@ -141,7 +136,6 @@ export class AgentRunner {
         DISABLE_TELEMETRY: '1',
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
         ...this.config.agentExtraEnv,
-        ...(req.jira?.env ?? {}),
       },
       extraBinds: this.config.agentExtraBinds,
       workspace:
@@ -158,7 +152,7 @@ export class AgentRunner {
       timeoutMs: req.stageTimeoutMin * 60_000,
     };
 
-    const log = this.logs.open(stageRunId, Object.values(req.jira?.env ?? {}));
+    const log = this.logs.open(stageRunId);
     const lines: string[] = [];
     let container;
     try {

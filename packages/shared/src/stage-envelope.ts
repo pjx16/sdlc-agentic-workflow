@@ -45,22 +45,6 @@ export const ReviewData = z.object({
 export const KbBuildData = z.object({ featureKey: text, isNew: z.boolean(), docPath: text, globs: textList });
 export const KbUpdateData = z.object({ featureKey: text, docPath: text, changed: z.boolean() });
 
-export const JiraIntakeData = z.object({
-  tickets: z.array(
-    z.object({
-      key: text,
-      summary: z.string(),
-      description: z.string(),
-      issuetype: z.string(),
-      labels: textList,
-      priority: z.string().nullable(),
-      /** The issue's current Jira status name (needed to read approvals in MCP mode). */
-      status: z.string().optional(),
-    }),
-  ),
-});
-export const JiraSyncData = z.object({ applied: z.boolean(), detail: z.string(), /** For a created sub-task: its Jira key. */ createdKey: z.string().optional() });
-
 export const STAGE_DATA = {
   kbBuild: KbBuildData,
   plan: PlanData,
@@ -70,8 +54,6 @@ export const STAGE_DATA = {
   fix: ChangeData,
   review: ReviewData,
   kbUpdate: KbUpdateData,
-  jiraIntake: JiraIntakeData,
-  jiraSync: JiraSyncData,
 } as const satisfies Record<StageName, z.ZodType>;
 
 export type StageData<S extends StageName> = z.infer<(typeof STAGE_DATA)[S]>;

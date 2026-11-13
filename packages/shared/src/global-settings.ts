@@ -4,14 +4,6 @@ import { MODEL_ALIASES } from './enums';
 const int = (def: number, min: number, max: number) =>
   z.number({ error: 'must be a number' }).int('must be a whole number').min(min, `must be at least ${min}`).max(max, `must be at most ${max}`).default(def);
 
-const toolList = z.array(z.string().trim().min(1, 'must not be empty')).default([]);
-
-/** Tool names from the milestone-0 spike (SPIKE.md 0.7), for Atlassian's official server. */
-export const DEFAULT_JIRA_MCP = {
-  readTools: ['getJiraIssue', 'listJiraIssueComments', 'searchJiraIssuesUsingJql', 'getAccessibleAtlassianResources'],
-  writeTools: ['createJiraIssue', 'editJiraIssue', 'transitionJiraIssue', 'addOrEditJiraIssueComment'],
-};
-
 /** The user-editable part of GlobalSettings (pause state and usage-gate bookkeeping have their own endpoints). */
 export const GlobalSettingsSchema = z.object({
   usageThresholdPct: int(50, 1, 100),
@@ -25,7 +17,6 @@ export const GlobalSettingsSchema = z.object({
   modelAliases: z
     .object(Object.fromEntries(MODEL_ALIASES.map((m) => [m, z.string().trim().min(1, 'required').default(m)])) as Record<(typeof MODEL_ALIASES)[number], z.ZodDefault<z.ZodString>>)
     .prefault({}),
-  jiraMcp: z.object({ readTools: toolList, writeTools: toolList }).prefault(DEFAULT_JIRA_MCP),
 });
 
 export type GlobalSettingsInput = z.infer<typeof GlobalSettingsSchema>;

@@ -13,8 +13,6 @@ const validData: Record<string, unknown> = {
   fix: { filesChanged: [] },
   review: { findings: [{ severity: 'high', file: 'a.ts', line: null, issue: 'i', rule: 'r', fix: 'f' }], previousFindings: [{ id: 'x', status: 'fixed' }] },
   kbUpdate: { featureKey: 'auth', docPath: 'docs/kb/auth.md', changed: true },
-  jiraIntake: { tickets: [{ key: 'A-1', summary: 's', description: 'd', issuetype: 'Story', labels: [], priority: null }] },
-  jiraSync: { applied: true, detail: 'ok' },
 };
 
 describe('stage envelopes (BUILD_PLAN 6.5)', () => {

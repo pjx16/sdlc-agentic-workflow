@@ -164,7 +164,7 @@ describe('Jira status mapping (F15)', () => {
       const rest = await project();
       await ticket(rest.id, { status: 'PLANNING' });
       await prisma.ticket.create({ data: { projectId: rest.id, key: 'P-9', source: 'paste', status: 'AWAITING_PLAN_APPROVAL', title: 'pasted' } });
-      await ticket((await project({ jiraMode: 'mcp' })).id, { status: 'AWAITING_PLAN_APPROVAL' });
+      await ticket((await project({ jiraMode: 'off' })).id, { status: 'AWAITING_PLAN_APPROVAL' });
       await ticket((await project({ enabled: false })).id, { status: 'AWAITING_PLAN_APPROVAL' });
       await ticket((await project({}, { jiraApprovalStatuses: {} })).id, { status: 'AWAITING_PLAN_APPROVAL' });
       jira.calls = [];

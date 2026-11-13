@@ -98,7 +98,6 @@ function toView(row: GlobalSettings): GlobalSettingsView {
     workspaceRetentionDays: row.workspaceRetentionDays,
     logRetentionDays: row.logRetentionDays,
     modelAliases: row.modelAliases,
-    jiraMcp: row.jiraMcp,
   });
   return {
     ...parsed,
@@ -124,7 +123,6 @@ export class SystemSettingsService {
         id: GLOBAL_ID,
         ...d,
         modelAliases: d.modelAliases as unknown as Prisma.InputJsonValue,
-        jiraMcp: d.jiraMcp as unknown as Prisma.InputJsonValue,
       },
     });
   }
@@ -197,7 +195,6 @@ export class SystemSettingsService {
       data: {
         ...next,
         modelAliases: next.modelAliases as unknown as Prisma.InputJsonValue,
-        jiraMcp: next.jiraMcp as unknown as Prisma.InputJsonValue,
       },
     });
     await this.event('settings', 'Global settings updated');

@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { ClaudeMdMode, ProjectStack, StageName } from '@sdlc/shared';
-import { CLAUDE_MD_FILES, buildStageJson, hidesRepoClaudeMd, includesOurClaudeMd, isJiraStage, type StageConfigInput, type StageJson } from './stage-config';
+import { CLAUDE_MD_FILES, buildStageJson, hidesRepoClaudeMd, includesOurClaudeMd, type StageConfigInput, type StageJson } from './stage-config';
 
 export interface TicketInfo {
   key: string;
@@ -65,10 +65,6 @@ export interface StageInputs {
   qa?: { question: string; answer: string }[];
   existingDoc?: string;
   docTemplate?: string;
-  jql?: string;
-  projectKey?: string;
-  ticketSchema?: string;
-  syncPayload?: string;
 }
 
 export interface BuildContextInput {
@@ -85,8 +81,6 @@ export interface BuildContextInput {
   guidelinesDir: string;
   /** The workspace, for the CLAUDE.md hide-mount decision. */
   workspacePath?: string;
-  /** Contents of the Jira MCP config file (Jira stages in MCP mode). */
-  mcpConfigJson?: string;
 }
 
 export interface BuiltContext {
@@ -111,8 +105,6 @@ const DATA_SHAPES: Record<StageName, string> = {
   fix: '{ filesChanged[] }',
   review: '{ findings: [{ severity, file, line (nullable), issue, rule, fix }], previousFindings: [{ id, status: "fixed" | "still_open" }] }',
   kbUpdate: '{ featureKey, docPath, changed }',
-  jiraIntake: '{ tickets: [{ key, summary, description, issuetype, labels[], priority }] }',
-  jiraSync: '{ applied, detail }',
 };
 
 interface Section {
@@ -232,12 +224,6 @@ function planSections(stage: StageName, i: StageInputs): Plan {
     case 'kbUpdate':
       sections.push(diff(), { heading: 'Existing doc', body: i.existingDoc ? fenced(i.existingDoc) : NO_KB }, { heading: 'Doc template', body: i.docTemplate ?? '_No template._' });
       break;
-    case 'jiraIntake':
-      sections.push({ heading: 'JQL', body: i.jql ?? '' }, { heading: 'Project key', body: i.projectKey ?? '' }, { heading: 'Ticket schema', body: i.ticketSchema ?? '' });
-      break;
-    case 'jiraSync':
-      sections.push({ heading: 'Operation', body: fenced(i.syncPayload ?? '') });
-      break;
   }
   if (i.qa && i.qa.length > 0) {
     sections.push({
@@ -301,9 +287,7 @@ export async function buildStageContext(input: BuildContextInput): Promise<Built
     'schema.json': JSON.stringify(input.schema),
     'stage.json': JSON.stringify(stageJson, null, 2),
   };
-  // Stages without a workspace cannot read files, and Jira stages have no Read tool, so they get no context files.
-  if (!isJiraStage(input.stage)) for (const f of contextFiles) files[f.name] = f.content;
-  if (isJiraStage(input.stage) && input.mcpConfigJson) files['mcp.json'] = input.mcpConfigJson;
+  for (const f of contextFiles) files[f.name] = f.content;
 
   for (const [name, content] of Object.entries(files)) await writeFile(path.join(runDir, name), content, 'utf8');
 

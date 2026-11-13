@@ -38,7 +38,7 @@ describe('System and global settings API', () => {
       verifyTimeoutSec: 600, workspaceRetentionDays: 7, logRetentionDays: 30, pipelinePaused: false, pausedReason: null, intakePaused: false,
       modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
     });
-    expect(res.body.settings.jiraMcp.readTools).toContain('getJiraIssue');
+    expect(res.body.settings).not.toHaveProperty('jiraMcp');
   });
 
   it('GET /system reports the worker: none before it has run, online with a fresh heartbeat, offline with an old one, plus recent events', async () => {
@@ -73,7 +73,7 @@ describe('System and global settings API', () => {
     const patch = {
       usageThresholdPct: 40, usageThresholdWeeklyPct: 70, calibratedWindowTokens: 5_000_000, pollIntervalSec: 60, stageTimeoutMin: 30,
       verifyTimeoutSec: 300, workspaceRetentionDays: 3, logRetentionDays: 10,
-      modelAliases: { opus: 'claude-opus-5-5' }, jiraMcp: { readTools: ['getJiraIssue'], writeTools: [] },
+      modelAliases: { opus: 'claude-opus-5-5' },
     };
     const res = await t.agent.patch('/system/settings').send(patch).expect(200);
     expect(res.body).toMatchObject({ ...patch, modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'claude-opus-5-5' } });
@@ -89,10 +89,10 @@ describe('System and global settings API', () => {
   it('returns field-level errors and saves nothing', async () => {
     const res = await t.agent
       .patch('/system/settings')
-      .send({ usageThresholdPct: 0, pollIntervalSec: 1, stageTimeoutMin: 'x', modelAliases: { haiku: '' }, jiraMcp: { readTools: [''] } })
+      .send({ usageThresholdPct: 0, pollIntervalSec: 1, stageTimeoutMin: 'x', modelAliases: { haiku: '' } })
       .expect(400);
     expect(res.body.error).toBe('validation_error');
-    expect(Object.keys(res.body.fields).sort()).toEqual(['jiraMcp.readTools.0', 'modelAliases.haiku', 'pollIntervalSec', 'stageTimeoutMin', 'usageThresholdPct']);
+    expect(Object.keys(res.body.fields).sort()).toEqual(['modelAliases.haiku', 'pollIntervalSec', 'stageTimeoutMin', 'usageThresholdPct']);
     expect((await t.agent.get('/system')).body.settings.usageThresholdPct).toBe(50);
   });
 
