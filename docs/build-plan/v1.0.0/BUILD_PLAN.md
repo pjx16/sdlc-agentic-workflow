@@ -224,6 +224,17 @@ no rate-limit event. Snapshots also carry no link to the run or the model.
   - If a supported, free way exists, a timer records a snapshot every 10 minutes while the worker is idle.
   - If not, no probe calls are made. Spending usage to measure usage is not acceptable, and the charts show the gaps
     honestly.
+- **Spike result (0.5, Nov 14, 2026).** No supported, free way was found. Checked against Claude Code 2.1.323:
+  - The CLI has no `usage` subcommand and no flag that prints utilisation. Its subcommands are agents, attach,
+    auth, doctor, gateway, import, install, logs, mcp, plugin, purge, respawn, rm, setup-token, stop, ultrareview
+    and update.
+  - The interactive usage view and the status line exist only inside an interactive session. The worker runs
+    headless with a long-lived token, so it cannot use them.
+  - Not tried, on purpose: calling undocumented Anthropic endpoints with the user's OAuth token. It is
+    unsupported and could break or be refused without notice.
+
+  **Decision:** no idle sampling and no probe calls. Sub-task 0.7 therefore builds only the retention job. Charts
+  show gaps between runs. Revisit if Claude Code adds a documented way to read usage.
 - **Retention.** Keep snapshots at full detail for 90 days. After that, reduce them to one per hour.
 
 ### 6.3 Error codes and recovery
