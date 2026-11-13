@@ -53,6 +53,8 @@ import { CleanupService } from './cleanup/cleanup.service';
 import { UsageRetention } from './usage/usage-retention';
 import { OrphanCleanup } from './cleanup/orphan-cleanup';
 import { MergePoller } from './ci/merge-poller';
+import { PlanPageSync } from './plan-pages/plan-page-sync';
+import { ConfluenceClients } from '../confluence/confluence-clients';
 import { CiFixHandler } from './ci/ci-fix.handler';
 import { WorkerConfig } from './worker-config';
 import { WorkerRunner } from './worker-runner';
@@ -101,7 +103,8 @@ import { WorkerRunner } from './worker-runner';
     { provide: CleanupService, useFactory: (p: PrismaService, c: WorkerConfig) => new CleanupService(p, c), inject: [PrismaService, WorkerConfig] },
     { provide: CiPoller, useFactory: (p: PrismaService, st: StateMachine, pr: PrService, gh: GitHubClient, hn: HoldNotifier) => new CiPoller(p, st, pr, gh, undefined, hn), inject: [PrismaService, StateMachine, PrService, GITHUB_CLIENT, HoldNotifier] },
     { provide: MergePoller, useFactory: (p: PrismaService, st: StateMachine, gh: GitHubClient) => new MergePoller(p, st, gh), inject: [PrismaService, StateMachine, GITHUB_CLIENT] },
-    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, cleanup: CleanupService, orphans: OrphanCleanup, retention: UsageRetention, onboarding: OnboardingWorker): Housekeeper[] => [ci, merge, cleanup, orphans, retention, onboarding], inject: [CiPoller, MergePoller, CleanupService, OrphanCleanup, UsageRetention, OnboardingWorker] },
+    { provide: PlanPageSync, useFactory: (p: PrismaService, c: ConfluenceClients, j: JiraClients) => new PlanPageSync(p, c, j), inject: [PrismaService, ConfluenceClients, JiraClients] },
+    { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, cleanup: CleanupService, orphans: OrphanCleanup, retention: UsageRetention, onboarding: OnboardingWorker, pages: PlanPageSync): Housekeeper[] => [ci, merge, cleanup, orphans, retention, onboarding, pages], inject: [CiPoller, MergePoller, CleanupService, OrphanCleanup, UsageRetention, OnboardingWorker, PlanPageSync] },
     NewTicketHandler,
     KbHandler,
     { provide: STEP_HANDLERS, useFactory: (...handlers: StepHandler[]) => handlers, inject: [NewTicketHandler, KbHandler, PlanHandler, BreakdownHandler, InProgressHandler, ReviewHandler, KbUpdateHandler, HumanReviewHandler, CiFixHandler] },

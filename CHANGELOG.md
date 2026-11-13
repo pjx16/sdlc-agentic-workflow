@@ -48,6 +48,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - CI failures are triaged: `code` goes to the fixer, `flaky` runs the failed checks again once, and `infra` (or a second flaky failure) becomes a `ci_infra` support ticket instead of a duplicate hold.
 - The coder no longer writes tests when the test-writer stage is off; the existing tests run instead.
 
+- Confluence document hub: plans are published as one Confluence page per ticket (`{KEY} — {title}`, under the project's parent page), with a status line ("Draft, waiting for approval", "Approved on …"), the plan, risks, open questions and, once given, their answers. A rerun, an approval and an answered question update the same page, sending the expected version; a hand edit is kept in Confluence history, noted on the page and recorded as a warning. Jira gets one link comment; the full plan goes to Jira only for projects without Confluence, or after Confluence failed 3 times (`CONFLUENCE_ERROR`). `DocumentHub` / `ConfluenceHub`, a Markdown to Confluence storage converter (`packages/shared/src/confluence-storage.ts`), "Open in Confluence" on the plan tab, and the Jira credential test now also checks Confluence.
+
 ## [0.0.1] - 2026-11-13
 
 First public pre-release. Published so the author can use sdlc-agent on their own projects (including sdlc-agent itself) and find what breaks. Not production-ready and not supported for other users.

@@ -468,6 +468,8 @@ model StageArtifact {
   externalUrl     String?
   externalId      String?
   externalVersion Int?
+  /// Hash of what was last sent to Confluence, so a page is only updated when its content changed.
+  externalSig     String?
   createdAt       DateTime  @default(now()) @db.Timestamptz(6)
 
   @@unique([ticketId, stage, version])

@@ -19,3 +19,4 @@ export * from './onboarding';
 export * from './moves';
 export * from './agents';
 export * from './security-rules';
+export * from './confluence-storage';

@@ -79,7 +79,8 @@ export class PlanHandler implements StepHandler {
     await this.prisma.ticket.update({ where: { id: ticket.id }, data: { planMarkdown: plan } });
     await writeArtifact(this.prisma, ticket.id, 'plan', { planMarkdown: plan }, result.stageRunId).catch(() => undefined);
     await this.raiseOpenQuestions(ticket, (result.envelope as StageEnvelope).data as PlanData, result.stageRunId).catch((err: unknown) => this.logger.warn(`Raising the open questions of ${ticket.key} failed: ${err instanceof Error ? err.message : String(err)}`));
-    await this.commentOnJira(ticket, project.jiraMode, settings.jiraWriteBack.comments, plan);
+    // With Confluence configured the plan page is published by the plan page sync, which also links it on Jira (and posts the full text if Confluence fails).
+    if (!settings.confluence?.parentPageId) await this.commentOnJira(ticket, project.jiraMode, settings.jiraWriteBack.comments, plan);
 
     return settings.gates.plan
       ? { kind: 'transition', to: 'AWAITING_PLAN_APPROVAL', reason: 'Plan ready for approval', stageRunId: result.stageRunId }

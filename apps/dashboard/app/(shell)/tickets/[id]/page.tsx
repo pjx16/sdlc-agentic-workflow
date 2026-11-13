@@ -40,7 +40,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
   // The ticket's current need (an approval, a question, a hold): the assistant helps with that one item.
   const needs = (await apiGet<SupportTicketView[]>(`/support-tickets?ticketId=${encodeURIComponent(id)}`).catch(() => null)) ?? [];
   const current = needs.find((n) => n.status === 'open');
-  const artifacts = active === 'versions' ? ((await apiGet<ArtifactView[]>(`/tickets/${encodeURIComponent(id)}/artifacts`)) ?? []) : [];
+  const artifacts = active === 'versions' || active === 'plan' ? ((await apiGet<ArtifactView[]>(`/tickets/${encodeURIComponent(id)}/artifacts`)) ?? []) : [];
   const moves = (await apiGet<MoveView[]>(`/tickets/${encodeURIComponent(id)}/moves`).catch(() => null)) ?? [];
   const transitions = active === 'history' ? ((await apiGet<TransitionView[]>(`/tickets/${encodeURIComponent(id)}/transitions`)) ?? []) : [];
 
@@ -85,7 +85,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
         ))}
       </nav>
       <div className="mt-6">
-        {active === 'plan' && <PlanPanel ticketId={ticket.id} status={ticket.status} planMarkdown={ticket.planMarkdown} />}
+        {active === 'plan' && <PlanPanel ticketId={ticket.id} status={ticket.status} planMarkdown={ticket.planMarkdown} confluenceUrl={[...artifacts].reverse().find((a) => a.stage === 'plan' && !a.stale && a.externalUrl)?.externalUrl ?? null} />}
         {active === 'breakdown' && <BreakdownPanel key={ticket.updatedAt} ticketId={ticket.id} status={ticket.status} draft={ticket.breakdownDraft} subtasks={ticket.subtasks} maxSubtasks={ticket.maxSubtasks} />}
         {active === 'versions' && <ArtifactVersions artifacts={artifacts} />}
         {active === 'timeline' && <EventTimeline events={events} runs={ticket.stageRuns} />}
