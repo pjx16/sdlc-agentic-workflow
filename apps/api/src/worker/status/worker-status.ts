@@ -18,6 +18,44 @@ export async function recordTick(prisma: Pick<PrismaService, 'workerStatus'>, ou
   await prisma.workerStatus.upsert({ where: { id: ID }, update: data, create: { id: ID, heartbeatAt: new Date(), ...data } }).catch(() => undefined);
 }
 
+export type WorkerPhase = 'idle' | 'cloning' | 'intake' | 'stage' | 'housekeeping' | 'paused' | 'not_configured';
+
+const lastPhase = new WeakMap<object, string>();
+
+/** What the worker is doing right now. `phaseSince` only moves when the phase or its detail changes. Best effort. */
+export async function setPhase(prisma: Pick<PrismaService, 'workerStatus'>, phase: WorkerPhase, detail?: string): Promise<void> {
+  const key = `${phase}|${detail ?? ''}`;
+  if (lastPhase.get(prisma) === key) return;
+  lastPhase.set(prisma, key);
+  const now = new Date();
+  const data = { phase, phaseDetail: detail ?? null, phaseSince: now };
+  await prisma.workerStatus
+    .upsert({ where: { id: ID }, update: data, create: { id: ID, heartbeatAt: now, tickOutcome: 'starting', ...data } })
+    .catch(() => undefined);
+}
+
+export const RESTART_WINDOW_MS = 10 * 60_000;
+export const RESTART_LIMIT = 3;
+
+/**
+ * Called once when the worker starts: records process facts and a "Worker started" event. Three starts within
+ * 10 minutes also write an error event, so a crash loop is visible (BUILD_PLAN v1 6.1).
+ */
+export async function recordStart(prisma: Pick<PrismaService, 'workerStatus' | 'event'>, version: string, pid: number = process.pid): Promise<void> {
+  try {
+    lastPhase.delete(prisma);
+    const now = new Date();
+    const data = { heartbeatAt: now, tickOutcome: 'starting', tickDetail: null, phase: 'idle', phaseDetail: null, phaseSince: now, startedAt: now, pid, version };
+    await prisma.workerStatus.upsert({ where: { id: ID }, update: data, create: { id: ID, ...data } });
+    await prisma.event.create({ data: { type: 'worker', message: `Worker started (version ${version}, pid ${pid})` } });
+    const since = new Date(now.getTime() - RESTART_WINDOW_MS);
+    const starts = await prisma.event.count({ where: { type: 'worker', message: { startsWith: 'Worker started' }, at: { gte: since } } });
+    if (starts >= RESTART_LIMIT) await prisma.event.create({ data: { type: 'error', message: 'Worker is restarting repeatedly' } });
+  } catch {
+    /* status is best effort */
+  }
+}
+
 /** Writes the heartbeat on its own timer, whether or not a loop iteration is running. */
 export class HeartbeatTimer {
   private timer: NodeJS.Timeout | null = null;

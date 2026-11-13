@@ -4,7 +4,7 @@ import { AdvisoryLock } from './loop/advisory-lock';
 import { RestartRecovery } from './loop/restart-recovery';
 import { WorkerLoop } from './loop/worker-loop';
 import { PrismaService } from '../prisma/prisma.service';
-import { HeartbeatTimer } from './status/worker-status';
+import { HeartbeatTimer, recordStart } from './status/worker-status';
 import { WorkerConfig } from './worker-config';
 
 @Injectable()
@@ -18,7 +18,7 @@ export class WorkerRunner implements OnModuleDestroy {
     private readonly loop: WorkerLoop,
     private readonly recovery: RestartRecovery,
     @Inject(CONTAINER_ENGINE) private readonly engine: ContainerEngine,
-    prisma: PrismaService,
+    private readonly prisma: PrismaService,
   ) {
     this.lock = new AdvisoryLock(config.databaseUrl);
     this.heartbeat = new HeartbeatTimer(prisma);
@@ -31,6 +31,7 @@ export class WorkerRunner implements OnModuleDestroy {
       return false;
     }
     this.logger.log('Worker lock acquired');
+    await recordStart(this.prisma, process.env.npm_package_version ?? '0.0.1');
     await this.heartbeat.start();
     await this.ensureAgentImage();
     await this.recovery.recover();

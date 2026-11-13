@@ -393,6 +393,13 @@ model WorkerStatus {
   heartbeatAt     DateTime  @db.Timestamptz(6)
   tickOutcome     String
   tickDetail      String?
+  /// idle | cloning | intake | stage | housekeeping | paused | not_configured (BUILD_PLAN v1 6.1)
+  phase           String    @default("idle")
+  phaseDetail     String?
+  phaseSince      DateTime? @db.Timestamptz(6)
+  startedAt       DateTime? @db.Timestamptz(6)
+  pid             Int?
+  version         String?
   intakeMode      String?
   intakeAt        DateTime? @db.Timestamptz(6)
   intakeProjects  Int       @default(0)

@@ -9,7 +9,7 @@ import { StateMachine } from '../../state/state-machine.service';
 import { MirrorService } from '../git/mirror.service';
 import { IntakePoller } from '../intake/intake-poller';
 import { STEP_HANDLERS, type StepHandler, type StepOutcome } from '../pipeline/step-handler';
-import { recordTick } from '../status/worker-status';
+import { recordTick, setPhase } from '../status/worker-status';
 import { Schedule } from './schedule';
 
 /** A recurring part of housekeeping, run when its interval has passed (CI checks, PR state; BUILD_PLAN 6.6 step 1). */
@@ -66,6 +66,7 @@ export class WorkerLoop {
     try {
       await this.cloneMirrors();
       await this.housekeeping();
+      const phase = (p: Parameters<typeof setPhase>[1], d?: string) => setPhase(this.prisma, p, d);
 
       // Required credentials (or the admin password) are missing: the pipeline stays blocked until setup is finished.
       if (this.creds) {
@@ -75,18 +76,26 @@ export class WorkerLoop {
           this.logMissing(missing);
           outcome = 'not_configured';
           detail = missing.join(', ');
+          await phase('not_configured', detail);
           return outcome;
         }
       }
 
       const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
-      if (settings?.pipelinePaused) return (outcome = 'paused');
+      if (settings?.pipelinePaused) {
+        await phase('paused');
+        return (outcome = 'paused');
+      }
 
       // At most one StageRun runs at any time, system-wide (F4).
       if ((await this.prisma.stageRun.count({ where: { status: 'running' } })) > 0) return (outcome = 'blocked');
 
       const ticket = await this.pickNext();
-      if (!ticket) return (outcome = 'idle');
+      if (!ticket) {
+        await phase('idle');
+        return (outcome = 'idle');
+      }
+      await phase('stage', `${ticket.status} on ${ticket.key}`);
       const step = await this.runStep(ticket);
       detail = `${ticket.key} (${ticket.status})`;
       return (outcome = step === 'stay' ? 'idle' : 'stepped');
@@ -97,6 +106,7 @@ export class WorkerLoop {
       return outcome;
     } finally {
       this.running = false;
+      if (outcome === 'idle' || outcome === 'stepped' || outcome === 'blocked') await setPhase(this.prisma, 'idle');
       await recordTick(this.prisma, outcome, detail);
     }
   }
@@ -157,6 +167,7 @@ export class WorkerLoop {
 
   private cloneMirrors = async () => {
     const pending = await this.prisma.project.findMany({ where: { mirrorStatus: 'pending', enabled: true }, orderBy: { createdAt: 'asc' } });
+    if (pending.length > 0) await setPhase(this.prisma, 'cloning', pending.map((p) => p.name).join(', '));
     if (pending.length > 0 && this.creds && !(await this.creds.resolve()).github_token) {
       // Cloning needs the GitHub token: say so on the project (it stays pending) instead of failing it.
       await this.prisma.project.updateMany({ where: { id: { in: pending.map((p) => p.id) } }, data: { mirrorError: 'Waiting for setup: add the GitHub token' } });
@@ -167,6 +178,7 @@ export class WorkerLoop {
 
   /** Each part runs only when due (BUILD_PLAN 6.6 step 1). CI checks, PR state and cleanup are added with their milestones. */
   private async housekeeping(): Promise<void> {
+    await setPhase(this.prisma, 'housekeeping');
     const settings = await this.prisma.globalSettings.findUnique({ where: { id: 'global' } });
     const pollSec = settings?.pollIntervalSec ?? 120;
     const intervalMs = pollSec * 1000;
@@ -176,6 +188,7 @@ export class WorkerLoop {
     }
     if (!this.schedule.due('jira', intervalMs)) return;
 
+    await setPhase(this.prisma, 'intake');
     // The intake poller applies the intake-pause switch and its own Jira backoff.
     await this.intake.poll().catch((err: unknown) => this.logger.error(`Intake poll failed: ${String(err)}`));
     if (settings?.intakePaused) return;
