@@ -15,7 +15,7 @@ describe('initialValues', () => {
   it('prefills a new project from the ts_node stack and the schema defaults', () => {
     const v = initialValues() as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(v).toMatchObject({ stack: 'ts_node', baseBranch: 'dev', ...STACK_PREFILLS.ts_node, enabled: true });
-    expect(v.settings.stages.plan).toEqual({ enabled: true, model: 'opus', maxTurns: '15' });
+    expect(v.settings.stages.solutionDesign).toEqual({ enabled: true, model: 'opus', maxTurns: '15' });
     expect(v.settings.limits.maxSubtasks).toBe('8');
     expect(v.settings.verify.redInvalidPatterns).toBe('Cannot find module\nSyntaxError\nerror TS[0-9]+');
   });
@@ -32,10 +32,10 @@ describe('initialValues', () => {
 describe('toPayload', () => {
   it('turns numeric text into numbers and blank numeric text into null', () => {
     const v = initialValues(project) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-    v.settings.stages.plan.maxTurns = '9';
+    v.settings.stages.solutionDesign.maxTurns = '9';
     v.settings.limits.maxSubtasks = '';
     const p = toPayload(v) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-    expect(p.settings.stages.plan.maxTurns).toBe(9);
+    expect(p.settings.stages.solutionDesign.maxTurns).toBe(9);
     expect(p.settings.limits.maxReviewRounds).toBe(2);
     expect(p.settings.limits.maxSubtasks).toBeNull();
     expect(p.settings.pr.ciTimeoutMin).toBe(30);

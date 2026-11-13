@@ -37,6 +37,8 @@ export interface GitHubClient {
   checks(repo: string, number: number): Promise<PrCheck[]>;
   /** The last 60 lines of the failing log of the branch's latest failed run, or '' if there is none. */
   failingLogTail(repo: string, branch: string): Promise<string>;
+  /** Runs the failed jobs of the branch's latest failed run again (a flaky test). */
+  rerunFailed(repo: string, branch: string): Promise<void>;
   prState(repo: string, number: number): Promise<PrState>;
   editBody(repo: string, number: number, body: string): Promise<void>;
   /** Default branch and languages of a repository, which also proves the token can reach it (onboarding). */
@@ -149,6 +151,12 @@ export class GhCliClient implements GitHubClient {
     if (!failed) return '';
     const log = await this.gh(['run', 'view', String(failed.databaseId), '-R', repo, '--log-failed']);
     return log.trimEnd().split('\n').slice(-FAILED_LOG_LINES).join('\n');
+  }
+
+  async rerunFailed(repo: string, branch: string): Promise<void> {
+    const runs = JSON.parse(await this.gh(['run', 'list', '-R', repo, '--branch', branch, '--json', 'databaseId,conclusion', '--limit', '5'])) as { databaseId: number; conclusion: string }[];
+    const failed = runs.find((r) => r.conclusion === 'failure');
+    if (failed) await this.gh(['run', 'rerun', String(failed.databaseId), '-R', repo, '--failed']);
   }
 
   async prState(repo: string, number: number): Promise<PrState> {

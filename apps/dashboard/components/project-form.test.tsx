@@ -47,11 +47,11 @@ describe('ProjectForm', () => {
 
   it('shows a stage-dependency warning when a dependent stage is disabled, and locks implement on', async () => {
     render(<ProjectForm />);
-    expect(screen.getByLabelText('Implement enabled')).toBeDisabled();
-    await userEvent.click(screen.getByLabelText('Plan enabled'));
-    expect(screen.getByText(/The ticket body becomes the plan\./)).toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText('Review enabled'));
-    expect(screen.getByText(/The review step is skipped\./)).toBeInTheDocument();
+    expect(screen.getByLabelText('Coder enabled')).toBeDisabled();
+    await userEvent.click(screen.getByLabelText('Solution architect enabled'));
+    expect(screen.getByText(/the ticket body becomes the plan\./)).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('PR reviewer enabled'));
+    expect(screen.getByText(/The correctness review is skipped\./)).toBeInTheDocument();
   });
 
   it('shows the Jira fields only when Jira is on', async () => {
@@ -81,8 +81,8 @@ describe('ProjectForm', () => {
     render(<ProjectForm />);
     await userEvent.type(screen.getByLabelText('Name'), 'Billing');
     await userEvent.type(screen.getByLabelText('Repository URL'), 'https://github.com/a/b');
-    await userEvent.clear(screen.getByLabelText('Plan max turns'));
-    await userEvent.type(screen.getByLabelText('Plan max turns'), '7');
+    await userEvent.clear(screen.getByLabelText('Solution architect max turns'));
+    await userEvent.type(screen.getByLabelText('Solution architect max turns'), '7');
     await userEvent.click(screen.getByRole('button', { name: 'Create project' }));
     await waitFor(() => expect(push).toHaveBeenCalledWith('/projects/new-id'));
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -90,7 +90,7 @@ describe('ProjectForm', () => {
     expect(init.method).toBe('POST');
     const body = JSON.parse(String(init.body));
     expect(body).toMatchObject({ name: 'Billing', repoUrl: 'https://github.com/a/b', stack: 'ts_node', baseBranch: 'dev' });
-    expect(body.settings.stages.plan.maxTurns).toBe(7);
+    expect(body.settings.stages.solutionDesign.maxTurns).toBe(7);
     expect(body.settings.limits.maxSubtasks).toBe(8);
     expect(body.localKeyPrefix).toBeUndefined();
   });

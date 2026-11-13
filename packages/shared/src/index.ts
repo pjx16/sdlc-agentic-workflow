@@ -17,3 +17,5 @@ export * from './support';
 export * from './plan-diff';
 export * from './onboarding';
 export * from './moves';
+export * from './agents';
+export * from './security-rules';

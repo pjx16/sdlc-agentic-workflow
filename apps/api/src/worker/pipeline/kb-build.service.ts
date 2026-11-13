@@ -25,7 +25,7 @@ interface KbBuildData {
 const titleOf = (key: string) => key.replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
 /**
- * The `kbBuild` stage (F6): choose an existing KB key or write a new doc, keep only changes under `kbDir`,
+ * The KB step (F6): the feature mapper picks an existing KB key or says the feature is new, and the documentor writes the new doc, keep only changes under `kbDir`,
  * update the index, and commit `docs(<KEY>): add <featureKey> knowledge base doc` on the ticket branch.
  */
 @Injectable()
@@ -48,11 +48,31 @@ export class KbBuildService implements KbBuilder {
     const { index } = await readIndex(ws, kbDir);
     const keys = index.features.map((f) => f.key);
 
+    // The feature mapper decides which feature this is; only a new feature needs the documentor (BUILD_PLAN v1 4.1).
+    let mapped: string | undefined;
+    if (settings.stages.featureMap.enabled) {
+      const mapRun = await this.launcher.launch(
+        ticket,
+        'featureMap',
+        { ticket: { key: ticket.key, title: ticket.title, body: ticket.body }, indexKeys: keys },
+        { workspacePath: ws, validate: (envelope) => this.validateMap(envelope, keys) },
+      );
+      if (mapRun.kind !== 'done') return this.outcomes.forResult(ticket.id, 'featureMap', mapRun);
+      const map = mapRun.envelope.data as { featureKey: string; isNew: boolean; reason?: string };
+      if (!map.isNew) {
+        const entry = index.features.find((f) => f.key === map.featureKey);
+        await this.prisma.ticket.update({ where: { id: ticket.id }, data: { featureKey: map.featureKey } });
+        await writeArtifact(this.prisma, ticket.id, 'kb', { featureKey: map.featureKey, docPath: entry ? path.posix.join(kbDir, entry.doc) : null, isNew: false }, mapRun.stageRunId).catch(() => undefined);
+        return { kind: 'transition', to: 'PLANNING', reason: `KB doc selected: ${map.featureKey}`, stageRunId: mapRun.stageRunId };
+      }
+      mapped = map.featureKey;
+    }
+
     const result = await this.launcher.launch(
       ticket,
       'kbBuild',
-      { ticket: { key: ticket.key, title: ticket.title, body: ticket.body }, indexKeys: keys, kbDir, kbDocMaxLines: maxLines },
-      { workspacePath: ws, validate: (envelope) => this.validate(envelope, { ws, kbDir, keys, maxLines }) },
+      { ticket: { key: ticket.key, title: ticket.title, body: ticket.body }, indexKeys: keys, kbDir, kbDocMaxLines: maxLines, ...(mapped ? { featureKey: mapped } : {}) },
+      { workspacePath: ws, validate: (envelope) => this.validate(envelope, { ws, kbDir, keys, maxLines, mapped }) },
     );
     if (result.kind !== 'done') return this.outcomes.forResult(ticket.id, 'kbBuild', result);
 
@@ -78,10 +98,21 @@ export class KbBuildService implements KbBuilder {
     return { kind: 'transition', to: 'PLANNING', reason: `KB doc ${data.isNew ? 'built' : 'selected'}: ${data.featureKey}`, stageRunId: result.stageRunId };
   }
 
+  /** The feature mapper's answer: a valid key, existing when isNew is false and unused when it is true. */
+  private validateMap(envelope: StageEnvelope, keys: string[]): string | null {
+    if (envelope.status !== 'done') return null;
+    const d = envelope.data as { featureKey: string; isNew: boolean };
+    if (!FEATURE_KEY.test(d.featureKey)) return `featureKey "${d.featureKey}" is not a valid key (lower-case letters, digits, dot, dash, underscore)`;
+    if (!d.isNew && !keys.includes(d.featureKey)) return `featureKey "${d.featureKey}" is not in the list, so isNew must be true`;
+    if (d.isNew && keys.includes(d.featureKey)) return `featureKey "${d.featureKey}" already exists, so isNew must be false`;
+    return null;
+  }
+
   /** The orchestrator's checks on a valid envelope. A message fails the attempt (BUILD_PLAN 6.8). */
-  private validate(envelope: StageEnvelope, ctx: { ws: string; kbDir: string; keys: string[]; maxLines: number }): string | null {
+  private validate(envelope: StageEnvelope, ctx: { ws: string; kbDir: string; keys: string[]; maxLines: number; mapped?: string }): string | null {
     if (envelope.status !== 'done') return null;
     const d = envelope.data as KbBuildData;
+    if (ctx.mapped && (d.featureKey !== ctx.mapped || !d.isNew)) return `the feature key is "${ctx.mapped}" and the doc is new: use featureKey "${ctx.mapped}" with isNew true`;
     if (!FEATURE_KEY.test(d.featureKey)) return `featureKey "${d.featureKey}" is not a valid key (lower-case letters, digits, dot, dash, underscore)`;
     if (!d.isNew) {
       return ctx.keys.includes(d.featureKey) ? null : `featureKey "${d.featureKey}" is not in the KB index, so isNew must be true`;

@@ -218,7 +218,6 @@ export class SubtaskStepsService implements SubtaskSteps {
         subtask: toSubtaskInfo(subtask),
         kbDoc: await this.kbDoc(ticket, ws, project.kbDir),
         testFiles: asStrings(subtask.testFiles),
-        writeTests: !testsOn,
       },
       { workspacePath: ws, subtaskId: subtask.id, validate: (envelope) => (envelope.status === 'done' ? this.guardMessage(ws) : null) },
     );

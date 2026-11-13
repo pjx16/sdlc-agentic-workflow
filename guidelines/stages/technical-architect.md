@@ -1,4 +1,4 @@
-# Stage: breakdown — split the plan into subtasks
+# Agent: technical-architect — split the plan into subtasks
 
 ## Goal
 
@@ -49,6 +49,11 @@ need no design decisions.
   file location if the repository has a clear convention.
 - `dependsOn`: `seq` numbers of earlier subtasks only.
 
+Also return `filesByOrder`: every file the work touches, in the order it should
+be touched (a type before the code that uses it, code before its callers). You
+return output only: you never write to Jira. The orchestrator publishes the
+subtasks.
+
 ## Rules
 
 - The workspace is read-only. Read code only to confirm a file or function
@@ -62,5 +67,6 @@ need no design decisions.
 ```json
 { "subtasks": [
   { "seq": 1, "title": "…", "description": "…",
-    "acceptanceCriteria": ["…"], "files": ["…"], "dependsOn": [] } ] }
+    "acceptanceCriteria": ["…"], "files": ["…"], "dependsOn": [] } ],
+  "filesByOrder": ["src/bookings/booking.dto.ts", "src/bookings/cancel.service.ts"] }
 ```

@@ -52,7 +52,8 @@ export class PlanHandler implements StepHandler {
     const project = await this.prisma.project.findUniqueOrThrow({ where: { id: ticket.projectId } });
     const settings = ProjectSettingsSchema.parse(project.settings);
 
-    if (!settings.stages.plan.enabled) {
+    const planStage = ticket.kind === 'bug' ? 'bugInvestigation' : 'solutionDesign';
+    if (!settings.stages[planStage].enabled) {
       // "plan off: the ticket body becomes the plan".
       await this.prisma.ticket.update({ where: { id: ticket.id }, data: { planMarkdown: ticket.body || ticket.title } });
       return { kind: 'transition', to: 'BREAKDOWN', reason: 'The plan stage is off: the ticket body is the plan' };
@@ -64,7 +65,7 @@ export class PlanHandler implements StepHandler {
 
     const result = await this.launcher.launch(
       ticket,
-      'plan',
+      planStage,
       {
         ticket: { key: ticket.key, title: ticket.title, body: ticket.body },
         kbDoc: match?.content,
@@ -72,7 +73,7 @@ export class PlanHandler implements StepHandler {
       },
       { workspacePath: ws },
     );
-    if (result.kind !== 'done') return this.outcomes.forResult(ticket.id, 'plan', result);
+    if (result.kind !== 'done') return this.outcomes.forResult(ticket.id, planStage, result);
 
     const plan = composePlan((result.envelope as StageEnvelope).data as PlanData);
     await this.prisma.ticket.update({ where: { id: ticket.id }, data: { planMarkdown: plan } });

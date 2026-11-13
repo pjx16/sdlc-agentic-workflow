@@ -43,6 +43,22 @@ export const ReviewData = z.object({
   previousFindings: z.array(z.object({ id: text, status: z.enum(['fixed', 'still_open']) })),
 });
 
+/** `feature-mapper`: which existing feature the ticket belongs to, or a new key for one that does not exist yet. */
+export const FeatureMapData = z.object({ featureKey: text, isNew: z.boolean(), reason: z.string() });
+
+/** `bug-investigator`: the plan, plus the root cause with the line that proves it. */
+export const BugInvestigationData = PlanData.extend({ rootCause: z.object({ file: text, line: z.number().int().min(1), explanation: text }) });
+
+/** `technical-architect`: the subtasks, plus the files in the order they should be touched. */
+export const TechnicalDesignData = BreakdownData.extend({ filesByOrder: textList });
+
+/** `pr-reviewer`: findings, and for every acceptance criterion whether it is met and tested. */
+export const PrReviewData = ReviewData.extend({ criteria: z.array(z.object({ criterion: text, met: z.boolean(), tested: z.boolean(), note: z.string() })).default([]) });
+
+/** `ci-triager`: what kind of failure it is. */
+export const CI_TRIAGE_KINDS = ['code', 'flaky', 'infra'] as const;
+export const CiTriageData = z.object({ kind: z.enum(CI_TRIAGE_KINDS), failingCommand: z.string().optional(), summary: text });
+
 export const KbBuildData = z.object({ featureKey: text, isNew: z.boolean(), docPath: text, globs: textList });
 export const KbUpdateData = z.object({ featureKey: text, docPath: text, changed: z.boolean() });
 
@@ -55,13 +71,18 @@ export const AssistData = z.object({
 
 export const STAGE_DATA = {
   kbBuild: KbBuildData,
-  plan: PlanData,
-  breakdown: BreakdownData,
+  featureMap: FeatureMapData,
+  solutionDesign: PlanData,
+  bugInvestigation: BugInvestigationData,
+  technicalDesign: TechnicalDesignData,
   tests: TestsData,
   implement: ChangeData,
   fix: ChangeData,
-  review: ReviewData,
+  prReview: PrReviewData,
+  qualityReview: ReviewData,
+  securityReview: ReviewData,
   kbUpdate: KbUpdateData,
+  ciTriage: CiTriageData,
   assist: AssistData,
   repoProfile: RepoProfileData,
   onboardAdvise: OnboardAdviseData,

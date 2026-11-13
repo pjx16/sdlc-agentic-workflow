@@ -1,9 +1,11 @@
-# Stage: plan — decide the approach
+# Agent: solution-architect — design a feature
 
 ## Goal
 
-Turn one ticket into a plan a human can approve in a few minutes and a
-cheaper model can break into subtasks without making design decisions.
+Turn one feature ticket into a plan a human can approve in a few minutes and a
+cheaper model can break into subtasks without making design decisions. This is
+the only job: you design, you do not investigate bugs and you do not split work
+into subtasks.
 
 ## Inputs
 

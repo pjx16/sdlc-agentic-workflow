@@ -69,11 +69,18 @@ describe('plan stage (F7)', () => {
     expect(composePlan({ planMarkdown: 'just the plan', risks: [], openQuestions: [] })).toBe('just the plan');
   });
 
+  it('a bug ticket runs the bug investigator instead of the solution architect', async () => {
+    const t = await ticket({ kind: 'bug', title: 'Cancel loses data' });
+    const out = await handler.run(t);
+    expect(out).toMatchObject({ kind: 'transition', to: 'AWAITING_PLAN_APPROVAL' });
+    expect(requests[0]).toMatchObject({ stage: 'bugInvestigation' });
+  });
+
   it('runs the plan stage, saves the plan on the ticket, and stops at the gate', async () => {
     const t = await ticket();
     const out = await handler.run(t);
     expect(out).toEqual({ kind: 'transition', to: 'AWAITING_PLAN_APPROVAL', reason: 'Plan ready for approval', stageRunId: 'run-plan' });
-    expect(requests[0]).toMatchObject({ stage: 'plan', modelAlias: 'opus', maxTurns: 15, stack: 'nestjs', claudeMdMode: 'both' });
+    expect(requests[0]).toMatchObject({ stage: 'solutionDesign', modelAlias: 'opus', maxTurns: 15, stack: 'nestjs', claudeMdMode: 'both' });
     expect(requests[0]?.inputs.ticket).toEqual({ key: t.key, title: 'Export bookings', body: 'Please add a CSV export.' });
     expect(requests[0]?.inputs.previousPlan).toBeUndefined();
     const saved = (await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } })).planMarkdown;
@@ -99,7 +106,7 @@ describe('plan stage (F7)', () => {
   });
 
   it('with the plan stage off, the ticket body becomes the plan and no stage runs', async () => {
-    await setProject({ settings: { stages: { plan: { enabled: false } } } });
+    await setProject({ settings: { stages: { solutionDesign: { enabled: false } } } });
     const t = await ticket();
     expect(await handler.run(t)).toMatchObject({ kind: 'transition', to: 'BREAKDOWN' });
     expect(requests).toHaveLength(0);
@@ -177,7 +184,7 @@ describe('plan stage (F7)', () => {
     failWith = { kind: 'failed', reason: 'invalid output', stageRunId: 'r', attempts: 2 };
     expect(await handler.run(await ticket())).toMatchObject({ kind: 'hold', reason: 'needs_help' });
     const t = await ticket();
-    const asked = await prisma.stageRun.create({ data: { projectId, ticketId: t.id, stage: 'plan', model: 'opus', status: 'needs_input' } });
+    const asked = await prisma.stageRun.create({ data: { projectId, ticketId: t.id, stage: 'solutionDesign', model: 'opus', status: 'needs_input' } });
     failWith = { kind: 'needs_input', question: 'Which delimiter?', stageRunId: asked.id, attempts: 1 };
     expect(await handler.run(t)).toMatchObject({ kind: 'hold', reason: 'awaiting_answer' });
     expect(await prisma.supportTicket.count({ where: { ticketId: t.id } })).toBe(1);

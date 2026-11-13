@@ -23,12 +23,12 @@ describe('Support tickets (BUILD_PLAN v1 6.5)', () => {
   let lastInputs: Record<string, unknown> | null = null;
 
   const ticket = (over: Record<string, unknown> = {}) => t.prisma.ticket.create({ data: { projectId, key: `K-${++n}`, source: 'paste', title: `title ${n}`, status: 'PLANNING', ...over } });
-  const run = (ticketId: string, stage = 'plan') => t.prisma.stageRun.create({ data: { projectId, ticketId, stage: stage as never, model: 'm', attempt: 1, status: 'failed' } });
+  const run = (ticketId: string, stage = 'solutionDesign') => t.prisma.stageRun.create({ data: { projectId, ticketId, stage: stage as never, model: 'm', attempt: 1, status: 'failed' } });
   const reload = (id: string) => t.prisma.ticket.findUniqueOrThrow({ where: { id } });
   const tickets = (ticketId: string, kind?: string) => t.prisma.supportTicket.findMany({ where: { ticketId, ...(kind ? { kind: kind as never } : {}) }, orderBy: { createdAt: 'asc' } });
   const act = (id: string, body: Record<string, unknown>) => t.agent.post(`/support-tickets/${id}/action`).send(body);
   /** A held ticket with an open question, as the worker leaves it. */
-  const asked = async (stage = 'plan', question = 'Which currency?') => {
+  const asked = async (stage = 'solutionDesign', question = 'Which currency?') => {
     const tk = await ticket({ status: 'ON_HOLD', holdReason: 'awaiting_answer', holdFromStatus: 'PLANNING' });
     const r = await run(tk.id, stage);
     const { ticket: q } = await raiser.raise({ kind: 'question', ticketId: tk.id, stageRunId: r.id, stage, title: question, body: question, dedupeKey: `question:${r.id}:${n}` });
@@ -94,15 +94,15 @@ describe('Support tickets (BUILD_PLAN v1 6.5)', () => {
     it('raises one blocking question ticket and holds the ticket (awaiting_answer)', async () => {
       const tk = await ticket();
       const r = await run(tk.id);
-      const out = await outcomes.forResult(tk.id, 'plan', { kind: 'needs_input', question: 'Which currency?', stageRunId: r.id } as never);
+      const out = await outcomes.forResult(tk.id, 'solutionDesign', { kind: 'needs_input', question: 'Which currency?', stageRunId: r.id } as never);
       expect(out).toMatchObject({ kind: 'hold', reason: 'awaiting_answer' });
-      expect(await tickets(tk.id)).toMatchObject([{ kind: 'question', stage: 'plan', body: 'Which currency?', status: 'open', priority: 'blocking', projectId }]);
+      expect(await tickets(tk.id)).toMatchObject([{ kind: 'question', stage: 'solutionDesign', body: 'Which currency?', status: 'open', priority: 'blocking', projectId }]);
     });
 
     it('the same question asked twice is still one ticket', async () => {
       const tk = await ticket();
       const r = await run(tk.id);
-      const ask = () => outcomes.forResult(tk.id, 'plan', { kind: 'needs_input', question: 'Same?', stageRunId: r.id } as never);
+      const ask = () => outcomes.forResult(tk.id, 'solutionDesign', { kind: 'needs_input', question: 'Same?', stageRunId: r.id } as never);
       await ask();
       await ask();
       expect(await tickets(tk.id, 'question')).toHaveLength(1);
@@ -112,17 +112,17 @@ describe('Support tickets (BUILD_PLAN v1 6.5)', () => {
       const tk = await ticket();
       const r = await run(tk.id);
       for (let i = 1; i <= 3; i++) {
-        expect(await outcomes.forResult(tk.id, 'plan', { kind: 'needs_input', question: `q${i}`, stageRunId: r.id } as never)).toMatchObject({ reason: 'awaiting_answer' });
+        expect(await outcomes.forResult(tk.id, 'solutionDesign', { kind: 'needs_input', question: `q${i}`, stageRunId: r.id } as never)).toMatchObject({ reason: 'awaiting_answer' });
       }
-      const fourth = await outcomes.forResult(tk.id, 'plan', { kind: 'needs_input', question: 'q4', stageRunId: r.id } as never);
+      const fourth = await outcomes.forResult(tk.id, 'solutionDesign', { kind: 'needs_input', question: 'q4', stageRunId: r.id } as never);
       expect(fourth).toMatchObject({ kind: 'hold', reason: 'needs_help' });
       expect(await tickets(tk.id, 'question')).toHaveLength(3);
-      expect(await outcomes.forResult(tk.id, 'breakdown', { kind: 'needs_input', question: 'other', stageRunId: r.id } as never)).toMatchObject({ reason: 'awaiting_answer' });
+      expect(await outcomes.forResult(tk.id, 'technicalDesign', { kind: 'needs_input', question: 'other', stageRunId: r.id } as never)).toMatchObject({ reason: 'awaiting_answer' });
     });
 
     it('a rejected Claude credential raises one global credential ticket, however often it happens', async () => {
       const tk = await ticket();
-      for (let i = 0; i < 3; i++) await outcomes.forResult(tk.id, 'plan', { kind: 'claude_auth', stageRunId: 'x', attempts: 1 } as never);
+      for (let i = 0; i < 3; i++) await outcomes.forResult(tk.id, 'solutionDesign', { kind: 'claude_auth', stageRunId: 'x', attempts: 1 } as never);
       const creds = await t.prisma.supportTicket.findMany({ where: { kind: 'credential' } });
       expect(creds).toMatchObject([{ title: 'Claude rejected the credential', priority: 'blocking', ticketId: null, status: 'open' }]);
     });
@@ -174,15 +174,15 @@ describe('Support tickets (BUILD_PLAN v1 6.5)', () => {
 
   describe('GET /support-tickets', () => {
     it('lists open items oldest first with their actions, and the counts the badge needs', async () => {
-      const a = await asked('plan', 'first');
-      await asked('breakdown', 'second');
+      const a = await asked('solutionDesign', 'first');
+      await asked('technicalDesign', 'second');
       const tk = await ticket({ status: 'PLANNING' });
       await states.transition(tk.id, 'AWAITING_PLAN_APPROVAL', 'system');
       await raiser.raise({ kind: 'pr_ready', ticketId: tk.id, title: 'fyi', body: 'b' });
       const res = (await t.agent.get('/support-tickets').expect(200)).body;
       expect(res.map((q: { title: string }) => q.title).slice(0, 2)).toEqual(['first', 'second']);
       expect(res.find((q: { kind: string }) => q.kind === 'approval').actions).toEqual(['approve', 'reject', 'dismiss']);
-      expect(res[0]).toMatchObject({ ticketKey: a.tk.key, stage: 'plan', group: 'questions' });
+      expect(res[0]).toMatchObject({ ticketKey: a.tk.key, stage: 'solutionDesign', group: 'questions' });
       const counts = (await t.agent.get('/support-tickets/counts').expect(200)).body;
       expect(counts).toMatchObject({ badge: 3, groups: { questions: 2, approvals: 1, fyi: 1, blocking: 0 } });
     });
@@ -217,7 +217,7 @@ describe('Support tickets (BUILD_PLAN v1 6.5)', () => {
     it('a ticket with another open question keeps waiting until every question is answered', async () => {
       const { tk, q } = await asked();
       const r = await run(tk.id);
-      const { ticket: q2 } = await raiser.raise({ kind: 'question', ticketId: tk.id, stageRunId: r.id, stage: 'plan', title: 'two', body: 'two', dedupeKey: `q2:${tk.id}` });
+      const { ticket: q2 } = await raiser.raise({ kind: 'question', ticketId: tk.id, stageRunId: r.id, stage: 'solutionDesign', title: 'two', body: 'two', dedupeKey: `q2:${tk.id}` });
       await act(q.id, { action: 'answer', answer: 'a' }).expect(200);
       expect((await reload(tk.id)).status).toBe('ON_HOLD');
       await act(q2.id, { action: 'answer', answer: 'b' }).expect(200);
@@ -273,7 +273,7 @@ describe('Support tickets (BUILD_PLAN v1 6.5)', () => {
     it('open questions do not block; answering stores the answer, and "rerun with answers" sends them back to the plan', async () => {
       const tk = await ticket({ status: 'PLANNING', planMarkdown: '# plan' });
       const r = await run(tk.id);
-      const { ticket: oq } = await raiser.raise({ kind: 'open_question', ticketId: tk.id, stageRunId: r.id, stage: 'plan', title: 'Which repository?', body: 'Which repository?', dedupeKey: `oq:${tk.id}` });
+      const { ticket: oq } = await raiser.raise({ kind: 'open_question', ticketId: tk.id, stageRunId: r.id, stage: 'solutionDesign', title: 'Which repository?', body: 'Which repository?', dedupeKey: `oq:${tk.id}` });
       expect(oq.priority).toBe('normal');
       await states.transition(tk.id, 'AWAITING_PLAN_APPROVAL', 'system');
       await act(oq.id, { action: 'answer', answer: 'the booking one' }).expect(200);
@@ -341,14 +341,14 @@ describe('Support tickets (BUILD_PLAN v1 6.5)', () => {
   });
 
   it('the re-run stage gets every earlier question and answer of that stage (and none of another stage)', async () => {
-    const { tk, q } = await asked('plan', 'Which currency?');
+    const { tk, q } = await asked('solutionDesign', 'Which currency?');
     await act(q.id, { action: 'answer', answer: 'EUR' }).expect(200);
     const r = await run(tk.id);
     const mk = (stage: string, title: string, extra: Record<string, unknown> = {}) => t.prisma.supportTicket.create({ data: { kind: 'question', title, body: title, ticketId: tk.id, stageRunId: r.id, stage, ...extra } });
-    await mk('plan', 'Rounding?', { response: 'Half up', status: 'answered' });
-    await mk('breakdown', 'other', { response: 'nope', status: 'answered' });
-    await mk('plan', 'unanswered');
-    await launcher.launch(await reload(tk.id), 'plan', { ticket: { key: tk.key, title: 't', body: 'b' } });
+    await mk('solutionDesign', 'Rounding?', { response: 'Half up', status: 'answered' });
+    await mk('technicalDesign', 'other', { response: 'nope', status: 'answered' });
+    await mk('solutionDesign', 'unanswered');
+    await launcher.launch(await reload(tk.id), 'solutionDesign', { ticket: { key: tk.key, title: 't', body: 'b' } });
     expect(lastInputs?.qa).toEqual([{ question: 'Which currency?', answer: 'EUR' }, { question: 'Rounding?', answer: 'Half up' }]);
   });
 });

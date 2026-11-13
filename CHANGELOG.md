@@ -42,6 +42,12 @@ All notable changes to this project are documented here. The format follows [Kee
 - The v0 build plan moved from `BUILD_PLAN.md` to `docs/build-plan/v0.0.0/BUILD_PLAN.md`.
 - Jira intake only picks up issues labelled `sdlc-agent` by default. A project with an empty JQL now uses `project = "KEY" AND labels = "sdlc-agent" ORDER BY created ASC`; a JQL set on the project is used exactly as written, so the query can be changed per project. Before, an empty JQL picked up every issue of the Jira project.
 
+- Agent split: one agent, one job. Fifteen agents (`packages/shared/src/agents.ts`), each with a prompt in `guidelines/stages/<agent>.md` and a generated `.claude/agents/sdlc-<agent>.md` (`npm run agents`; a test fails when they drift). Stage keys changed: `plan` is `solutionDesign` (features) or `bugInvestigation` (bugs), `breakdown` is `technicalDesign`, `review` is `prReview`, and there are new `featureMap`, `qualityReview`, `securityReview` and `ciTriage` stages. Existing project settings and global stage defaults under the old keys are ignored and take the new defaults.
+- The KB step maps the ticket to a feature first (`featureMap`); only a new feature runs the documentor. The bug investigator puts the root cause (file, line, explanation) in the plan. The technical architect keeps the files in order of change. The pull-request reviewer checks every acceptance criterion is met and tested.
+- Three reviewers run one after another: PR review, quality review (findings capped at medium) and security review (only when the diff touches risky paths or lines; project `securityRiskPatterns` add to the defaults). Findings are merged and de-duplicated, each stores its reviewer, and only critical and high ones start the fixer.
+- CI failures are triaged: `code` goes to the fixer, `flaky` runs the failed checks again once, and `infra` (or a second flaky failure) becomes a `ci_infra` support ticket instead of a duplicate hold.
+- The coder no longer writes tests when the test-writer stage is off; the existing tests run instead.
+
 ## [0.0.1] - 2026-11-13
 
 First public pre-release. Published so the author can use sdlc-agent on their own projects (including sdlc-agent itself) and find what breaks. Not production-ready and not supported for other users.

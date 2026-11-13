@@ -158,7 +158,7 @@ describe('Versioned outputs and rerun context (BUILD_PLAN v1 6.8)', () => {
     it('does not add a second rerun section where the plan or breakdown stage already carries the note', async () => {
       const tk = await ticket('REVIEW', { planMarkdown: '# old' });
       await t.agent.post(`/tickets/${tk.id}/rerun`).send({ stage: 'PLANNING', note: 'again' }).expect(200);
-      await launcher.launch(await t.prisma.ticket.findUniqueOrThrow({ where: { id: tk.id } }), 'plan', { ticket: { key: tk.key, title: 't', body: 'b' } }, { workspacePath: tmp });
+      await launcher.launch(await t.prisma.ticket.findUniqueOrThrow({ where: { id: tk.id } }), 'solutionDesign', { ticket: { key: tk.key, title: 't', body: 'b' } }, { workspacePath: tmp });
       expect(requests[0]?.inputs.rerun).toBeUndefined();
     });
   });

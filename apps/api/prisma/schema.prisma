@@ -248,6 +248,8 @@ model Ticket {
   lastReviewedSha String?
   ciFixPending    Boolean       @default(false)
   ciFixDone       Boolean       @default(false)
+  /// The failed checks were run again once after the CI triager called the failure flaky.
+  ciRerunDone     Boolean       @default(false)
   /// When the worker started waiting for the PR's checks (reset after a CI fix and on hold).
   ciWaitStartedAt DateTime?     @db.Timestamptz(6)
   /// Set by the "re-run KB update" action; the worker runs kbUpdate once for the ticket in IN_HUMAN_REVIEW and clears it.
@@ -374,6 +376,8 @@ model ReviewFinding {
   ticketId String
   ticket   Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   round    Int
+  /// Which reviewer found it: prReview, qualityReview or securityReview.
+  reviewer String        @default("prReview")
   severity String
   file     String
   line     Int?

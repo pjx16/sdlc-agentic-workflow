@@ -46,6 +46,9 @@ export class FakeGitHub implements GitHubClient {
     this.calls.push('failingLogTail');
     return this.failLog;
   }
+  async rerunFailed() {
+    this.calls.push('rerunFailed');
+  }
   async prState(): Promise<PrState> {
     this.calls.push('prState');
     return this.state;
