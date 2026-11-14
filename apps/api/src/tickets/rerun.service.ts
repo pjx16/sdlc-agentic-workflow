@@ -25,12 +25,12 @@ const SubtaskRerunBody = z.object({
 
 /** Which runs and outputs belong to each rerunnable state. `fix` runs belong to the state their reason names. */
 const OWNS: Record<string, { stages: string[]; fixReasons: string[]; artifacts: string[] }> = {
-  KB: { stages: ['kbBuild'], fixReasons: [], artifacts: ['kb'] },
-  PLANNING: { stages: ['plan'], fixReasons: [], artifacts: ['plan'] },
-  BREAKDOWN: { stages: ['breakdown'], fixReasons: [], artifacts: ['breakdown'] },
+  KB: { stages: ['featureMap', 'kbBuild'], fixReasons: [], artifacts: ['kb'] },
+  PLANNING: { stages: ['solutionDesign', 'bugInvestigation'], fixReasons: [], artifacts: ['plan'] },
+  BREAKDOWN: { stages: ['technicalDesign'], fixReasons: [], artifacts: ['breakdown'] },
   IN_PROGRESS: { stages: ['tests', 'implement'], fixReasons: ['tests'], artifacts: [] },
-  REVIEW: { stages: ['review'], fixReasons: ['review'], artifacts: ['review'] },
-  KB_UPDATE: { stages: ['kbUpdate'], fixReasons: ['ci'], artifacts: [] },
+  REVIEW: { stages: ['prReview', 'qualityReview', 'securityReview'], fixReasons: ['review'], artifacts: ['review'] },
+  KB_UPDATE: { stages: ['kbUpdate', 'ciTriage'], fixReasons: ['ci'], artifacts: [] },
 };
 
 /**

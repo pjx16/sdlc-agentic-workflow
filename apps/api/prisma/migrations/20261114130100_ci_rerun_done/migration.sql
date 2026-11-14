@@ -1,0 +1,1 @@
+ALTER TABLE "Ticket" ADD COLUMN "ciRerunDone" BOOLEAN NOT NULL DEFAULT false;

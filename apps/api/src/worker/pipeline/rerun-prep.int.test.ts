@@ -66,8 +66,8 @@ describe('commit ranges and the revert before a rerun (BUILD_PLAN v1 6.4 and 6.8
 
   it('a read-only stage has no commit range', async () => {
     const t = await h.ticket();
-    h.agent.scripts.review = () => ({ status: 'done', summary: 'ok', data: { findings: [], previousFindings: [] } } as StageEnvelope);
-    const result = await h.launcher.launch(t, 'review', { diff: 'x' }, { workspacePath: h.ws(t) });
+    h.agent.scripts.prReview = () => ({ status: 'done', summary: 'ok', data: { findings: [], previousFindings: [] } } as StageEnvelope);
+    const result = await h.launcher.launch(t, 'prReview', { diff: 'x' }, { workspacePath: h.ws(t) });
     if (result.kind !== 'done') throw new Error('stage did not finish');
     expect(await h.prisma.stageRun.findUniqueOrThrow({ where: { id: result.stageRunId } })).toMatchObject({ startSha: null, endSha: null });
   });

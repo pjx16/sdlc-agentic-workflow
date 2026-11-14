@@ -39,6 +39,11 @@ export class SupportRaiser {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Whether the ticket has an open support ticket of this kind. */
+  async hasOpen(ticketId: string, kind: SupportTicket['kind']): Promise<boolean> {
+    return (await this.prisma.supportTicket.count({ where: { ticketId, kind, status: 'open' } })) > 0;
+  }
+
   async raise(input: RaiseInput): Promise<{ ticket: SupportTicket; created: boolean }> {
     if (input.dedupeKey) {
       const existing = await this.prisma.supportTicket.findFirst({ where: { dedupeKey: input.dedupeKey, status: 'open' } });

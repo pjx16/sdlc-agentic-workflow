@@ -30,7 +30,7 @@ export class BreakdownHandler implements StepHandler {
     const settings = ProjectSettingsSchema.parse(project.settings);
     const maxSubtasks = settings.limits.maxSubtasks;
 
-    if (!settings.stages.breakdown.enabled) {
+    if (!settings.stages.technicalDesign.enabled) {
       // "breakdown off: the ticket runs as one subtask whose description is the plan" (row 8).
       const only = singleSubtask(ticket, ticket.planMarkdown ?? ticket.body);
       return this.approve(ticket, [only], 'The breakdown stage is off: one subtask runs the whole plan');
@@ -42,7 +42,7 @@ export class BreakdownHandler implements StepHandler {
 
     const result = await this.launcher.launch(
       ticket,
-      'breakdown',
+      'technicalDesign',
       {
         ticket: { key: ticket.key, title: ticket.title, body: ticket.body },
         plan: ticket.planMarkdown ?? undefined,
@@ -59,12 +59,12 @@ export class BreakdownHandler implements StepHandler {
         },
       },
     );
-    if (result.kind !== 'done') return this.outcomes.forResult(ticket.id, 'breakdown', result);
+    if (result.kind !== 'done') return this.outcomes.forResult(ticket.id, 'technicalDesign', result);
 
     const verdict = validateBreakdown(this.subtasksOf(result.envelope), { maxSubtasks });
     if (!verdict.ok) return { kind: 'hold', reason: 'needs_help', note: describeIssues(verdict.issues).slice(0, 500), stageRunId: result.stageRunId };
     await this.prisma.ticket.update({ where: { id: ticket.id }, data: { breakdownDraft: verdict.subtasks as unknown as Prisma.InputJsonValue } });
-    await writeArtifact(this.prisma, ticket.id, 'breakdown', { subtasks: verdict.subtasks }, result.stageRunId).catch(() => undefined);
+    await writeArtifact(this.prisma, ticket.id, 'breakdown', { subtasks: verdict.subtasks, filesByOrder: (result.envelope.data as { filesByOrder?: string[] } | undefined)?.filesByOrder ?? [] }, result.stageRunId).catch(() => undefined);
 
     // With the gate off the subtasks are created at once (row 8); otherwise the ticket waits for approval (row 7).
     if (!settings.gates.breakdown) return this.approve(ticket, verdict.subtasks, 'Breakdown stored; the breakdown gate is off', result.stageRunId);

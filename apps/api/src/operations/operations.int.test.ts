@@ -96,6 +96,7 @@ describe('Operations API (BUILD_PLAN v1 6.4)', () => {
     expect(by.claude).toMatchObject({ total: 2, errors: 1, rate: 0.5 });
     expect(by.jira).toMatchObject({ total: 2, errors: 1 });
     expect(by.github).toMatchObject({ total: 1, errors: 1 });
+    expect(body.orchestrator).toEqual({ decisions: 0, fallbacks: 0, fallbackRate: 0, costUsd: 0, inputTokens: 0, outputTokens: 0 });
     expect(body.recentErrors).toHaveLength(20);
     expect(body.recentErrors.find((e: { errorCode: string }) => e.errorCode === 'GITHUB_ERROR')).toMatchObject({ ticketKey: k.key });
   });

@@ -13,7 +13,7 @@ import { WorkerConfig } from '../worker-config';
 const exec = promisify(execFile);
 
 /** The ticket state each stage runs in. */
-const STATE_OF_STAGE: Partial<Record<StageName, TicketStatus>> = { kbBuild: 'KB', plan: 'PLANNING', breakdown: 'BREAKDOWN', tests: 'IN_PROGRESS', implement: 'IN_PROGRESS', fix: 'IN_PROGRESS', review: 'REVIEW', kbUpdate: 'KB_UPDATE' };
+const STATE_OF_STAGE: Partial<Record<StageName, TicketStatus>> = { featureMap: 'KB', kbBuild: 'KB', solutionDesign: 'PLANNING', bugInvestigation: 'PLANNING', technicalDesign: 'BREAKDOWN', tests: 'IN_PROGRESS', implement: 'IN_PROGRESS', fix: 'IN_PROGRESS', prReview: 'REVIEW', qualityReview: 'REVIEW', securityReview: 'REVIEW', kbUpdate: 'KB_UPDATE', ciTriage: 'KB_UPDATE' };
 
 /** HEAD of a workspace, or null when it is not a repository (yet). */
 export async function headOf(workspace: string): Promise<string | null> {
@@ -29,6 +29,8 @@ export interface LaunchOptions {
   round?: number;
   reason?: FixReason;
   subtaskId?: string;
+  /** Extended thinking budget in tokens (the orchestrator, at a decision point). */
+  thinkingTokens?: number;
   validate?: StageRequest['validate'];
 }
 
@@ -73,6 +75,7 @@ export class StageLauncher {
       stageTimeoutMin: global.stageTimeoutMin,
       inputs: { ...inputs, ...(qa.length > 0 ? { qa } : {}), ...(rerun ? { rerun } : {}) },
       workspacePath,
+      thinkingTokens: opts.thinkingTokens,
       validate: opts.validate,
     });
     // No commit yet: the run covers an empty range. The commit that follows (WorkspaceService.commit) moves `endSha` forward.
@@ -85,7 +88,7 @@ export class StageLauncher {
   /** The note of a rerun that sent the ticket back to this stage's state, until the ticket moves on (BUILD_PLAN v1 6.8). Plan and breakdown carry their own. */
   private async rerunInput(ticket: Ticket, stage: StageName, inputs: StageInputs): Promise<StageInputs['rerun'] | undefined> {
     const state = STATE_OF_STAGE[stage];
-    if (!state || inputs.rejectionNote || inputs.rerun || stage === 'plan' || stage === 'breakdown') return undefined;
+    if (!state || inputs.rejectionNote || inputs.rerun || stage === 'solutionDesign' || stage === 'bugInvestigation' || stage === 'technicalDesign') return undefined;
     const last = await this.prisma.stateTransition.findFirst({ where: { ticketId: ticket.id, toStatus: state }, orderBy: [{ at: 'desc' }, { id: 'desc' }] });
     if (!last || last.kind !== 'rerun') return undefined;
     return { note: last.note ?? 'The developer asked for this stage to be redone.' };

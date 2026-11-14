@@ -1,9 +1,11 @@
-# Stage: plan — decide the approach
+# Agent: solution-architect — design a feature
 
 ## Goal
 
-Turn one ticket into a plan a human can approve in a few minutes and a
-cheaper model can break into subtasks without making design decisions.
+Turn one feature ticket into a plan a human can approve in a few minutes and a
+cheaper model can break into subtasks without making design decisions. This is
+the only job: you design, you do not investigate bugs and you do not split work
+into subtasks.
 
 ## Inputs
 
@@ -25,6 +27,8 @@ cheaper model can break into subtasks without making design decisions.
 If there is a rejection note, address every point in it and say how.
 
 ## `planMarkdown` structure (keep it to one screen)
+
+If the input has a **Plan format** section, use its sections instead of the ones below. The team edited it on purpose.
 
 ```markdown
 ## Goal

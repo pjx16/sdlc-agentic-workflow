@@ -35,6 +35,12 @@ if [ -n "$RESUME" ]; then
   args+=(--resume "$RESUME")
 fi
 
+# Extended thinking only where the worker asks for it (the orchestrator at a decision point).
+THINKING="$(jq -r '.thinkingTokens // empty' "$CONTEXT_DIR/stage.json")"
+if [ -n "$THINKING" ]; then
+  export MAX_THINKING_TOKENS="$THINKING"
+fi
+
 # A stage without a workspace runs in the context directory.
 if [ -d "$WORKSPACE_DIR" ]; then
   cd "$WORKSPACE_DIR"

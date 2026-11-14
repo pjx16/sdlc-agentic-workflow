@@ -51,6 +51,7 @@ export function ArtifactVersions({ artifacts }: { artifacts: ArtifactView[] }) {
                         </a>
                       )}
                     </div>
+                    {stage === 'review' && <CriteriaTable data={v.data} />}
                     <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap font-sans text-sm">{artifactText(v)}</pre>
                     {current && !isCurrent && (
                       <button type="button" onClick={() => setCompare(compare === v.id ? null : v.id)} aria-expanded={compare === v.id} className="mt-2 text-xs text-accent underline">
@@ -74,5 +75,40 @@ export function ArtifactVersions({ artifacts }: { artifacts: ArtifactView[] }) {
         );
       })}
     </div>
+  );
+}
+
+interface Criterion {
+  criterion: string;
+  met: boolean;
+  tested: boolean;
+  note: string;
+}
+
+/** What the PR reviewer decided about each acceptance criterion: met, and covered by a test. */
+export function CriteriaTable({ data }: { data: unknown }) {
+  const rows = ((data as { criteria?: Criterion[] } | null)?.criteria ?? []).filter((c) => c && typeof c.criterion === 'string');
+  if (rows.length === 0) return null;
+  return (
+    <table aria-label="Acceptance criteria" className="mt-2 w-full text-left text-xs">
+      <thead>
+        <tr className="text-muted">
+          <th className="pr-2 font-medium">Criterion</th>
+          <th className="pr-2 font-medium">Met</th>
+          <th className="pr-2 font-medium">Tested</th>
+          <th className="font-medium">Note</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((c, i) => (
+          <tr key={i} className="align-top">
+            <td className="pr-2">{c.criterion}</td>
+            <td className={`pr-2 ${c.met ? 'text-green' : 'text-red'}`}>{c.met ? 'Yes' : 'No'}</td>
+            <td className={`pr-2 ${c.tested ? 'text-green' : 'text-red'}`}>{c.tested ? 'Yes' : 'No'}</td>
+            <td>{c.note}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }

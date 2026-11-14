@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { ClaudeMdMode, ProjectStack, StageName } from '@sdlc/shared';
+import { promptFileOf, type ClaudeMdMode, type ProjectStack, type StageName } from '@sdlc/shared';
 import { CLAUDE_MD_FILES, buildStageJson, hidesRepoClaudeMd, includesOurClaudeMd, type StageConfigInput, type StageJson } from './stage-config';
 
 export interface TicketInfo {
@@ -37,17 +37,19 @@ export interface StageInputs {
   /** For kbBuild: where the doc goes and how long it may be. */
   kbDir?: string;
   kbDocMaxLines?: number;
+  /** For the documentor in create mode: the key the feature mapper chose. */
+  featureKey?: string;
   plan?: string;
   /** For a re-run of `plan` after a rejection (F7). */
   previousPlan?: string;
+  /** The sections the plan should have (guidelines/formats/plan.md). */
+  planFormat?: string;
   /** For breakdown: the limit, and on a re-run the previous list (as JSON) and the rejection note. */
   maxSubtasks?: number;
   previousBreakdown?: string;
   rejectionNote?: string;
   subtask?: SubtaskInfo;
   testFiles?: string[];
-  /** With the tests stage off, `implement` is told to write tests itself. */
-  writeTests?: boolean;
   exampleTestFile?: string;
   /** For a retry of `tests` after an invalid red: why the previous tests were rejected. */
   previousAttempt?: string;
@@ -61,6 +63,12 @@ export interface StageInputs {
   diffLines?: number;
   reviewChecklist?: string;
   previousFindings?: FindingInfo[];
+  /** For the security reviewer: the rules that matched. */
+  securityReasons?: string[];
+  /** For the orchestrator: a short summary of one ticket at a decision point. Never code or diffs. */
+  orchestrate?: { ticketKey: string; kind: string; state: string; question: string; moves: { kind: string; to: string; label: string; isDefault: boolean }[]; events: string[]; lastSummary: string; counts: string; findings: string[]; supportTickets: string[]; facts?: string };
+  /** For the CI triager. */
+  ci?: { check: string; logTail: string; reruns: number };
   /** Earlier questions this stage asked for the ticket and the developer's answers (F13), oldest first. */
   qa?: { question: string; answer: string }[];
   /** Set on an automatic retry: why the last attempt failed (validation errors, or what the guard found), so the agent can avoid it. */
@@ -101,17 +109,21 @@ export interface BuiltContext {
 
 const STACK_FILE: Record<ProjectStack, string> = { ts_node: 'ts-node.md', nestjs: 'nestjs.md', nextjs: 'nextjs.md' };
 
-const kebab = (s: string) => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
-
 /** What each stage's `data` object must contain (BUILD_PLAN 6.5), as plain text for the prompt. */
 const DATA_SHAPES: Record<StageName, string> = {
-  kbBuild: '{ featureKey, isNew, docPath, globs[] }. If isNew is false, featureKey must be a key already in the index.',
-  plan: '{ planMarkdown, risks[], openQuestions[] }',
-  breakdown: '{ subtasks: [{ seq, title, description, acceptanceCriteria[], files[], dependsOn[] }] }',
+  kbBuild: '{ featureKey, isNew (true), docPath, globs[] }',
+  orchestrate: '{ move: { kind, to }, reason }. `move` must be exactly one of the legal moves.',
+  featureMap: '{ featureKey, isNew, reason }. If isNew is false, featureKey must be a key from the list.',
+  solutionDesign: '{ planMarkdown, risks[], openQuestions[] }',
+  bugInvestigation: '{ planMarkdown, risks[], openQuestions[], rootCause: { file, line, explanation } }',
+  technicalDesign: '{ subtasks: [{ seq, title, description, acceptanceCriteria[], files[], dependsOn[] }], filesByOrder: [path, ...] (the files in the order they are changed) }',
   tests: '{ testFiles[], criteriaCovered: [{ criterion, test }] }',
   implement: '{ filesChanged[] }',
   fix: '{ filesChanged[] }',
-  review: '{ findings: [{ severity, file, line (nullable), issue, rule, fix }], previousFindings: [{ id, status: "fixed" | "still_open" }] }',
+  prReview: '{ criteria: [{ criterion, met, tested, note }], findings: [{ severity, file, line (nullable), issue, rule, fix }], previousFindings: [{ id, status: "fixed" | "still_open" }] }',
+  qualityReview: '{ findings: [{ severity (at most medium), file, line (nullable), issue, rule, fix }], previousFindings: [{ id, status: "fixed" | "still_open" }] }',
+  securityReview: '{ findings: [{ severity, file, line (nullable), issue, rule, fix }], previousFindings: [{ id, status: "fixed" | "still_open" }] }',
+  ciTriage: '{ kind: "code" | "flaky" | "infra", failingCommand (optional), summary }',
   kbUpdate: '{ featureKey, docPath, changed }',
   repoProfile: '{ stack: "ts_node" | "nestjs" | "nextjs", installCmd, typecheckCmd, testCmdTemplate (must contain {files}), kbDir, testFilePattern, exampleTestFile (a path, or null) }',
   onboardAdvise: '{ statusMap: { <internal state>: <Jira status name or null> }, approvalStatuses: { plan, breakdown }, issueTypeRouting: { <issue type>: "feature" | "bug" | "chore" | "ignore" }, intakeLabel, confluenceSpaceKey (a space key from the list, or null) }',
@@ -193,18 +205,23 @@ function planSections(stage: StageName, i: StageInputs): Plan {
   };
 
   switch (stage) {
+    case 'featureMap':
+      sections.push(ticketFull(), { heading: 'Index keys', body: list(i.indexKeys ?? []) });
+      break;
     case 'kbBuild':
-      sections.push(ticketFull(), {
+      sections.push({ heading: 'Mode', body: 'Mode: **create**. There is no doc for this feature yet.' }, ticketFull(), {
         heading: 'Index keys',
-        body: `${list(i.indexKeys ?? [])}${i.kbDir ? `\n\nWrite a new doc under \`${i.kbDir}/\` (for example \`${i.kbDir}/<featureKey>.md\`)${i.kbDocMaxLines ? `, at most ${i.kbDocMaxLines} lines` : ''}.` : ''}`,
+        body: `${i.featureKey ? `Use this feature key: \`${i.featureKey}\`.\n\n` : ''}${list(i.indexKeys ?? [])}${i.kbDir ? `\n\nWrite a new doc under \`${i.kbDir}/\` (for example \`${i.kbDir}/<featureKey>.md\`)${i.kbDocMaxLines ? `, at most ${i.kbDocMaxLines} lines` : ''}.` : ''}`,
       });
       break;
-    case 'plan':
+    case 'solutionDesign':
+    case 'bugInvestigation':
       sections.push(ticketFull(), kb());
+      if (i.planFormat) sections.push({ heading: 'Plan format', body: `Write \`planMarkdown\` with exactly these sections, in this order. This replaces the structure in your instructions.\n\n${i.planFormat.trim()}` });
       if (i.previousPlan) sections.push({ heading: 'Previous plan', body: i.previousPlan });
       if (i.rejectionNote) sections.push({ heading: 'Rejection note', body: `The developer rejected the previous plan with this note. Address every point.\n\n${i.rejectionNote}` });
       break;
-    case 'breakdown':
+    case 'technicalDesign':
       sections.push(ticketFull(), { heading: 'Approved plan', body: i.plan ?? '_No plan._' }, kb());
       if (i.maxSubtasks) sections.push({ heading: 'Limits', body: `At most ${i.maxSubtasks} subtasks.` });
       if (i.previousBreakdown) sections.push({ heading: 'Previous breakdown', body: fenced(i.previousBreakdown) });
@@ -222,15 +239,35 @@ function planSections(stage: StageName, i: StageInputs): Plan {
         heading: 'Test files',
         body: list(i.testFiles ?? []),
       });
-      if (i.writeTests) sections.push({ heading: 'Tests', body: 'There is no separate tests stage for this project: write tests for your change.' });
       break;
     case 'fix':
       sections.push({ heading: 'Failure output', body: fenced(i.failureOutput ?? '') });
       if (i.subtask) sections.push({ heading: 'Subtask', body: subtaskText(i.subtask) });
       break;
-    case 'review':
+    case 'prReview':
+    case 'qualityReview':
+    case 'securityReview':
+      if (stage === 'securityReview' && i.securityReasons?.length) sections.push({ heading: 'Why you were brought in', body: list(i.securityReasons) });
       sections.push({ heading: 'Acceptance criteria', body: list(i.acceptanceCriteria ?? []) }, diff(), { heading: 'Review checklist', body: i.reviewChecklist ?? '_No checklist._' });
       if (i.previousFindings && i.previousFindings.length > 0) sections.push({ heading: 'Previous findings', body: findingsText(i.previousFindings) });
+      break;
+    case 'orchestrate': {
+      const o = i.orchestrate;
+      sections.push(
+        { heading: 'Ticket', body: o ? `${o.ticketKey} (${o.kind}), state ${o.state}` : '_No ticket._' },
+        { heading: 'Question', body: o?.question ?? '' },
+        { heading: 'Legal moves', body: list((o?.moves ?? []).map((m) => `${m.kind} ${m.to}${m.isDefault ? ' (default)' : ''}: ${m.label}`)) },
+        { heading: 'Recent events', body: list(o?.events ?? []) },
+        { heading: 'Last stage', body: o?.lastSummary || '_none_' },
+        { heading: 'Counts', body: o?.counts ?? '' },
+        { heading: 'Open findings', body: list(o?.findings ?? []) },
+        { heading: 'Open support tickets', body: list(o?.supportTickets ?? []) },
+      );
+      if (o?.facts) sections.push({ heading: 'More facts', body: o.facts });
+      break;
+    }
+    case 'ciTriage':
+      sections.push({ heading: 'Failing check', body: i.ci?.check ?? '_unknown_' }, { heading: 'Times the checks were run again', body: String(i.ci?.reruns ?? 0) }, { heading: 'Log tail', body: fenced(i.ci?.logTail ?? '') });
       break;
     case 'repoProfile':
       sections.push({ heading: 'Facts', body: i.onboard?.facts ?? '_No facts._' });
@@ -245,7 +282,7 @@ function planSections(stage: StageName, i: StageInputs): Plan {
       break;
     }
     case 'kbUpdate':
-      sections.push(diff(), { heading: 'Existing doc', body: i.existingDoc ? fenced(i.existingDoc) : NO_KB }, { heading: 'Doc template', body: i.docTemplate ?? '_No template._' });
+      sections.push({ heading: 'Mode', body: 'Mode: **refresh**. The doc exists; make it true again.' }, diff(), { heading: 'Existing doc', body: i.existingDoc ? fenced(i.existingDoc) : NO_KB }, { heading: 'Doc template', body: i.docTemplate ?? '_No template._' });
       break;
   }
   if (i.rerun) {
@@ -309,7 +346,7 @@ export async function buildStageContext(input: BuildContextInput): Promise<Built
 
   const attempt = input.config.attempt ?? 1;
   const stageJson = buildStageJson(input.config);
-  const instructions = await readIfExists(path.join(input.guidelinesDir, 'stages', `${kebab(input.stage)}.md`));
+  const instructions = await readIfExists(path.join(input.guidelinesDir, 'stages', `${promptFileOf(input.stage)}.md`));
   const stackGuideline = await readIfExists(path.join(input.guidelinesDir, 'stacks', STACK_FILE[input.stack]));
   const { sections, files: contextFiles } = planSections(input.stage, input.inputs);
 

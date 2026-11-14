@@ -70,7 +70,7 @@ describe('Rerun engine (BUILD_PLAN v1 6.8)', () => {
 
     it('refuses while a stage is running for the ticket, but not because of a chat', async () => {
       const tk = await journey();
-      const running = await run(tk.id, 'review', { status: 'running', endedAt: null });
+      const running = await run(tk.id, 'prReview', { status: 'running', endedAt: null });
       expect((await rerun(tk.id, { stage: 'PLANNING' }).expect(409)).body.message).toContain('Stop it first');
       await t.prisma.stageRun.update({ where: { id: running.id }, data: { stage: 'assist' } });
       await rerun(tk.id, { stage: 'PLANNING' }).expect(200);
@@ -98,12 +98,12 @@ describe('Rerun engine (BUILD_PLAN v1 6.8)', () => {
     it('marks everything from the rerun stage on as stale, always, and nothing before it', async () => {
       const tk = await journey();
       const kb = await run(tk.id, 'kbBuild');
-      const plan = await run(tk.id, 'plan');
-      const breakdown = await run(tk.id, 'breakdown');
+      const plan = await run(tk.id, 'solutionDesign');
+      const breakdown = await run(tk.id, 'technicalDesign');
       const tests = await run(tk.id, 'tests', { startSha: 'aaa111', endSha: 'bbb222' });
       const impl = await run(tk.id, 'implement', { startSha: 'bbb222', endSha: 'ccc333' });
       const fixTests = await run(tk.id, 'fix', { reason: 'tests', startSha: 'ccc333', endSha: 'ddd444' });
-      const review = await run(tk.id, 'review');
+      const review = await run(tk.id, 'prReview');
       for (const [stage, data] of [['kb', { featureKey: 'a' }], ['plan', { planMarkdown: '# p' }], ['breakdown', { subtasks: [] }], ['review', { round: 1, findings: [] }]] as const) {
         await t.prisma.stageArtifact.create({ data: { ticketId: tk.id, stage, version: 1, data } });
       }
@@ -120,8 +120,8 @@ describe('Rerun engine (BUILD_PLAN v1 6.8)', () => {
 
     it('keeps runs and outputs: nothing is deleted, only marked', async () => {
       const tk = await journey();
-      await run(tk.id, 'plan');
-      await run(tk.id, 'review');
+      await run(tk.id, 'solutionDesign');
+      await run(tk.id, 'prReview');
       await rerun(tk.id, { stage: 'PLANNING' }).expect(200);
       expect(await t.prisma.stageRun.count({ where: { ticketId: tk.id } })).toBe(2);
       expect(await t.prisma.stageRun.count({ where: { ticketId: tk.id, supersededAt: { not: null } } })).toBe(2);
@@ -131,7 +131,7 @@ describe('Rerun engine (BUILD_PLAN v1 6.8)', () => {
       const tk = await journey();
       await run(tk.id, 'tests', { startSha: 'start-a', endSha: 'x1', startedAt: ago(20) });
       await run(tk.id, 'implement', { startSha: 'x1', endSha: 'x2', startedAt: ago(10) });
-      await run(tk.id, 'review'); // read-only: no sha
+      await run(tk.id, 'prReview'); // read-only: no sha
       await rerun(tk.id, { stage: 'PLANNING', note: 'again' }).expect(200);
       expect(await reload(tk.id)).toMatchObject({ revertFromSha: 'start-a', revertStage: 'PLANNING' });
     });
@@ -149,8 +149,8 @@ describe('Rerun engine (BUILD_PLAN v1 6.8)', () => {
 
     it('dismisses what was waiting for a person about the stale work, and the new run raises its own', async () => {
       const t2 = await journey();
-      await raiser.raise({ kind: 'question', ticketId: t2.id, title: 'Which db?', body: 'q', stage: 'plan', dedupeKey: `q:${t2.id}` });
-      await raiser.raise({ kind: 'open_question', ticketId: t2.id, title: 'Which repo?', body: 'q', stage: 'plan', dedupeKey: `oq:${t2.id}` });
+      await raiser.raise({ kind: 'question', ticketId: t2.id, title: 'Which db?', body: 'q', stage: 'solutionDesign', dedupeKey: `q:${t2.id}` });
+      await raiser.raise({ kind: 'open_question', ticketId: t2.id, title: 'Which repo?', body: 'q', stage: 'solutionDesign', dedupeKey: `oq:${t2.id}` });
       await rerun(t2.id, { stage: 'PLANNING' }).expect(200);
       const mine = await t.prisma.supportTicket.findMany({ where: { ticketId: t2.id, kind: { in: ['question', 'open_question'] } } });
       expect(mine.map((x) => [x.kind, x.status, x.resolvedBy]).sort()).toEqual([['open_question', 'dismissed', 'system'], ['question', 'dismissed', 'system']]);
@@ -246,14 +246,14 @@ describe('Rerun engine (BUILD_PLAN v1 6.8)', () => {
     it('the first run after a user rerun is `user`; the next ones are `auto`', async () => {
       const tk = await journey('REVIEW');
       const store = new PrismaStageRunStore(t.prisma);
-      const first = await store.create({ projectId, ticketId: tk.id, stage: 'plan', model: 'm', attempt: 1, round: 0 });
+      const first = await store.create({ projectId, ticketId: tk.id, stage: 'solutionDesign', model: 'm', attempt: 1, round: 0 });
       expect((await t.prisma.stageRun.findUniqueOrThrow({ where: { id: first } })).trigger).toBe('auto'); // not after a rerun
       await t.prisma.stageRun.update({ where: { id: first }, data: { status: 'succeeded', startedAt: ago(5), endedAt: ago(4) } });
       await rerun(tk.id, { stage: 'PLANNING' }).expect(200);
-      const afterRerun = await store.create({ projectId, ticketId: tk.id, stage: 'plan', model: 'm', attempt: 1, round: 0 });
+      const afterRerun = await store.create({ projectId, ticketId: tk.id, stage: 'solutionDesign', model: 'm', attempt: 1, round: 0 });
       expect((await t.prisma.stageRun.findUniqueOrThrow({ where: { id: afterRerun } })).trigger).toBe('user');
       await t.prisma.stageRun.update({ where: { id: afterRerun }, data: { startedAt: new Date() } });
-      const second = await store.create({ projectId, ticketId: tk.id, stage: 'plan', model: 'm', attempt: 2, round: 0 });
+      const second = await store.create({ projectId, ticketId: tk.id, stage: 'solutionDesign', model: 'm', attempt: 2, round: 0 });
       expect((await t.prisma.stageRun.findUniqueOrThrow({ where: { id: second } })).trigger).toBe('auto');
     });
   });

@@ -151,12 +151,15 @@ describe('Rerun from the inbox', () => {
 });
 
 describe('NeedsYou and the sidebar badge', () => {
-  it('lists the oldest blocking items with a link to the inbox, and hides when nothing is waiting', () => {
-    const { rerender } = render(<NeedsYou counts={{ badge: 2 }} now={NOW} tickets={[t({ id: 'a', title: 'Older', createdAt: '2026-11-14T08:00:00Z' }), t({ id: 'b', title: 'Newer' }), t({ id: 'c', kind: 'pr_ready', priority: 'fyi', title: 'FYI' })]} />);
+  it('lists everything open, most urgent first with what only needs a look last, links each to its ticket, and hides when nothing is open', () => {
+    const { rerender } = render(<NeedsYou counts={{ badge: 2 }} now={NOW} tickets={[t({ id: 'c', kind: 'pr_ready', group: 'fyi', priority: 'fyi', title: 'LIVE-1 is ready for human review' }), t({ id: 'a', title: 'Older', group: 'blocking', createdAt: '2026-11-14T08:00:00Z' }), t({ id: 'b', title: 'Newer', group: 'blocking' }), t({ id: 'd', status: 'resolved', title: 'Done already' })]} />);
     const region = screen.getByRole('region', { name: 'Needs you' });
     const items = within(region).getAllByRole('listitem');
-    expect(items).toHaveLength(2);
-    expect(items[0]).toHaveTextContent('Older');
+    expect(items).toHaveLength(3);
+    expect(items.map((i) => i.textContent)).toEqual([expect.stringContaining('Older'), expect.stringContaining('Newer'), expect.stringContaining('ready for human review')]);
+    expect(within(region).getByText('2 blocking')).toBeInTheDocument();
+    expect(within(region).getByText('1 fyi')).toBeInTheDocument();
+    expect(within(region).getByRole('link', { name: 'LIVE-1 is ready for human review' })).toHaveAttribute('href', '/tickets/t1');
     expect(within(region).getByRole('link', { name: 'Open the inbox' })).toHaveAttribute('href', '/inbox');
     rerender(<NeedsYou counts={{ badge: 0 }} tickets={[]} />);
     expect(screen.queryByRole('region', { name: 'Needs you' })).not.toBeInTheDocument();
@@ -167,6 +170,11 @@ describe('NeedsYou and the sidebar badge', () => {
     expect(screen.getByTestId('inbox-badge')).toHaveTextContent('3');
     rerender(<Sidebar pipeline={{ text: 'Idle', tone: 'grey' }} inboxBadge={0} />);
     expect(screen.queryByTestId('inbox-badge')).not.toBeInTheDocument();
+    rerender(<Sidebar pipeline={{ text: 'Idle', tone: 'grey' }} inboxBadge={0} inboxFyi={2} />);
+    expect(screen.getByTestId('inbox-fyi')).toHaveTextContent('2');
+    expect(screen.queryByTestId('inbox-badge')).not.toBeInTheDocument();
+    rerender(<Sidebar pipeline={{ text: 'Idle', tone: 'grey' }} inboxBadge={1} inboxFyi={2} />);
+    expect(screen.queryByTestId('inbox-fyi')).not.toBeInTheDocument(); // the urgent number wins
     rerender(<Sidebar pipeline={{ text: 'Idle', tone: 'grey' }} inboxBadge={250} />);
     expect(screen.getByTestId('inbox-badge')).toHaveTextContent('99+');
   });

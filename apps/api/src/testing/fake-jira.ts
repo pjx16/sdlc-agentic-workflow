@@ -33,6 +33,14 @@ export class FakeJira implements JiraClient {
     if (marker && list.some((c) => c.includes(marker))) return;
     list.push(marker ? `${markdown}\n\n${marker}` : (markdown ?? ''));
   }
+  async upsertComment(key: string, markdown: string, marker: string) {
+    this.guard(`comment ${key}`);
+    const list = (this.commentBodies[key] ??= []);
+    const at = list.findIndex((c) => c.includes(marker));
+    const body = `${markdown}\n\n${marker}`;
+    if (at === -1) list.push(body);
+    else list[at] = body;
+  }
   async transition(key: string, statusName: string) {
     this.guard(`transition ${key} -> ${statusName}`);
     if ((this.statuses[key] ?? '').trim().toLowerCase() === statusName.trim().toLowerCase()) return;
