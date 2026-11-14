@@ -17,7 +17,7 @@ function stage(model: (typeof MODEL_ALIASES)[number], maxTurns: number) {
 const implementStage = z
   .object({
     enabled: z.literal(true, { error: 'The implement stage cannot be disabled' }).default(true),
-    model: modelAlias.default('haiku'),
+    model: modelAlias.default('sonnet'),
     maxTurns: z.number({ error: 'must be a number' }).int().min(1, 'must be at least 1').max(200, 'must be at most 200').default(40),
   })
   .prefault({});
@@ -42,13 +42,22 @@ export const ProjectSettingsSchema = z.object({
   stages: z
     .object({
       kbBuild: stage('sonnet', 30),
-      plan: stage('opus', 15),
-      breakdown: stage('haiku', 10),
+      featureMap: stage('haiku', 8),
+      solutionDesign: stage('opus', 15),
+      bugInvestigation: stage('opus', 15),
+      technicalDesign: stage('sonnet', 10),
       tests: stage('sonnet', 25),
       implement: implementStage,
       fix: stage('sonnet', 15),
-      review: stage('sonnet', 10),
+      prReview: stage('sonnet', 10),
+      qualityReview: stage('haiku', 8),
+      securityReview: stage('sonnet', 10),
       kbUpdate: stage('sonnet', 15),
+      ciTriage: stage('haiku', 5),
+      orchestrate: stage('haiku', 6),
+      assist: stage('sonnet', 8),
+      repoProfile: stage('sonnet', 25),
+      onboardAdvise: stage('haiku', 5),
     })
     .prefault({}),
   gates: z.object({ plan: z.boolean().default(true), breakdown: z.boolean().default(true) }).prefault({}),
@@ -65,6 +74,10 @@ export const ProjectSettingsSchema = z.object({
     })
     .prefault({}),
   jiraSubtaskTypeName: z.string().trim().min(1, 'required').default('Sub-task'),
+  /** What each Jira issue type becomes: feature, bug, chore, or ignore (BUILD_PLAN v1 6.7). */
+  jiraIssueTypeRouting: z.record(z.string(), z.enum(['feature', 'bug', 'chore', 'ignore'])).default({}),
+  /** Where plans are published (BUILD_PLAN v1 6.10). Null: plans go to Jira comments. */
+  confluence: z.object({ spaceKey: z.string().min(1), parentPageId: z.string().nullable().default(null) }).nullable().default(null),
   jiraStatusMap: z.object(statusMapShape).prefault({}),
   jiraApprovalStatuses: z
     .object({ plan: z.string().trim().min(1).optional(), breakdown: z.string().trim().min(1).optional() })
@@ -74,6 +87,16 @@ export const ProjectSettingsSchema = z.object({
       earlyDraft: z.boolean().default(true),
       ciFixRound: z.boolean().default(true),
       ciTimeoutMin: count(30, 1, 480),
+    })
+    .prefault({}),
+  /** How many times each back-edge may go round for one ticket (BUILD_PLAN v1 6.8). Fix and review rounds keep their limits under `limits`. */
+  /** Paths and diff lines that bring in the security reviewer: regular expressions, case-insensitive (BUILD_PLAN v1 4.3). Empty: the built-in list. */
+  securityRiskPatterns: z.array(z.string().min(1).refine((p) => { try { new RegExp(p); return true; } catch { return false; } }, 'must be a valid regular expression')).default([]),
+  loopLimits: z
+    .object({
+      ciFix: count(1, 0, 10),
+      userRerun: count(5, 1, 50),
+      orchestratorReplan: count(1, 0, 10),
     })
     .prefault({}),
   limits: z
@@ -104,13 +127,19 @@ export interface Warning {
 }
 
 const STAGE_OFF_EFFECTS: Partial<Record<StageName, string>> = {
-  plan: 'The ticket body becomes the plan.',
-  breakdown:
+  solutionDesign: 'A feature ticket skips planning: the ticket body becomes the plan.',
+  bugInvestigation: 'A bug ticket skips the investigation: the ticket body becomes the plan.',
+  technicalDesign:
     'The ticket runs as one subtask whose description is the plan. Acceptance criteria come from an "Acceptance criteria" section of the ticket if present.',
-  tests: 'The implement stage is told to write the tests, and verify-green runs the changed test files or typecheck only.',
+  tests: 'The coder works from the acceptance criteria alone, and verify-green runs the existing tests and the typecheck only.',
   kbBuild: 'Tickets with no KB doc are planned without one.',
+  featureMap: 'The ticket is not matched to a feature: a ticket with no key of its own gets a new feature doc.',
   kbUpdate: 'The KB-update step is skipped.',
-  review: 'The review step is skipped.',
+  prReview: 'The correctness review is skipped.',
+  qualityReview: 'The readability and standards review is skipped.',
+  securityReview: 'The security review never runs, even for changes that touch risky code.',
+  ciTriage: 'Every CI failure is treated as a code failure.',
+  orchestrate: 'Every choice between several moves uses the default move.',
 };
 
 /** Stage-dependency warnings shown when a dependent stage is disabled (F2). */

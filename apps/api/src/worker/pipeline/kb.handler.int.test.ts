@@ -138,7 +138,7 @@ describe('NEW and KB step handlers', () => {
       expect(await o.forResult(t.id, 'plan', { kind: 'turn_limit', stageRunId: run.id, attempts: 1 })).toMatchObject({ kind: 'hold', reason: 'needs_help', note: 'plan ran out of turns.' });
       expect(await o.forResult(t.id, 'plan', { kind: 'killed', stageRunId: run.id, attempts: 1 })).toMatchObject({ kind: 'hold', reason: 'manual' });
       expect(await o.forResult(t.id, 'plan', { kind: 'needs_input', question: 'Which db?', stageRunId: run.id, attempts: 1 })).toMatchObject({ kind: 'hold', reason: 'awaiting_answer' });
-      expect((await prisma.supportQuery.findMany({ where: { ticketId: t.id } }))[0]).toMatchObject({ question: 'Which db?', status: 'open', stage: 'plan' });
+      expect((await prisma.supportTicket.findMany({ where: { ticketId: t.id } }))[0]).toMatchObject({ kind: 'question', body: 'Which db?', status: 'open', stage: 'plan', priority: 'blocking' });
     });
 
     it('follows the error policy: a container error or timeout fails the ticket, other failures hold it', async () => {

@@ -115,30 +115,44 @@ describe('Hold, resume and retry (3.7, BUILD_PLAN 6.6 rows 16-18, 6.8)', () => {
       expect((await t.agent.get(`/tickets/${running.id}/hold`).expect(200)).body).toMatchObject({ note: null, failedRun: null, canRedoTests: false });
     });
 
-    it('redo-tests sends the current subtask back to the tests stage with the failure and the note, and resumes the ticket', async () => {
+    it('rerunning the tests of a subtask sends it back to the tests stage with the failure and the note, and resumes the ticket', async () => {
       const tk = await held();
       const s = await subtask(tk.id);
-      const res = await t.agent.post(`/tickets/${tk.id}/redo-tests`).send({ note: 'accept export const' }).expect(200);
+      const res = await t.agent.post(`/tickets/${tk.id}/subtasks/${s.seq}/rerun`).send({ part: 'tests', note: 'accept export const' }).expect(200);
       expect(res.body).toMatchObject({ status: 'IN_PROGRESS', holdReason: null });
       const row = await t.prisma.subtask.findUniqueOrThrow({ where: { id: s.id } });
-      expect(row).toMatchObject({ status: 'TESTS', fixRounds: 0, redoTests: true, testCommit: 'abc123' }); // the worker clears testCommit when it discards the work
+      expect(row).toMatchObject({ status: 'TESTS', fixRounds: 0, redoTests: true, rerunPart: 'tests', testCommit: 'abc123' }); // the worker clears testCommit when it discards the work
       expect(row.retriedAt).not.toBeNull();
       expect(row.lastFailure).toContain('written again from scratch');
       expect(row.lastFailure).toContain('The fix stage failed twice: the test cannot pass');
       expect(row.lastFailure).toContain('Developer note: accept export const');
       expect(row.lastFailure).toContain('Do not require a particular code style');
+      expect((await t.prisma.stateTransition.findMany({ where: { ticketId: tk.id } })).at(-1)).toMatchObject({ kind: 'resume', fromStatus: 'ON_HOLD' });
     });
 
-    it('redo-tests is refused (409) when there are no tests to redo or the ticket is not held, and validates the note', async () => {
+    it('rerunning the implementation of a subtask goes back to the implement step and keeps the tests', async () => {
+      const tk = await held();
+      const s = await subtask(tk.id);
+      await t.agent.post(`/tickets/${tk.id}/subtasks/${s.seq}/rerun`).send({ part: 'implementation' }).expect(200);
+      expect(await t.prisma.subtask.findUniqueOrThrow({ where: { id: s.id } })).toMatchObject({ status: 'IMPLEMENT', redoTests: false, rerunPart: 'implementation', testCommit: 'abc123' });
+    });
+
+    it('is refused (409) when the ticket is not held, the subtask is unknown or done, or has no tests; 400 for a bad part or note; 404 unknown', async () => {
       const noTests = await held();
-      await subtask(noTests.id, { testCommit: null, status: 'TESTS' });
-      await t.agent.post(`/tickets/${noTests.id}/redo-tests`).send({}).expect(409);
+      const s1 = await subtask(noTests.id, { testCommit: null, status: 'TESTS' });
+      await t.agent.post(`/tickets/${noTests.id}/subtasks/${s1.seq}/rerun`).send({ part: 'tests' }).expect(409);
+      await t.agent.post(`/tickets/${noTests.id}/subtasks/${s1.seq}/rerun`).send({ part: 'implementation' }).expect(409);
       const running = await ticket();
-      await t.agent.post(`/tickets/${running.id}/redo-tests`).send({}).expect(409);
+      await t.agent.post(`/tickets/${running.id}/subtasks/1/rerun`).send({ part: 'tests' }).expect(409);
       const ok = await held();
-      await subtask(ok.id);
-      await t.agent.post(`/tickets/${ok.id}/redo-tests`).send({ note: 'x'.repeat(2001) }).expect(400);
-      await t.anonymous.post(`/tickets/${ok.id}/redo-tests`).send({}).expect(401);
+      const s2 = await subtask(ok.id);
+      await t.agent.post(`/tickets/${ok.id}/subtasks/${s2.seq}/rerun`).send({ part: 'tests', note: 'x'.repeat(2001) }).expect(400);
+      await t.agent.post(`/tickets/${ok.id}/subtasks/${s2.seq}/rerun`).send({ part: 'everything' }).expect(400);
+      await t.agent.post(`/tickets/${ok.id}/subtasks/99/rerun`).send({ part: 'tests' }).expect(404);
+      await t.prisma.subtask.update({ where: { id: s2.id }, data: { status: 'DONE' } });
+      await t.agent.post(`/tickets/${ok.id}/subtasks/${s2.seq}/rerun`).send({ part: 'tests' }).expect(409);
+      await t.anonymous.post(`/tickets/${ok.id}/subtasks/1/rerun`).send({ part: 'tests' }).expect(401);
+      await t.agent.post(`/tickets/${ok.id}/redo-tests`).send({}).expect(404); // the old endpoint is gone
     });
   });
 });

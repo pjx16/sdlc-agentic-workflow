@@ -20,7 +20,7 @@ describe('Sidebar', () => {
     const { unmount } = render(<Sidebar pipeline={{ text: 'Idle', tone: 'grey' }} />);
     await userEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
     expect(screen.getByRole('button', { name: 'Expand sidebar' })).toHaveAttribute('aria-expanded', 'false');
-    for (const name of ['Overview', 'Tickets', 'Support', 'Projects', 'Guidelines', 'Usage', 'Settings']) {
+    for (const name of ['Overview', 'Tickets', 'Inbox', 'Projects', 'Guidelines', 'Usage', 'Settings']) {
       expect(screen.getByRole('link', { name })).toHaveAttribute('title', name);
     }
     expect(screen.queryByText('Control deck')).not.toBeInTheDocument();

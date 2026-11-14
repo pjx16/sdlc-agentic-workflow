@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { events } from '@sdlc/shared';
+import { writeEvent } from '../../common/event-log';
 import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RateLimit } from '../agent-runner/result-parser';
@@ -57,7 +59,7 @@ export class UsageGate implements UsageGatePort {
     this.logger.warn(`Pipeline paused: ${decision.reason}`);
     if (!row.pipelinePaused) {
       await this.prisma.globalSettings.update({ where: { id: 'global' }, data: { pipelinePaused: true, pausedReason: decision.reason.slice(0, 300), pausedCode: s.status === 'rejected' ? 'CLAUDE_USAGE_LIMIT' : null, resetsAt: decision.resetsAt } });
-      await this.prisma.event.create({ data: { type: 'usage', message: `Pipeline paused: ${decision.reason}`.slice(0, 500) } });
+      await writeEvent(this.prisma, events.paused({ reason: decision.reason, code: s.status === 'rejected' ? 'CLAUDE_USAGE_LIMIT' : undefined }));
     }
   }
 }

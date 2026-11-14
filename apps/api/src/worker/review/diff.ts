@@ -28,3 +28,10 @@ export async function computeDiff(git: GitRunner, workspace: string, range: { fr
   const stat = (await git.run(['--no-pager', 'diff', '--no-color', '--stat', spec, '--', '.', ...DIFF_EXCLUDES], { cwd: workspace })).stdout.trim();
   return { patch, lines: patch === '' ? 0 : patch.split('\n').length - (patch.endsWith('\n') ? 1 : 0), stat };
 }
+
+/** The paths a range changes, for the security reviewer's trigger. */
+export async function computeChangedPaths(git: GitRunner, workspace: string, range: { from: string; to?: string; mergeBase?: boolean }): Promise<string[]> {
+  const spec = `${range.from}${range.mergeBase ? '...' : '..'}${range.to ?? 'HEAD'}`;
+  const out = (await git.run(['--no-pager', 'diff', '--no-color', '--name-only', spec, '--', '.', ...DIFF_EXCLUDES], { cwd: workspace })).stdout;
+  return out.split('\n').map((l) => l.trim()).filter(Boolean);
+}

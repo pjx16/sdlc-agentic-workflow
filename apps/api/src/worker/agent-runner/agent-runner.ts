@@ -4,6 +4,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { CredentialsService } from '../../credentials/credentials.service';
 import { ERROR_POLICY, classifyClaudeError, describeError, nextBackoffMin, stageJsonSchema, type ClaudeMdMode, type ErrorCode, type ModelAlias, type ProjectStack, type StageEnvelope, type StageName } from '@sdlc/shared';
 import type { FixReason } from '../../generated/prisma/client';
+import { logLine } from '../../common/log-context';
 import { USAGE_GATE, type UsageGatePort } from '../usage/usage-gate';
 import { WorkerConfig } from '../worker-config';
 import { buildStageContext, type StageInputs } from './context-builder';
@@ -17,6 +18,8 @@ import { STAGE_RUN_STORE, type StageRunStore } from './stage-run-store';
 export interface StageRequest {
   projectId: string;
   ticketId?: string;
+  /** For log lines only. */
+  ticketKey?: string;
   subtaskId?: string;
   stage: StageName;
   /** Set on `fix` runs. */
@@ -29,6 +32,10 @@ export interface StageRequest {
   maxTurns: number;
   stageTimeoutMin: number;
   inputs: StageInputs;
+  /** Continue this CLI session (the assistant). */
+  resumeSession?: string;
+  /** Extended thinking budget (tokens), for the orchestrator at a decision point. */
+  thinkingTokens?: number;
   /** Required for every stage that has a workspace (every stage). */
   workspacePath?: string;
   /** Orchestrator validation of a valid envelope (for example "featureKey must be in the index"). Return a message to fail the attempt. */
@@ -98,7 +105,7 @@ export class AgentRunner {
       used.set(code, n);
       const waitMin = nextBackoffMin(code, n);
       const reason = outcome.kind === 'failed' ? outcome.reason : describeError('TURN_LIMIT', { agent: req.stage });
-      this.logger.warn(`Stage ${req.stage} attempt ${attempt} failed (${code}): ${reason}`);
+      this.logger.warn(logLine({ ticket: req.ticketKey, stage: req.stage, run: outcome.stageRunId }, `attempt ${attempt} failed (${code}): ${reason}`));
       if (waitMin === null) return { ...outcome, attempts: attempt } as StageResult;
 
       const policy = ERROR_POLICY[code].recovery;
@@ -130,7 +137,7 @@ export class AgentRunner {
       inputs: retry.retryNote ? { ...req.inputs, retryNote: retry.retryNote } : req.inputs,
       schema: stageJsonSchema(req.stage),
       config: {
-        stage: req.stage, modelAlias: req.modelAlias, modelAliases: req.modelAliases, maxTurns: Math.ceil(req.maxTurns * retry.turnFactor), attempt, round: req.round ?? 0,
+        stage: req.stage, modelAlias: req.modelAlias, modelAliases: req.modelAliases, maxTurns: Math.ceil(req.maxTurns * retry.turnFactor), resumeSession: req.resumeSession, thinkingTokens: req.thinkingTokens, attempt, round: req.round ?? 0,
       },
       runsDir: path.join(this.config.dataDir, 'runs'),
       guidelinesDir: this.config.guidelinesDir,
@@ -151,6 +158,8 @@ export class AgentRunner {
         DISABLE_AUTOUPDATER: '1',
         DISABLE_TELEMETRY: '1',
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+        // The assistant reads the project's bare mirror with git; the mirror is owned by the worker, so git must trust it.
+        ...(req.stage === 'assist' ? { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'safe.directory', GIT_CONFIG_VALUE_0: '*' } : {}),
         ...this.config.agentExtraEnv,
       },
       extraBinds: this.config.agentExtraBinds,

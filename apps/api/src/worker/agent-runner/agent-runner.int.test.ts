@@ -43,7 +43,7 @@ function workspace(): string {
 }
 
 const request = (over: Partial<StageRequest> = {}): StageRequest => ({
-  projectId, stage: 'plan', stack: 'nestjs', claudeMdMode: 'both', modelAlias: 'sonnet', modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
+  projectId, stage: 'solutionDesign', stack: 'nestjs', claudeMdMode: 'both', modelAlias: 'sonnet', modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
   maxTurns: 10, stageTimeoutMin: 2, inputs: { ticket: { key: 'KEY-1', title: 'Add a thing', body: 'Please add a thing.' } }, workspacePath: workspace(), ...over,
 });
 
@@ -94,7 +94,7 @@ describe('fake stage end to end, in a real container', () => {
 
   it('a read-only stage cannot change the workspace', async () => {
     const ws = workspace();
-    const res = await runnerFor('ok').run(request({ stage: 'plan', workspacePath: ws }));
+    const res = await runnerFor('ok').run(request({ stage: 'solutionDesign', workspacePath: ws }));
     expect(res.kind).toBe('done');
     // the plan stage mounts read-only: an edit attempt from the same container would fail
     const probe = await shellInAgent('touch /workspace/should-fail 2>&1; echo "exit=$?"', { workspace: { path: ws, readOnly: true } });
@@ -108,7 +108,7 @@ describe('fake stage end to end, in a real container', () => {
     expect((res as { reason: string }).reason).toContain('data.planMarkdown');
     const runs = await prisma.stageRun.findMany({ where: { id: (res as { stageRunId: string }).stageRunId } });
     expect(runs[0]).toMatchObject({ attempt: 2, status: 'failed' });
-    const all = await prisma.stageRun.findMany({ where: { projectId, stage: 'plan', status: 'failed' }, orderBy: { attempt: 'asc' } });
+    const all = await prisma.stageRun.findMany({ where: { projectId, stage: 'solutionDesign', status: 'failed' }, orderBy: { attempt: 'asc' } });
     expect(all.slice(-2).map((r) => r.attempt)).toEqual([1, 2]);
   }, 180_000);
 

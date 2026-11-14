@@ -55,9 +55,9 @@ export function holdGuidance(info: HoldInfo): Guidance {
         title: 'Waiting for your answer',
         happened: 'An agent needs a decision from you before it can continue.',
         detail: info.note,
-        steps: ['Open Support and answer the question. The ticket carries on by itself once you answer.'],
+        steps: ['Open the Inbox and answer the question. The ticket carries on by itself once you answer.'],
         actions: [],
-        links: [{ href: '/support', text: 'Go to Support' }],
+        links: [{ href: '/inbox', text: 'Go to Inbox' }],
       };
     case 'manual':
       return {
