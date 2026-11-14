@@ -21,7 +21,9 @@ const t = (over: Partial<SupportTicketView>): SupportTicketView => ({
   id: 'x1', kind: 'question', title: 'Which currency?', body: 'Which currency?', priority: 'blocking', status: 'open', group: 'questions', projectId: 'p1', ticketId: 't1', ticketKey: 'SDA-1', ticketTitle: 'Invoices',
   stage: 'plan', defaultAnswer: null, response: null, resolvedBy: null, createdAt: '2026-11-14T10:00:00Z', resolvedAt: null, actions: ['answer', 'dismiss'], ...over,
 });
-const sentBody = () => JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body));
+/** The first action posted (the inbox also reads the moves of a ticket with a GET). */
+const posted = () => (fetchMock.mock.calls as [string, RequestInit][]).find(([, init]) => init?.method === 'POST') as [string, RequestInit];
+const sentBody = () => JSON.parse(String(posted()[1].body));
 
 describe('Inbox', () => {
   it('groups items as Blocking, Approvals, Questions and FYI, and shows how long each has waited', () => {
@@ -48,7 +50,7 @@ describe('Inbox', () => {
     expect(send).toBeDisabled();
     await userEvent.type(screen.getByLabelText('Your answer'), 'EUR');
     await userEvent.click(send);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/support-tickets/x1/action');
+    expect(posted()[0]).toBe('/api/support-tickets/x1/action');
     expect(sentBody()).toEqual({ action: 'answer', answer: 'EUR' });
     expect(refresh).toHaveBeenCalled();
   });
@@ -123,13 +125,41 @@ describe('Inbox', () => {
   });
 });
 
+describe('Rerun from the inbox', () => {
+  it('a hold with a ticket offers Rerun from here, from the moves the server lists', async () => {
+    fetchMock.mockImplementation(async (url: string) => (String(url).endsWith('/moves') ? reply([{ kind: 'rerun', to: 'PLANNING', label: 'Rerun Planning' }, { kind: 'resume', to: 'REVIEW', label: 'Resume' }]) : reply({})));
+    render(<Inbox tickets={[t({ kind: 'hold', group: 'blocking', actions: ['resume', 'dismiss'] })]} tab="open" now={NOW} />);
+    expect(await screen.findByRole('button', { name: 'Rerun from here' })).toBeInTheDocument();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/tickets/t1/moves');
+  });
+  it('offers nothing when the ticket has no finished stage to go back to, or the moves cannot be read', async () => {
+    fetchMock.mockResolvedValue(reply([{ kind: 'advance', to: 'KB', label: 'Move on' }]));
+    const { unmount } = render(<Inbox tickets={[t({ kind: 'hold', group: 'blocking', actions: ['resume'] })]} tab="open" now={NOW} />);
+    await screen.findByRole('button', { name: 'Resume' });
+    expect(screen.queryByRole('button', { name: 'Rerun from here' })).not.toBeInTheDocument();
+    unmount();
+    fetchMock.mockRejectedValue(new Error('offline'));
+    render(<Inbox tickets={[t({ kind: 'hold', group: 'blocking', actions: ['resume'] })]} tab="open" now={NOW} />);
+    await screen.findByRole('button', { name: 'Resume' });
+    expect(screen.queryByRole('button', { name: 'Rerun from here' })).not.toBeInTheDocument();
+  });
+  it('a question needs no rerun, so it never asks the server', () => {
+    fetchMock.mockResolvedValue(reply({}));
+    render(<Inbox tickets={[t({})]} tab="open" now={NOW} />);
+    expect(fetchMock.mock.calls.some(([u]) => String(u).endsWith('/moves'))).toBe(false);
+  });
+});
+
 describe('NeedsYou and the sidebar badge', () => {
-  it('lists the oldest blocking items with a link to the inbox, and hides when nothing is waiting', () => {
-    const { rerender } = render(<NeedsYou counts={{ badge: 2 }} now={NOW} tickets={[t({ id: 'a', title: 'Older', createdAt: '2026-11-14T08:00:00Z' }), t({ id: 'b', title: 'Newer' }), t({ id: 'c', kind: 'pr_ready', priority: 'fyi', title: 'FYI' })]} />);
+  it('lists everything open, most urgent first with what only needs a look last, links each to its ticket, and hides when nothing is open', () => {
+    const { rerender } = render(<NeedsYou counts={{ badge: 2 }} now={NOW} tickets={[t({ id: 'c', kind: 'pr_ready', group: 'fyi', priority: 'fyi', title: 'LIVE-1 is ready for human review' }), t({ id: 'a', title: 'Older', group: 'blocking', createdAt: '2026-11-14T08:00:00Z' }), t({ id: 'b', title: 'Newer', group: 'blocking' }), t({ id: 'd', status: 'resolved', title: 'Done already' })]} />);
     const region = screen.getByRole('region', { name: 'Needs you' });
     const items = within(region).getAllByRole('listitem');
-    expect(items).toHaveLength(2);
-    expect(items[0]).toHaveTextContent('Older');
+    expect(items).toHaveLength(3);
+    expect(items.map((i) => i.textContent)).toEqual([expect.stringContaining('Older'), expect.stringContaining('Newer'), expect.stringContaining('ready for human review')]);
+    expect(within(region).getByText('2 blocking')).toBeInTheDocument();
+    expect(within(region).getByText('1 fyi')).toBeInTheDocument();
+    expect(within(region).getByRole('link', { name: 'LIVE-1 is ready for human review' })).toHaveAttribute('href', '/tickets/t1');
     expect(within(region).getByRole('link', { name: 'Open the inbox' })).toHaveAttribute('href', '/inbox');
     rerender(<NeedsYou counts={{ badge: 0 }} tickets={[]} />);
     expect(screen.queryByRole('region', { name: 'Needs you' })).not.toBeInTheDocument();
@@ -140,6 +170,11 @@ describe('NeedsYou and the sidebar badge', () => {
     expect(screen.getByTestId('inbox-badge')).toHaveTextContent('3');
     rerender(<Sidebar pipeline={{ text: 'Idle', tone: 'grey' }} inboxBadge={0} />);
     expect(screen.queryByTestId('inbox-badge')).not.toBeInTheDocument();
+    rerender(<Sidebar pipeline={{ text: 'Idle', tone: 'grey' }} inboxBadge={0} inboxFyi={2} />);
+    expect(screen.getByTestId('inbox-fyi')).toHaveTextContent('2');
+    expect(screen.queryByTestId('inbox-badge')).not.toBeInTheDocument();
+    rerender(<Sidebar pipeline={{ text: 'Idle', tone: 'grey' }} inboxBadge={1} inboxFyi={2} />);
+    expect(screen.queryByTestId('inbox-fyi')).not.toBeInTheDocument(); // the urgent number wins
     rerender(<Sidebar pipeline={{ text: 'Idle', tone: 'grey' }} inboxBadge={250} />);
     expect(screen.getByTestId('inbox-badge')).toHaveTextContent('99+');
   });

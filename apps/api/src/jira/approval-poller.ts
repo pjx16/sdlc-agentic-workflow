@@ -25,7 +25,7 @@ export class ApprovalPoller {
   /** Returns how many tickets were approved. Throws JiraUnavailableError if Jira is down (the loop pauses intake). */
   async check(only?: (project: Project) => boolean): Promise<number> {
     const tickets = await this.prisma.ticket.findMany({
-      where: { source: 'jira', externalKey: { not: null }, status: { in: ['AWAITING_PLAN_APPROVAL', 'AWAITING_BREAKDOWN_APPROVAL'] }, project: { enabled: true, jiraMode: 'rest' } },
+      where: { source: 'jira', externalKey: { not: null }, status: { in: ['AWAITING_PLAN_APPROVAL', 'AWAITING_BREAKDOWN_APPROVAL'] }, project: { enabled: true, onboardingStatus: 'confirmed', jiraMode: 'rest' } },
       include: { project: true },
       orderBy: { createdAt: 'asc' },
     });

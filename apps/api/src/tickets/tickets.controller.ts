@@ -1,10 +1,14 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
 import type { TicketDto } from './ticket.dto';
+import { RerunService } from './rerun.service';
 import { TicketsService } from './tickets.service';
 
 @Controller('tickets')
 export class TicketsController {
-  constructor(private readonly tickets: TicketsService) {}
+  constructor(
+    private readonly tickets: TicketsService,
+    private readonly reruns: RerunService,
+  ) {}
 
   @Get()
   list(@Query('projectId') projectId?: string, @Query('status') status?: string) {
@@ -19,6 +23,21 @@ export class TicketsController {
   @Get(':id/transitions')
   transitions(@Param('id') id: string) {
     return this.tickets.transitions(id);
+  }
+
+  @Get(':id/moves')
+  moves(@Param('id') id: string) {
+    return this.tickets.moves(id);
+  }
+
+  @Get(':id/artifacts')
+  artifacts(@Param('id') id: string) {
+    return this.tickets.artifacts(id);
+  }
+
+  @Get(':id/decisions')
+  decisions(@Param('id') id: string) {
+    return this.tickets.decisions(id);
   }
 
   @Get(':id/events')
@@ -66,10 +85,18 @@ export class TicketsController {
     return this.tickets.holdInfo(id);
   }
 
-  @Post(':id/redo-tests')
+  /** Sends the ticket back to a stage that already finished (BUILD_PLAN v1 6.8). */
+  @Post(':id/rerun')
   @HttpCode(HttpStatus.OK)
-  redoTests(@Param('id') id: string, @Body() body: unknown) {
-    return this.tickets.redoTests(id, body);
+  rerun(@Param('id') id: string, @Body() body: unknown) {
+    return this.reruns.rerun(id, body);
+  }
+
+  /** One subtask's tests or implementation again. Replaces `redo-tests`. */
+  @Post(':id/subtasks/:seq/rerun')
+  @HttpCode(HttpStatus.OK)
+  rerunSubtask(@Param('id') id: string, @Param('seq') seq: string, @Body() body: unknown) {
+    return this.reruns.rerunSubtask(id, Number(seq), body);
   }
 
   @Post(':id/resume')

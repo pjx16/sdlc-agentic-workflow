@@ -22,8 +22,12 @@ export function RunsTable({ runs }: { runs: RunView[] }) {
       </thead>
       <tbody>
         {runs.map((r) => (
-          <tr key={r.id} className="border-t border-border align-top">
-            <td className="py-3">{r.stage}</td>
+          <tr key={r.id} data-stale={Boolean(r.supersededAt)} className={`border-t border-border align-top ${r.supersededAt ? 'opacity-50' : ''}`}>
+            <td className="py-3">
+              {r.stage}
+              {r.supersededAt && <span className="ml-2 rounded border border-border px-1 text-xs text-muted">stale</span>}
+              {r.trigger === 'user' && <span className="ml-2 rounded border border-border px-1 text-xs text-muted">by you</span>}
+            </td>
             <td className="py-3">{r.attempt}</td>
             <td className="py-3">
               {r.status}

@@ -14,19 +14,22 @@ interface Props {
   empty: boolean;
   emptyText: string;
   table: ChartTable;
+  /** Extra controls in the title row, next to "View data" (for example a window toggle). */
+  action?: ReactNode;
   children: ReactNode;
 }
 
 /**
  * Every chart (F17): a title, a text alternative, a clear empty state, and a "View data" toggle that shows the same numbers as a table.
  */
-export function ChartFrame({ title, summary, empty, emptyText, table, children }: Props) {
+export function ChartFrame({ title, summary, empty, emptyText, table, action, children }: Props) {
   const [showData, setShowData] = useState(false);
   const id = useId();
   return (
     <figure className="panel p-4">
       <figcaption className="flex items-center justify-between gap-2">
         <span className="eyebrow text-text">{title}</span>
+        {action}
         {!empty && (
           <button type="button" aria-pressed={showData} aria-controls={id} onClick={() => setShowData((v) => !v)} className="text-xs text-muted underline">
             {showData ? 'View chart' : 'View data'}

@@ -1,5 +1,6 @@
 'use client';
 
+import { formatSpec, missingPlaceholders } from '@sdlc/shared';
 import { useState } from 'react';
 import type { GuidelineNode } from '@/lib/types';
 
@@ -86,6 +87,9 @@ export function GuidelinesEditor({ tree }: { tree: GuidelineNode[] }) {
     }
   }
 
+  const format = selected?.startsWith('formats/') ? formatSpec(selected.slice('formats/'.length).replace(/\.md$/, '')) : undefined;
+  const missing = format ? missingPlaceholders(format.name, text) : [];
+
   return (
     <div className="grid gap-6 md:grid-cols-[16rem_1fr]">
       <nav aria-label="Guideline files" className="panel p-3">
@@ -105,6 +109,30 @@ export function GuidelinesEditor({ tree }: { tree: GuidelineNode[] }) {
                 {busy ? 'Saving…' : 'Save'}
               </button>
             </div>
+            {format && (
+              <section aria-label="About this format" className="panel space-y-2 p-3 text-sm">
+                <p>
+                  <span className="font-medium">{format.title}.</span> {format.description}
+                </p>
+                {format.placeholders.length > 0 && (
+                  <ul className="space-y-0.5 text-xs text-muted">
+                    {format.placeholders.map((p) => (
+                      <li key={p.name}>
+                        <code className="text-text">{`{{${p.name}}}`}</code> {p.meaning}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {missing.length > 0 && (
+                  <p role="alert" className="text-xs text-amber">
+                    Missing {missing.map((m) => `{{${m}}}`).join(', ')}: that part will not appear.
+                  </p>
+                )}
+                <button type="button" onClick={() => setText(format.default)} disabled={text === format.default} className="rounded-md border border-border px-3 py-1 text-xs disabled:opacity-50">
+                  Reset to the default
+                </button>
+              </section>
+            )}
             <label htmlFor="guideline-text" className="sr-only">
               Content of {selected}
             </label>

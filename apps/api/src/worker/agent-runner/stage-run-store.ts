@@ -57,10 +57,20 @@ export class PrismaStageRunStore implements StageRunStore {
         round: run.round,
         reason: run.reason ?? null,
         status: 'queued',
+        trigger: await this.triggerFor(run.ticketId),
       },
     });
     await this.startedEvent(row.id, run);
     return row.id;
+  }
+
+  /** `user` for the first run after a person sent the ticket back (BUILD_PLAN v1 6.8), else `auto`. */
+  private async triggerFor(ticketId?: string): Promise<string> {
+    if (!ticketId) return 'auto';
+    const last = await this.prisma.stateTransition.findFirst({ where: { ticketId }, orderBy: [{ at: 'desc' }, { id: 'desc' }] });
+    if (!last || last.kind !== 'rerun' || last.actor !== 'user') return 'auto';
+    const since = await this.prisma.stageRun.count({ where: { ticketId, startedAt: { gte: last.at } } });
+    return since === 0 ? 'user' : 'auto';
   }
 
   private async startedEvent(id: string, run: NewStageRun): Promise<void> {

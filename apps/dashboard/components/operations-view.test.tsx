@@ -12,11 +12,21 @@ const data = (over: Partial<OperationsView> = {}): OperationsView => ({
   },
   load: [{ stage: 'fix', runs: 5, retries: 1, loops: 4, avgDurationSec: 185, avgTokens: 12000, avgCostUsd: 0.214 }],
   integrations: [{ source: 'claude', total: 10, errors: 3, rate: 0.3 }, { source: 'jira', total: 0, errors: 0, rate: 0 }],
+  orchestrator: { decisions: 4, fallbacks: 1, fallbackRate: 0.25, costUsd: 0.031, inputTokens: 4000, outputTokens: 300 },
   recentErrors: [{ id: 'e1', at: '2026-11-14T10:00:00Z', source: 'claude', message: 'Claude API error (529).', errorCode: 'CLAUDE_API_ERROR', ticketId: 't1', ticketKey: 'SDA-3' }],
   ...over,
 });
 
 describe('OperationsPage', () => {
+  it('shows how often the orchestrator was asked, how often its answer was not used, and what it cost', () => {
+    render(<OperationsPage data={data()} />);
+    expect(screen.getByText(/4 decisions, 1 answered with the default move \(25%\), cost \$0\.03/)).toBeInTheDocument();
+  });
+  it('says so when the orchestrator was never needed', () => {
+    render(<OperationsPage data={data({ orchestrator: { decisions: 0, fallbacks: 0, fallbackRate: 0, costUsd: 0, inputTokens: 0, outputTokens: 0 } })} />);
+    expect(screen.getByText(/has not been asked to choose yet/)).toBeInTheDocument();
+  });
+
   it('shows the worker state with its phase, uptime and queue', () => {
     render(<OperationsPage data={data()} />);
     expect(screen.getByText('Online, busy')).toBeInTheDocument();

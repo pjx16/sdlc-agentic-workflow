@@ -1,3 +1,4 @@
+import { FormatLoader } from '../format-loader';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { SupportRaiser, isAuthFailure } from '../../support/support-raiser';
 import { ProjectSettingsSchema } from '@sdlc/shared';
@@ -23,18 +24,26 @@ export class PrService {
     private readonly creds: CredentialsService,
     @Inject(GITHUB_CLIENT) private readonly github: GitHubClient,
     @Optional() private readonly raiser?: SupportRaiser,
-  ) {}
+  ) {
+    this.formats = new FormatLoader(config.guidelinesDir);
+  }
+
+  /** The editable formats (guidelines/formats): the description and the review summary use them; the review handler uses them for its comment. */
+  readonly formats: FormatLoader;
 
   /** The description, assembled from what is on record right now. */
   async describe(ticketId: string): Promise<string> {
     const t = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { project: true, subtasks: { orderBy: { seq: 'asc' } } } });
-    return buildPrDescription({
+    return buildPrDescription(
+      {
       ticket: { key: t.key, title: t.title, body: t.body, externalKey: t.externalKey },
       jiraBaseUrl: (await this.creds.resolve()).jira_base_url || undefined,
       testCommand: t.project.testCmdTemplate,
       remainingFindings: await this.remainingFindings(ticketId, t.reviewRound),
       subtasks: t.subtasks.map((s) => ({ seq: s.seq, title: s.title, featCommit: s.featCommit, acceptanceCriteria: Array.isArray(s.acceptanceCriteria) ? s.acceptanceCriteria.map(String) : [] })),
-    });
+      },
+      await this.formats.load('pr-description'),
+    );
   }
 
   /**
@@ -115,7 +124,7 @@ export class PrService {
     const open = await this.prisma.reviewFinding.groupBy({ by: ['severity'], where: { ticketId, status: 'open' }, _count: true });
     const fixed = await this.prisma.reviewFinding.count({ where: { ticketId, status: 'fixed' } });
     const count = (sev: string) => open.find((r) => r.severity === sev)?._count ?? 0;
-    const summary = renderReviewSummary({ rounds: ticket.reviewRound, fixed, open: { critical: count('critical'), high: count('high'), medium: count('medium'), low: count('low') } });
+    const summary = renderReviewSummary({ rounds: ticket.reviewRound, fixed, open: { critical: count('critical'), high: count('high'), medium: count('medium'), low: count('low') } }, await this.formats.load('review-summary'));
     await attempt('post the summary', () => this.github.comment(repo, number, summary));
     for (const w of warnings) await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Warning: could not ${w}`.slice(0, 500) } });
     return warnings;

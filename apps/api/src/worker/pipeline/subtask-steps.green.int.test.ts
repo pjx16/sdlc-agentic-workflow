@@ -44,8 +44,8 @@ describe('implement and verify-green (F9)', () => {
       };
       expect(await steps.implement(t, s)).toEqual({ kind: 'continue' });
       expect((await h.reload(s.id)).status).toBe('VERIFY_GREEN');
-      expect(h.agent.requests[0]).toMatchObject({ stage: 'implement', modelAlias: 'haiku', maxTurns: 40, subtaskId: s.id });
-      expect(h.agent.requests[0]?.inputs).toMatchObject({ plan: '# Plan', testFiles: ['src/f1.test.ts'], writeTests: false });
+      expect(h.agent.requests[0]).toMatchObject({ stage: 'implement', modelAlias: 'sonnet', maxTurns: 40, subtaskId: s.id });
+      expect(h.agent.requests[0]?.inputs).toMatchObject({ plan: '# Plan', testFiles: ['src/f1.test.ts'] });
       expect(h.agent.requests[0]?.inputs.subtask).toMatchObject({ seq: 1, title: 'Subtask 1' });
     });
 
@@ -59,7 +59,6 @@ describe('implement and verify-green (F9)', () => {
         return impl(['src/f1.ts', 'src/f1.test.ts']);
       };
       await steps.implement(t, s);
-      expect(h.agent.requests[0]?.inputs.writeTests).toBe(true);
       expect(await h.reload(s.id)).toMatchObject({ status: 'VERIFY_GREEN', testFiles: ['src/f1.test.ts'] });
     });
 

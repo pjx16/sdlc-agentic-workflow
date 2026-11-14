@@ -140,6 +140,21 @@ describe('worker loop (BUILD_PLAN 6.6, F4)', () => {
     expect(await loop.tick()).toBe('idle');
   });
 
+  it('ignores a project that is not confirmed yet: no ticket is picked and no mirror is cloned (BUILD_PLAN v1 6.7)', async () => {
+    const draft = await prisma.project.create({ data: { name: `draft-${++n}`, repoUrl: 'https://x/y', stack: 'ts_node', testCmdTemplate: 'x {files}', localKeyPrefix: `D${n}`, mirrorStatus: 'pending', onboardingStatus: 'proposed' } });
+    const t = await prisma.ticket.create({ data: { projectId: draft.id, key: `D${n}-1`, source: 'paste', title: 'x', status: 'KB' } });
+    const loop = loopWith([handler('KB', () => ({ kind: 'continue' }))]);
+    ran.length = 0;
+    expect(await loop.pickNext()).toBeNull();
+    await loop.tick();
+    expect(ran).not.toContain(`${t.key}:KB`);
+    expect((await prisma.project.findUniqueOrThrow({ where: { id: draft.id } })).mirrorStatus).toBe('pending');
+    await prisma.project.update({ where: { id: draft.id }, data: { onboardingStatus: 'confirmed' } });
+    expect((await loop.pickNext())?.id).toBe(t.id);
+    await prisma.ticket.delete({ where: { id: t.id } });
+    await prisma.project.delete({ where: { id: draft.id } });
+  });
+
   it('a running assistant chat does not block the pipeline, but a running stage does (BUILD_PLAN v1 D7)', async () => {
     const loop = loopWith([handler('KB', () => ({ kind: 'continue' }))]);
     await prisma.stageRun.deleteMany();
@@ -270,5 +285,21 @@ describe('worker loop (BUILD_PLAN 6.6, F4)', () => {
     await loop.tick();
     expect(await prisma.ticket.count({ where: { source: 'jira' } })).toBe(0);
     jira.jira.tickets = [];
+  });
+
+  it('the orchestrator hook may replace the default move of a step, and a step without it moves as before', async () => {
+    const t = await ticket('REVIEW');
+    const seen: string[] = [];
+    const config = new WorkerConfig({ DATA_DIR: '/tmp/sdlc-loop', DATABASE_URL: db.url } as NodeJS.ProcessEnv);
+    const orchestrator = {
+      async review(tk: { key: string }, outcome: StepOutcome): Promise<StepOutcome> {
+        seen.push(tk.key);
+        return outcome.kind === 'transition' ? { ...outcome, to: 'AWAITING_CI' } : outcome;
+      },
+    };
+    const loop = new WorkerLoop(prisma, new MirrorService(prisma, config, staticCredentials()), new IntakePoller(prisma, jira, () => clock), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma, jira)), states, [handler('REVIEW', () => ({ kind: 'transition', to: 'KB_UPDATE', reason: 'done' }))], () => clock, [], undefined, undefined, undefined, orchestrator);
+    await loop.tick();
+    expect(seen).toEqual([t.key]);
+    expect(await status(t.id)).toBe('AWAITING_CI');
   });
 });

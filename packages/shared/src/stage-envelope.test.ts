@@ -6,14 +6,22 @@ import { zodFields } from './zod-utils';
 const done = (data: unknown) => ({ status: 'done', summary: 'ok', data });
 const validData: Record<string, unknown> = {
   kbBuild: { featureKey: 'auth', isNew: true, docPath: 'docs/kb/auth.md', globs: ['src/auth/**'] },
-  plan: { planMarkdown: '# Plan', risks: [], openQuestions: [] },
-  breakdown: { subtasks: [{ seq: 1, title: 'a', description: 'd', acceptanceCriteria: ['c'], files: ['f'], dependsOn: [] }] },
+  featureMap: { featureKey: 'auth', isNew: false, reason: 'Login lives in auth' },
+  solutionDesign: { planMarkdown: '# Plan', risks: [], openQuestions: [] },
+  bugInvestigation: { planMarkdown: '# Plan', risks: [], openQuestions: [], rootCause: { file: 'a.ts', line: 3, explanation: 'unchecked' } },
+  technicalDesign: { filesByOrder: ['a.ts'], subtasks: [{ seq: 1, title: 'a', description: 'd', acceptanceCriteria: ['c'], files: ['f'], dependsOn: [] }] },
   tests: { testFiles: ['a.test.ts'], criteriaCovered: [{ criterion: 'c', test: 't' }] },
   implement: { filesChanged: ['a.ts'] },
   fix: { filesChanged: [] },
-  review: { findings: [{ severity: 'high', file: 'a.ts', line: null, issue: 'i', rule: 'r', fix: 'f' }], previousFindings: [{ id: 'x', status: 'fixed' }] },
+  prReview: { criteria: [{ criterion: 'c', met: true, tested: true, note: 'ok' }], findings: [{ severity: 'high', file: 'a.ts', line: null, issue: 'i', rule: 'r', fix: 'f' }], previousFindings: [] },
+  qualityReview: { findings: [], previousFindings: [] },
+  securityReview: { findings: [], previousFindings: [] },
+  ciTriage: { kind: 'flaky', summary: 'timeout' },
+  orchestrate: { move: { kind: 'advance', to: 'AWAITING_CI' }, reason: 'Only a test changed.' },
   kbUpdate: { featureKey: 'auth', docPath: 'docs/kb/auth.md', changed: true },
   assist: { reply: 'Use a comma.', draft: { kind: 'answer', text: 'Comma' } },
+  repoProfile: { stack: 'nestjs', installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', testCmdTemplate: 'npx jest {files}', kbDir: 'docs/kb', testFilePattern: '**/*.spec.ts', exampleTestFile: null },
+  onboardAdvise: { statusMap: { KB: 'In Progress' }, approvalStatuses: { plan: 'Plan Approved', breakdown: null }, issueTypeRouting: { Story: 'feature' }, intakeLabel: 'sdlc-agent', confluenceSpaceKey: null },
 };
 
 describe('stage envelopes (BUILD_PLAN 6.5)', () => {
@@ -26,9 +34,9 @@ describe('stage envelopes (BUILD_PLAN 6.5)', () => {
   });
 
   it('requires data when done, with a path into data', () => {
-    const f = zodFields(stageEnvelopeSchema('plan').safeParse({ status: 'done', summary: 'x' }).error!);
+    const f = zodFields(stageEnvelopeSchema('solutionDesign').safeParse({ status: 'done', summary: 'x' }).error!);
     expect(Object.keys(f).length).toBeGreaterThan(0);
-    const g = zodFields(stageEnvelopeSchema('plan').safeParse(done({ planMarkdown: '', risks: [], openQuestions: [] })).error!);
+    const g = zodFields(stageEnvelopeSchema('solutionDesign').safeParse(done({ planMarkdown: '', risks: [], openQuestions: [] })).error!);
     expect(g['data.planMarkdown']).toBe('must not be empty');
   });
 
@@ -40,16 +48,16 @@ describe('stage envelopes (BUILD_PLAN 6.5)', () => {
   });
 
   it('accepts blocked without data and limits the summary to 400 characters', () => {
-    const schema = stageEnvelopeSchema('plan');
+    const schema = stageEnvelopeSchema('solutionDesign');
     expect(schema.safeParse({ status: 'blocked', summary: 'cannot' }).success).toBe(true);
     expect(zodFields(schema.safeParse({ status: 'blocked', summary: 'x'.repeat(401) }).error!).summary).toBe('must be at most 400 characters');
     expect(schema.safeParse({ status: 'maybe', summary: 'x' }).success).toBe(false);
   });
 
   it('validates breakdown subtasks and review severities', () => {
-    expect(stageEnvelopeSchema('breakdown').safeParse(done({ subtasks: [] })).success).toBe(false);
-    expect(stageEnvelopeSchema('breakdown').safeParse(done({ subtasks: [{ seq: 0, title: 'a', description: '', acceptanceCriteria: ['c'], files: [], dependsOn: [] }] })).success).toBe(false);
-    expect(stageEnvelopeSchema('review').safeParse(done({ findings: [{ severity: 'urgent', file: 'a', line: 1, issue: 'i', rule: 'r', fix: 'f' }], previousFindings: [] })).success).toBe(false);
+    expect(stageEnvelopeSchema('technicalDesign').safeParse(done({ subtasks: [] })).success).toBe(false);
+    expect(stageEnvelopeSchema('technicalDesign').safeParse(done({ subtasks: [{ seq: 0, title: 'a', description: '', acceptanceCriteria: ['c'], files: [], dependsOn: [] }] })).success).toBe(false);
+    expect(stageEnvelopeSchema('prReview').safeParse(done({ findings: [{ severity: 'urgent', file: 'a', line: 1, issue: 'i', rule: 'r', fix: 'f' }], previousFindings: [] })).success).toBe(false);
   });
 });
 
@@ -62,8 +70,8 @@ describe('stageJsonSchema', () => {
     expect(JSON.stringify(json)).not.toContain('$schema');
   });
   it('describes the plan data fields', () => {
-    expect(JSON.stringify(stageJsonSchema('plan'))).toContain('planMarkdown');
-    expect(JSON.stringify(stageJsonSchema('review'))).toContain('still_open');
+    expect(JSON.stringify(stageJsonSchema('solutionDesign'))).toContain('planMarkdown');
+    expect(JSON.stringify(stageJsonSchema('prReview'))).toContain('still_open');
   });
 });
 

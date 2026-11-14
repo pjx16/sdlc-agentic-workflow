@@ -1,4 +1,4 @@
-# Stage: tests — write failing tests first
+# Agent: test-writer — write failing tests first
 
 ## Goal
 
