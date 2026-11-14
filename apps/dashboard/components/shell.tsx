@@ -3,6 +3,7 @@ import { apiGet } from '@/lib/server-api';
 import type { SystemView } from '@/lib/types';
 import { LogoutButton } from './logout-button';
 import { RunControls } from './run-controls';
+import { AttentionTitle } from './attention-title';
 import { Sidebar } from './sidebar';
 import { PauseBanner } from './pause-banner';
 import { SetupBanner } from './setup-banner';
@@ -23,7 +24,8 @@ export async function Shell({ children }: { children: ReactNode }) {
   const label = pipelineLabel(system);
   return (
     <div className="flex min-h-screen">
-      <Sidebar pipeline={label} />
+      <AttentionTitle count={(system?.inboxBadge ?? 0) + (system?.inboxFyi ?? 0)} />
+      <Sidebar pipeline={label} inboxBadge={system?.inboxBadge ?? 0} inboxFyi={system?.inboxFyi ?? 0} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-border bg-surface/60 px-8 py-3 backdrop-blur">
           <div className="eyebrow">Autonomous delivery pipeline</div>

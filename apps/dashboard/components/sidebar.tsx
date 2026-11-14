@@ -13,10 +13,14 @@ const DOT = { green: 'text-green', grey: 'text-grey', amber: 'text-amber' } as c
 
 interface Props {
   pipeline: { text: string; tone: keyof typeof DOT };
+  /** Open blocking and approval items; shown on the Inbox entry. */
+  inboxBadge?: number;
+  /** Open items that block nothing, for example a pull request ready for human review; shown as a second, quieter number. */
+  inboxFyi?: number;
 }
 
 /** The left rail: brand, navigation with icons, and the pipeline state. It collapses to icons only, and remembers the choice in this browser. */
-export function Sidebar({ pipeline }: Props) {
+export function Sidebar({ pipeline, inboxBadge = 0, inboxFyi = 0 }: Props) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -70,6 +74,18 @@ export function Sidebar({ pipeline }: Props) {
                 <NavIcon name={item.icon} />
               </span>
               {!collapsed && item.label}
+              {item.href === '/inbox' && inboxBadge === 0 && inboxFyi > 0 && (
+                <span data-testid="inbox-fyi" className={`rounded-full bg-red px-1.5 text-xs font-medium text-white ${collapsed ? 'absolute -mr-6 -mt-5' : 'ml-auto'}`}>
+                  <span className="sr-only">{inboxFyi} to look at: </span>
+                  {inboxFyi > 99 ? '99+' : inboxFyi}
+                </span>
+              )}
+              {item.href === '/inbox' && inboxBadge > 0 && (
+                <span data-testid="inbox-badge" className={`rounded-full bg-red px-1.5 text-xs font-medium text-white ${collapsed ? 'absolute -mr-6 -mt-5' : 'ml-auto'}`}>
+                  <span className="sr-only">{inboxBadge} waiting for you: </span>
+                  {inboxBadge > 99 ? '99+' : inboxBadge}
+                </span>
+              )}
             </Link>
           );
         })}

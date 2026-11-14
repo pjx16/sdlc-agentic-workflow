@@ -9,7 +9,7 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Overview', href: '/', icon: 'overview' },
   { label: 'Tickets', href: '/tickets', icon: 'tickets' },
-  { label: 'Support', href: '/support', icon: 'support' },
+  { label: 'Inbox', href: '/inbox', icon: 'support' },
   { label: 'Projects', href: '/projects', icon: 'projects' },
   { label: 'Guidelines', href: '/guidelines', icon: 'guidelines' },
   { label: 'Usage', href: '/usage', icon: 'usage' },

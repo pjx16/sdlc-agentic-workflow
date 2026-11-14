@@ -23,6 +23,15 @@ describe('PlanPanel (F7)', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 
+  it('links to the Confluence page of the plan, at the gate and after it, and only when there is one', () => {
+    const { rerender } = render(<PlanPanel ticketId="t1" status="AWAITING_PLAN_APPROVAL" planMarkdown="# P" confluenceUrl="https://acme.atlassian.net/wiki/pages/1" />);
+    expect(screen.getByRole('link', { name: 'Open in Confluence' })).toHaveAttribute('href', 'https://acme.atlassian.net/wiki/pages/1');
+    rerender(<PlanPanel ticketId="t1" status="BREAKDOWN" planMarkdown="# P" confluenceUrl="https://acme.atlassian.net/wiki/pages/1" />);
+    expect(screen.getByRole('link', { name: 'Open in Confluence' })).toBeInTheDocument();
+    rerender(<PlanPanel ticketId="t1" status="BREAKDOWN" planMarkdown="# P" />);
+    expect(screen.queryByRole('link', { name: 'Open in Confluence' })).not.toBeInTheDocument();
+  });
+
   it('says there is no plan yet', () => {
     render(<PlanPanel ticketId="t1" status="PLANNING" planMarkdown={null} />);
     expect(screen.getByText(/No plan yet/)).toBeInTheDocument();

@@ -5,6 +5,7 @@ import { RestartRecovery } from './loop/restart-recovery';
 import { WorkerLoop } from './loop/worker-loop';
 import { PrismaService } from '../prisma/prisma.service';
 import { HeartbeatTimer, recordStart } from './status/worker-status';
+import { AssistantRunner } from './assistant/assistant-runner';
 import { WorkerConfig } from './worker-config';
 
 @Injectable()
@@ -17,6 +18,7 @@ export class WorkerRunner implements OnModuleDestroy {
     private readonly config: WorkerConfig,
     private readonly loop: WorkerLoop,
     private readonly recovery: RestartRecovery,
+    private readonly assistant: AssistantRunner,
     @Inject(CONTAINER_ENGINE) private readonly engine: ContainerEngine,
     private readonly prisma: PrismaService,
   ) {
@@ -36,6 +38,7 @@ export class WorkerRunner implements OnModuleDestroy {
     await this.ensureAgentImage();
     await this.recovery.recover();
     this.loop.start();
+    this.assistant.start();
     this.logger.log('Worker loop started');
     return true;
   }
@@ -52,6 +55,7 @@ export class WorkerRunner implements OnModuleDestroy {
 
   async onModuleDestroy(): Promise<void> {
     this.loop.stop();
+    this.assistant.stop();
     this.heartbeat.stop();
     await this.lock.release();
   }

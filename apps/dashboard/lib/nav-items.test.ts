@@ -3,7 +3,7 @@ import { NAV_ITEMS, isActive } from './nav-items';
 
 describe('navigation', () => {
   it('lists the rail entries in order', () => {
-    expect(NAV_ITEMS.map((i) => i.label)).toEqual(['Overview', 'Tickets', 'Support', 'Projects', 'Guidelines', 'Usage', 'Operations', 'Settings']);
+    expect(NAV_ITEMS.map((i) => i.label)).toEqual(['Overview', 'Tickets', 'Inbox', 'Projects', 'Guidelines', 'Usage', 'Operations', 'Settings']);
     expect(new Set(NAV_ITEMS.map((i) => i.href)).size).toBe(NAV_ITEMS.length);
   });
 

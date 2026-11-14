@@ -31,6 +31,22 @@ describe('StateBadge', () => {
   });
 });
 
+describe('TicketForm: the ticket format', () => {
+  it('starts the description with the team ticket format', () => {
+    render(<TicketForm projects={[{ id: 'p1', name: 'Alpha', mirrorStatus: 'ok', enabled: true }]} template={'## Problem\n\n## Acceptance criteria\n'} />);
+    expect((screen.getByLabelText(/description/i) as HTMLTextAreaElement).value).toBe('## Problem\n\n## Acceptance criteria\n');
+  });
+});
+
+describe('TicketsTable: tickets waiting for a person', () => {
+  it('marks the states that wait for you, and only those', () => {
+    render(<TicketsTable tickets={[ticket({ id: 'a', key: 'A-1', status: 'IN_HUMAN_REVIEW' }), ticket({ id: 'b', key: 'A-2', status: 'AWAITING_PLAN_APPROVAL' }), ticket({ id: 'c', key: 'A-3', status: 'IN_PROGRESS' })]} filtered={false} />);
+    expect(screen.getByText('Review the PR')).toBeInTheDocument();
+    expect(screen.getByText('Approve the plan')).toBeInTheDocument();
+    expect(screen.queryAllByText(/^(Review the PR|Approve the plan|Approve the breakdown|On hold|Failed)$/)).toHaveLength(2);
+  });
+});
+
 describe('TicketsTable and filters', () => {
   it('lists key, title, project, state and updated time, with a link to the ticket', () => {
     render(<TicketsTable tickets={[ticket(), ticket({ id: 't2', key: 'ABC-7', title: 'Fix crash', status: 'PLANNING', projectName: 'Alpha' })]} filtered={false} />);
@@ -128,12 +144,12 @@ describe('TicketForm (paste)', () => {
     render(<TicketForm projects={projects} />);
     await userEvent.type(screen.getByLabelText('Title'), 'Add export');
     await userEvent.type(screen.getByLabelText('Description'), 'CSV please');
-    await userEvent.selectOptions(screen.getByLabelText('Type'), 'bug');
+    await userEvent.selectOptions(screen.getByLabelText('Kind'), 'bug');
     await userEvent.click(screen.getByRole('button', { name: 'Create ticket' }));
     await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/tickets/new-1'));
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('/api/tickets');
-    expect(JSON.parse(String(init.body))).toEqual({ projectId: 'p1', title: 'Add export', body: 'CSV please', type: 'bug', featureKey: '' });
+    expect(JSON.parse(String(init.body))).toEqual({ projectId: 'p1', title: 'Add export', body: 'CSV please', kind: 'bug', featureKey: '' });
   });
 
   it('shows field-level errors, and a conflict message when the mirror is not ready', async () => {

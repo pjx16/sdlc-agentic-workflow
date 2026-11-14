@@ -1,7 +1,9 @@
+import { createHash } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { ERROR_POLICY, describeError, events, type ErrorCode } from '@sdlc/shared';
 import { writeEvent } from '../../common/event-log';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SupportRaiser } from '../../support/support-raiser';
 import type { StageResult } from '../agent-runner/agent-runner';
 import type { StepOutcome } from './step-handler';
 
@@ -16,16 +18,23 @@ export type NonDoneResult = Exclude<StageResult, { kind: 'done' }>;
  */
 @Injectable()
 export class StageOutcomes {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly raiser: SupportRaiser;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    raiser?: SupportRaiser,
+  ) {
+    this.raiser = raiser ?? new SupportRaiser(prisma);
+  }
 
   async forResult(ticketId: string, stage: string, result: NonDoneResult): Promise<StepOutcome> {
     switch (result.kind) {
       case 'needs_input':
         // The stage asks the developer something: store the question and wait for the answer. A stage may ask at most 3 questions per ticket (F13).
-        if ((await this.prisma.supportQuery.count({ where: { ticketId, stage } })) >= MAX_QUESTIONS_PER_STAGE) {
+        if ((await this.prisma.supportTicket.count({ where: { ticketId, stage, kind: 'question' } })) >= MAX_QUESTIONS_PER_STAGE) {
           return { kind: 'hold', reason: 'needs_help', note: `The ${stage} stage asked more than ${MAX_QUESTIONS_PER_STAGE} questions: ${result.question}`.slice(0, 500), stageRunId: result.stageRunId };
         }
-        await this.prisma.supportQuery.create({ data: { ticketId, stageRunId: result.stageRunId, stage, question: result.question } });
+        await this.raiser.raise({ kind: 'question', ticketId, stageRunId: result.stageRunId, stage, title: result.question.slice(0, 120), body: result.question, dedupeKey: `question:${result.stageRunId}:${createHash('sha1').update(result.question).digest('hex').slice(0, 8)}` });
         return { kind: 'hold', reason: 'awaiting_answer', note: result.question.slice(0, 200), stageRunId: result.stageRunId };
       case 'failed': {
         // The runner has used up the retries of this error's policy. The policy says whether the ticket is held or failed.
@@ -39,6 +48,7 @@ export class StageOutcomes {
         return { kind: 'hold', reason: 'needs_help', note: describeError('TURN_LIMIT', { agent: stage }), stageRunId: result.stageRunId };
       case 'claude_auth': {
         await this.pause('CLAUDE_AUTH', describeError('CLAUDE_AUTH'), null, ticketId);
+        await this.raiser.raise({ kind: 'credential', stage, title: 'Claude rejected the credential', body: `${describeError('CLAUDE_AUTH')}\n\nEvery Claude stage is paused until a working token is saved.`, dedupeKey: 'credential:claude' });
         return { kind: 'stay' };
       }
       case 'killed':

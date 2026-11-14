@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import type { JiraFacts } from '@sdlc/shared';
 
 /** What the pipeline needs from Jira (BUILD_PLAN 8 Worker interfaces). Two implementations: REST (default) and MCP. */
 
@@ -43,10 +44,14 @@ export interface JiraClient {
   readStatus(key: string): Promise<JiraIssueStatus>;
   /** With a `marker` the call is safe to repeat: when the issue already has a comment carrying it, nothing is posted. */
   comment(key: string, markdown: string, marker?: string): Promise<void>;
+  /** Posts the comment, or, when one carrying the marker exists, rewrites it in place (a changed body replaces the old one). */
+  upsertComment(key: string, markdown: string, marker: string): Promise<void>;
   /** Moves the issue to the status with this name (case-insensitive). Throws JiraStatusNotFoundError if there is none. */
   transition(key: string, statusName: string): Promise<void>;
   createSubtask(parentKey: string, subtask: JiraSubtaskInput): Promise<{ key: string }>;
   listStatuses(projectKey: string): Promise<string[]>;
+  /** What onboarding needs to know about a Jira project (BUILD_PLAN v1 6.7). */
+  projectFacts(projectKey: string): Promise<JiraFacts>;
 }
 
 /**

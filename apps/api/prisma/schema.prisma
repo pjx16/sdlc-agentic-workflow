@@ -22,6 +22,19 @@ enum ClaudeMdMode {
   both
 }
 
+enum OnboardingStatus {
+  draft
+  profiling
+  proposed
+  confirmed
+}
+
+enum TicketKind {
+  feature
+  bug
+  chore
+}
+
 enum JiraMode {
   rest
   off
@@ -66,6 +79,7 @@ enum HoldReason {
   needs_help
   manual
   pr_closed
+  loop_limit
 }
 
 enum Actor {
@@ -111,9 +125,28 @@ enum FindingStatus {
   accepted
 }
 
-enum SupportQueryStatus {
+enum SupportStatus {
   open
   answered
+  resolved
+  dismissed
+}
+
+enum SupportKind {
+  approval
+  question
+  open_question
+  hold
+  ci_infra
+  onboarding
+  credential
+  pr_ready
+}
+
+enum SupportPriority {
+  blocking
+  normal
+  fyi
 }
 
 enum UsageSource {
@@ -124,31 +157,36 @@ enum UsageSource {
 // ---------------------------------------------------------------- models
 
 model Project {
-  id              String       @id @default(uuid())
-  name            String       @unique
-  repoUrl         String
-  baseBranch      String       @default("dev")
-  stack           ProjectStack
-  installCmd      String       @default("")
-  typecheckCmd    String       @default("")
-  testCmdTemplate String
-  kbDir           String       @default("docs/kb")
-  claudeMdMode    ClaudeMdMode @default(both)
-  jiraMode        JiraMode     @default(off)
-  jiraProjectKey  String?
-  jiraJql         String?
-  localKeyPrefix  String
-  nextLocalNumber Int          @default(1)
-  mirrorStatus    MirrorStatus @default(pending)
-  mirrorError     String?
-  enabled         Boolean      @default(true)
+  id                 String           @id @default(uuid())
+  name               String           @unique
+  repoUrl            String
+  baseBranch         String           @default("dev")
+  stack              ProjectStack
+  installCmd         String           @default("")
+  typecheckCmd       String           @default("")
+  testCmdTemplate    String
+  kbDir              String           @default("docs/kb")
+  claudeMdMode       ClaudeMdMode     @default(both)
+  jiraMode           JiraMode         @default(off)
+  /// New projects start in `draft`; the worker only runs `confirmed` ones (BUILD_PLAN v1 6.7).
+  onboardingStatus   OnboardingStatus @default(confirmed)
+  onboardingProposal Json?
+  onboardingError    String?
+  jiraProjectKey     String?
+  jiraJql            String?
+  localKeyPrefix     String
+  nextLocalNumber    Int              @default(1)
+  mirrorStatus       MirrorStatus     @default(pending)
+  mirrorError        String?
+  enabled            Boolean          @default(true)
   /// ProjectSettings (validated by Zod in packages/shared)
-  settings        Json         @default("{}")
-  createdAt       DateTime     @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime     @updatedAt @db.Timestamptz(6)
+  settings           Json             @default("{}")
+  createdAt          DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime         @updatedAt @db.Timestamptz(6)
 
-  tickets   Ticket[]
-  stageRuns StageRun[]
+  tickets        Ticket[]
+  stageRuns      StageRun[]
+  supportTickets SupportTicket[]
 }
 
 /// One row (id "global").
@@ -169,6 +207,9 @@ model GlobalSettings {
   verifyTimeoutSec        Int       @default(600)
   workspaceRetentionDays  Int       @default(7)
   logRetentionDays        Int       @default(30)
+  assistantTokenCap       Int       @default(200000)
+  /// { <stage>: { model, maxTurns } } for new projects (BUILD_PLAN v1 6.7).
+  stageDefaults           Json      @default("{}")
   modelAliases            Json      @default("{\"haiku\":\"haiku\",\"sonnet\":\"sonnet\",\"opus\":\"opus\"}")
   updatedAt               DateTime  @updatedAt @db.Timestamptz(6)
 }
@@ -185,6 +226,10 @@ model Ticket {
   body            String        @default("")
   featureKey      String?
   labels          Json          @default("[]")
+  /// Where the stale code of a rerun starts; the worker reverts from here before the stage runs again.
+  revertFromSha   String?
+  revertStage     String?
+  kind            TicketKind    @default(feature)
   status          TicketStatus  @default(NEW)
   holdReason      HoldReason?
   holdFromStatus  TicketStatus?
@@ -203,6 +248,8 @@ model Ticket {
   lastReviewedSha String?
   ciFixPending    Boolean       @default(false)
   ciFixDone       Boolean       @default(false)
+  /// The failed checks were run again once after the CI triager called the failure flaky.
+  ciRerunDone     Boolean       @default(false)
   /// When the worker started waiting for the PR's checks (reset after a CI fix and on hold).
   ciWaitStartedAt DateTime?     @db.Timestamptz(6)
   /// Set by the "re-run KB update" action; the worker runs kbUpdate once for the ticket in IN_HUMAN_REVIEW and clears it.
@@ -210,12 +257,14 @@ model Ticket {
   createdAt       DateTime      @default(now()) @db.Timestamptz(6)
   updatedAt       DateTime      @updatedAt @db.Timestamptz(6)
 
-  transitions StateTransition[]
-  subtasks    Subtask[]
-  stageRuns   StageRun[]
-  findings    ReviewFinding[]
-  queries     SupportQuery[]
-  events      Event[]
+  transitions    StateTransition[]
+  subtasks       Subtask[]
+  stageRuns      StageRun[]
+  findings       ReviewFinding[]
+  supportTickets SupportTicket[]
+  artifacts      StageArtifact[]
+  events         Event[]
+  decisions      OrchestratorDecision[]
 
   @@unique([projectId, key])
   @@unique([projectId, externalKey])
@@ -236,6 +285,10 @@ model StateTransition {
   jiraStatusApplied String?
   jiraSyncResult    JiraSyncResult @default(none)
   jiraSyncError     String?
+  /// advance | rerun | hold | resume | fail | retry | approve | reject (BUILD_PLAN v1 6.8)
+  kind              String         @default("advance")
+  /// The person's instructions for a rerun, or the reason for a rejection.
+  note              String?
 
   @@index([ticketId, at])
 }
@@ -262,6 +315,8 @@ model Subtask {
   retriedAt          DateTime?     @db.Timestamptz(6)
   /// Set by "Redo tests": the worker discards this subtask's tests and implementation before the tests stage runs again.
   redoTests          Boolean       @default(false)
+  /// Set by a per-subtask rerun: `tests` or `implementation`. The worker discards that part first.
+  rerunPart          String?
 
   stageRuns StageRun[]
 
@@ -269,41 +324,49 @@ model Subtask {
 }
 
 model StageRun {
-  id               String         @id @default(uuid())
-  ticketId         String?
-  ticket           Ticket?        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  projectId        String
-  project          Project        @relation(fields: [projectId], references: [id])
-  subtaskId        String?
-  subtask          Subtask?       @relation(fields: [subtaskId], references: [id], onDelete: SetNull)
-  stage            String
-  model            String
-  attempt          Int            @default(1)
-  round            Int            @default(0)
-  reason           FixReason?
-  status           StageRunStatus @default(queued)
-  startedAt        DateTime?      @db.Timestamptz(6)
-  endedAt          DateTime?      @db.Timestamptz(6)
-  killRequested    Boolean        @default(false)
-  containerId      String?
-  cliVersion       String?
-  inputTokens      Int            @default(0)
-  outputTokens     Int            @default(0)
-  cacheReadTokens  Int            @default(0)
-  cacheWriteTokens Int            @default(0)
-  costUsd          Decimal        @default(0) @db.Decimal(12, 6)
-  numTurns         Int            @default(0)
-  sessionId        String?
-  resultJson       Json?
-  logPath          String?
-  error            String?
+  id                       String         @id @default(uuid())
+  ticketId                 String?
+  ticket                   Ticket?        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  projectId                String
+  project                  Project        @relation(fields: [projectId], references: [id])
+  subtaskId                String?
+  subtask                  Subtask?       @relation(fields: [subtaskId], references: [id], onDelete: SetNull)
+  stage                    String
+  model                    String
+  attempt                  Int            @default(1)
+  round                    Int            @default(0)
+  reason                   FixReason?
+  status                   StageRunStatus @default(queued)
+  startedAt                DateTime?      @db.Timestamptz(6)
+  endedAt                  DateTime?      @db.Timestamptz(6)
+  killRequested            Boolean        @default(false)
+  containerId              String?
+  cliVersion               String?
+  inputTokens              Int            @default(0)
+  outputTokens             Int            @default(0)
+  cacheReadTokens          Int            @default(0)
+  cacheWriteTokens         Int            @default(0)
+  costUsd                  Decimal        @default(0) @db.Decimal(12, 6)
+  numTurns                 Int            @default(0)
+  sessionId                String?
+  resultJson               Json?
+  logPath                  String?
+  error                    String?
   /// An ERROR_CODES value (packages/shared/src/error-policy.ts) and who it belongs to.
-  errorCode        String?
-  errorSource      String?
+  errorCode                String?
+  errorSource              String?
   /// When an automatic retry is due (CLAUDE_API_ERROR backoff).
-  retryAt          DateTime?       @db.Timestamptz(6)
+  retryAt                  DateTime?      @db.Timestamptz(6)
+  /// The commit range a code stage covered. A run that made no commit has the same sha in both.
+  startSha                 String?
+  endSha                   String?
+  /// Set when a rerun made this run obsolete: it is kept, greyed out and marked stale.
+  supersededAt             DateTime?      @db.Timestamptz(6)
+  supersededByTransitionId String?
+  /// auto | user | orchestrator
+  trigger                  String         @default("auto")
 
-  queries SupportQuery[]
+  supportTickets SupportTicket[]
 
   @@index([status])
   @@index([ticketId, startedAt])
@@ -314,6 +377,8 @@ model ReviewFinding {
   ticketId String
   ticket   Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   round    Int
+  /// Which reviewer found it: prReview, qualityReview or securityReview.
+  reviewer String        @default("prReview")
   severity String
   file     String
   line     Int?
@@ -323,20 +388,93 @@ model ReviewFinding {
   status   FindingStatus @default(open)
 }
 
-model SupportQuery {
-  id         String             @id @default(uuid())
-  ticketId   String
-  ticket     Ticket             @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  stageRunId String
-  stageRun   StageRun           @relation(fields: [stageRunId], references: [id], onDelete: Cascade)
-  stage      String
-  question   String
-  answer     String?
-  status     SupportQueryStatus @default(open)
-  createdAt  DateTime           @default(now()) @db.Timestamptz(6)
-  answeredAt DateTime?          @db.Timestamptz(6)
+/// Everything that needs a person becomes exactly one of these (BUILD_PLAN v1 6.5). A partial unique index
+/// (see the migration) keeps at most one OPEN ticket per dedupeKey.
+model SupportTicket {
+  id            String                 @id @default(uuid())
+  kind          SupportKind
+  title         String
+  /// Markdown.
+  body          String
+  priority      SupportPriority        @default(blocking)
+  status        SupportStatus          @default(open)
+  projectId     String?
+  project       Project?               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Null for global items such as a credential.
+  ticketId      String?
+  ticket        Ticket?                @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  stageRunId    String?
+  stageRun      StageRun?              @relation(fields: [stageRunId], references: [id], onDelete: Cascade)
+  stage         String
+  /// For open_question: the answer the plan used.
+  defaultAnswer String?
+  /// The answer or the decision.
+  response      String?
+  resolvedBy    String?
+  createdAt     DateTime               @default(now()) @db.Timestamptz(6)
+  resolvedAt    DateTime?              @db.Timestamptz(6)
+  dedupeKey     String?
+  assistant     AssistantConversation?
 
   @@index([status])
+  @@index([kind, status])
+  @@index([ticketId])
+}
+
+/// One chat per support ticket (BUILD_PLAN v1 6.6). `pendingAt` is set when the person sends a message; the worker answers it.
+model AssistantConversation {
+  id              String             @id @default(uuid())
+  supportTicketId String             @unique
+  supportTicket   SupportTicket      @relation(fields: [supportTicketId], references: [id], onDelete: Cascade)
+  /// The CLI session to resume; reset when older turns are replaced by the summary.
+  sessionId       String?
+  summary         String?
+  messageCount    Int                @default(0)
+  tokens          Int                @default(0)
+  pendingAt       DateTime?          @db.Timestamptz(6)
+  createdAt       DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime           @updatedAt @db.Timestamptz(6)
+  messages        AssistantMessage[]
+
+  @@index([pendingAt])
+}
+
+model AssistantMessage {
+  id             String                @id @default(uuid())
+  conversationId String
+  conversation   AssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  /// user | assistant
+  role           String
+  text           String
+  /// { kind: answer | plan_edit | rerun_note, text } the person can apply with one click.
+  draft          Json?
+  stageRunId     String?
+  at             DateTime              @default(now()) @db.Timestamptz(6)
+
+  @@index([conversationId, at])
+}
+
+/// Every version of a stage's output (BUILD_PLAN v1 6.8). The current one is the latest version that is not stale.
+model StageArtifact {
+  id              String    @id @default(uuid())
+  ticketId        String
+  ticket          Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  /// plan | breakdown | review | kb
+  stage           String
+  version         Int
+  data            Json
+  stageRunId      String?
+  supersededAt    DateTime? @db.Timestamptz(6)
+  /// The Confluence page of a plan (BUILD_PLAN v1 6.10).
+  externalUrl     String?
+  externalId      String?
+  externalVersion Int?
+  /// Hash of what was last sent to Confluence, so a page is only updated when its content changed.
+  externalSig     String?
+  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@unique([ticketId, stage, version])
+  @@index([ticketId, stage])
 }
 
 model UsageSnapshot {
@@ -359,21 +497,21 @@ model UsageSnapshot {
 
 /// Audit log. type: intake | state | stage | usage | jira | git | settings | support | error
 model Event {
-  id       String   @id @default(uuid())
-  ticketId String?
-  ticket   Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  type     String
-  message  String
-  at       DateTime @default(now()) @db.Timestamptz(6)
+  id         String   @id @default(uuid())
+  ticketId   String?
+  ticket     Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  type       String
+  message    String
+  at         DateTime @default(now()) @db.Timestamptz(6)
   /// info | warn | error
-  level    String   @default("info")
+  level      String   @default("info")
   /// system | orchestrator | claude | agent | jira | confluence | github | git | ci | user
-  source   String   @default("system")
+  source     String   @default("system")
   stageRunId String?
   subtaskId  String?
   /// An ERROR_CODES value, when the event is about a failure.
   errorCode  String?
-  data     Json?
+  data       Json?
 
   @@index([ticketId, at])
   @@index([at])
@@ -412,23 +550,44 @@ model AdminAccount {
 
 /// What the worker last did, so the dashboard can show that it is alive and what it is (not) doing. One row, written by the worker.
 model WorkerStatus {
-  id              String    @id @default("worker")
-  heartbeatAt     DateTime  @db.Timestamptz(6)
-  tickOutcome     String
-  tickDetail      String?
+  id             String    @id @default("worker")
+  heartbeatAt    DateTime  @db.Timestamptz(6)
+  tickOutcome    String
+  tickDetail     String?
   /// idle | cloning | intake | stage | housekeeping | paused | not_configured (BUILD_PLAN v1 6.1)
-  phase           String    @default("idle")
-  phaseDetail     String?
-  phaseSince      DateTime? @db.Timestamptz(6)
-  startedAt       DateTime? @db.Timestamptz(6)
-  pid             Int?
-  version         String?
-  intakeMode      String?
-  intakeAt        DateTime? @db.Timestamptz(6)
-  intakeProjects  Int       @default(0)
-  intakeWaiting   Int       @default(0)
-  intakeCreated   Int       @default(0)
-  intakeSeen      Int       @default(0)
-  intakeError     String?
-  intakeSkipped   String?
+  phase          String    @default("idle")
+  phaseDetail    String?
+  phaseSince     DateTime? @db.Timestamptz(6)
+  startedAt      DateTime? @db.Timestamptz(6)
+  pid            Int?
+  version        String?
+  intakeMode     String?
+  intakeAt       DateTime? @db.Timestamptz(6)
+  intakeProjects Int       @default(0)
+  intakeWaiting  Int       @default(0)
+  intakeCreated  Int       @default(0)
+  intakeSeen     Int       @default(0)
+  intakeError    String?
+  intakeSkipped  String?
+}
+
+/// One choice between several legal moves (BUILD_PLAN v1 6.11). `fallbackUsed` is true when the answer was not a legal move or the call failed.
+model OrchestratorDecision {
+  id           String   @id @default(uuid())
+  ticketId     String
+  ticket       Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  at           DateTime @default(now()) @db.Timestamptz(6)
+  point        String
+  legalMoves   Json
+  chosen       String
+  reason       String   @default("")
+  fallbackUsed Boolean  @default(false)
+  stageRunId   String?
+  model        String?
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  costUsd      Decimal  @default(0) @db.Decimal(12, 6)
+
+  @@index([ticketId, at])
+  @@index([at])
 }

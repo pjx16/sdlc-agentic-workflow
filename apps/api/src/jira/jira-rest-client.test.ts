@@ -243,3 +243,29 @@ describe('retries (BUILD_PLAN 6.3)', () => {
     for (const status of [401, 403, 404]) expect((await make([{ status, text: 'nope' }]).client.readStatus('A-1').catch((e) => e)).status).toBe(status);
   });
 });
+
+
+describe('projectFacts (onboarding)', () => {
+  const project = { name: 'Billing', issueTypes: [{ name: 'Story', subtask: false }, { name: 'Epic', subtask: false }, { name: 'Sub-task', subtask: true }] };
+  const statuses = [
+    { name: 'Story', statuses: [{ name: 'To Do', statusCategory: { key: 'new' } }, { name: 'In Progress', statusCategory: { key: 'indeterminate' } }, { name: 'Done', statusCategory: { key: 'done' } }] },
+    { name: 'Epic', statuses: [{ name: 'Open', statusCategory: { key: 'new' } }] },
+  ];
+
+  it('collects the project, its issue types, statuses per type and the labels in use', async () => {
+    const { client, calls } = make([{ json: project }, { json: statuses }, { json: { issues: [{ fields: { labels: ['backend', 'sdlc-agent'] } }, { fields: { labels: ['backend'] } }, { fields: {} }] } }]);
+    const facts = await client.projectFacts('SDA');
+    expect(facts.projectName).toBe('Billing');
+    expect(facts.issueTypes).toEqual([{ name: 'Story', subtask: false }, { name: 'Epic', subtask: false }, { name: 'Sub-task', subtask: true }]);
+    expect(facts.statusesByType[0]).toEqual({ type: 'Story', statuses: [{ name: 'To Do', category: 'new' }, { name: 'In Progress', category: 'indeterminate' }, { name: 'Done', category: 'done' }] });
+    expect(facts.labels).toEqual(['backend', 'sdlc-agent']);
+    expect(calls.map((c) => `${c.method} ${c.url.replace('https://acme.atlassian.net', '')}`)).toEqual(['GET /rest/api/3/project/SDA', 'GET /rest/api/3/project/SDA/statuses', 'POST /rest/api/3/search/jql']);
+    // Jira has no per-project label endpoint: labels come from a search that asks only for them.
+    expect(calls[2]?.body).toMatchObject({ jql: 'project = "SDA" ORDER BY created DESC', fields: ['labels'] });
+  });
+
+  it('a project key Jira does not know is an error, not an empty answer', async () => {
+    const { client } = make([{ status: 404, json: { errorMessages: ['No project could be found with key NOPE.'] } }]);
+    await expect(client.projectFacts('NOPE')).rejects.toThrow(/No project could be found/);
+  });
+});

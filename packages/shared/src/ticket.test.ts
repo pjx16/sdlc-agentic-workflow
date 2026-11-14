@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { JIRA_KEY_PATTERN, PasteTicketSchema, mapJiraIssueType } from './ticket';
+import { JIRA_KEY_PATTERN, PasteTicketSchema, kindOfType, mapJiraIssueType, typeOfKind } from './ticket';
 import { zodFields } from './zod-utils';
 
 describe('PasteTicketSchema', () => {
   it('accepts a minimal ticket and applies defaults', () => {
-    expect(PasteTicketSchema.parse({ projectId: 'p1', title: '  Add a thing  ' })).toEqual({ projectId: 'p1', title: 'Add a thing', body: '', type: 'story', featureKey: undefined });
+    expect(PasteTicketSchema.parse({ projectId: 'p1', title: '  Add a thing  ' })).toEqual({ projectId: 'p1', title: 'Add a thing', body: '', type: undefined, kind: undefined, featureKey: undefined });
   });
   it('keeps type, body and feature key', () => {
     expect(PasteTicketSchema.parse({ projectId: 'p1', title: 't', body: 'b', type: 'bug', featureKey: 'billing-export' })).toMatchObject({ type: 'bug', body: 'b', featureKey: 'billing-export' });
@@ -39,5 +39,16 @@ describe('JIRA_KEY_PATTERN', () => {
   it('accepts real keys and rejects anything else', () => {
     for (const ok of ['ABC-1', 'SAM1-10', 'A1B-999']) expect(JIRA_KEY_PATTERN.test(ok), ok).toBe(true);
     for (const bad of ['abc-1', 'A-1', 'ABC-', 'ABC-1x', '1ABC-1', 'ABC 1', 'ABC-1\nINJECT', '']) expect(JIRA_KEY_PATTERN.test(bad), bad).toBe(false);
+  });
+});
+
+describe('ticket kind', () => {
+  it('accepts a kind and refuses anything else', () => {
+    expect(PasteTicketSchema.parse({ projectId: 'p', title: 't', kind: 'chore' }).kind).toBe('chore');
+    expect(PasteTicketSchema.safeParse({ projectId: 'p', title: 't', kind: 'epic' }).success).toBe(false);
+  });
+  it('kind and type say the same thing both ways', () => {
+    expect((['story', 'bug', 'tech'] as const).map(kindOfType)).toEqual(['feature', 'bug', 'chore']);
+    expect((['feature', 'bug', 'chore'] as const).map(typeOfKind)).toEqual(['story', 'bug', 'tech']);
   });
 });

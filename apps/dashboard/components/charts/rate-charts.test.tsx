@@ -35,18 +35,25 @@ describe('segmentRows', () => {
 });
 
 describe('RateCharts', () => {
-  it('gives both charts a text alternative with the latest rate and the projection', () => {
+  it('shows one chart, starting on the 5-hour window, with a text alternative with the latest rate and the projection', () => {
     render(<RateCharts data={rate()} />);
+    expect(screen.getAllByRole('img')).toHaveLength(1);
     expect(screen.getByText(/rising 6 pts\/hour/)).toBeInTheDocument();
     expect(screen.getByText(/At 6 pts\/hour you reach 50%/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '5-hour window' })).toHaveAttribute('aria-pressed', 'true');
   });
-  it('says there is not enough data when a window has no snapshots', () => {
+  it('switches to the weekly window with the W button, and back', async () => {
     render(<RateCharts data={rate()} />);
-    expect(screen.getByText(/Not enough snapshots yet/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Weekly window' }));
+    expect(screen.getByText('Weekly window: how fast it is rising')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Weekly window' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText(/Not enough snapshots yet/)).toBeInTheDocument(); // the weekly series in this fixture is empty
+    await userEvent.click(screen.getByRole('button', { name: '5-hour window' }));
+    expect(screen.getByText('5-hour window: how fast it is rising')).toBeInTheDocument();
   });
   it('shows the same numbers as a table on request', async () => {
     render(<RateCharts data={rate()} compact />);
-    await userEvent.click(screen.getAllByRole('button', { name: 'View data' })[0] as HTMLElement);
+    await userEvent.click(screen.getByRole('button', { name: 'View data' }));
     expect(screen.getByRole('table')).toBeInTheDocument();
     expect(screen.getByText('Rate (pts/hour)')).toBeInTheDocument();
   });
