@@ -29,6 +29,15 @@ describe('initialValues', () => {
   });
 });
 
+describe('security triggers', () => {
+  it('are shown one per line and sent back as a list', () => {
+    const v = initialValues({ ...project, settings: { ...project.settings, securityRiskPatterns: ['payments/', 'eval\\('] } }) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(v.settings.securityRiskPatterns).toBe('payments/\neval\\(');
+    v.settings.securityRiskPatterns = 'payments/\n\n  crypto  ';
+    expect((toPayload(v) as any).settings.securityRiskPatterns).toEqual(['payments/', 'crypto']); // eslint-disable-line @typescript-eslint/no-explicit-any
+  });
+});
+
 describe('toPayload', () => {
   it('turns numeric text into numbers and blank numeric text into null', () => {
     const v = initialValues(project) as any; // eslint-disable-line @typescript-eslint/no-explicit-any

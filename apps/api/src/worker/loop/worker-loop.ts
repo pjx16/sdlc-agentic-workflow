@@ -55,6 +55,7 @@ export class WorkerLoop {
     @Optional() private readonly holds?: { onHold(ticketId: string, reason: string, note?: string): Promise<void> },
     @Optional() private readonly creds?: CredentialsService,
     @Optional() private readonly rerunPrep?: { prepare(ticket: Ticket): Promise<StepOutcome | null> },
+    @Optional() private readonly orchestrator?: { review(ticket: Ticket, outcome: StepOutcome): Promise<StepOutcome> },
   ) {
     this.schedule = new Schedule(now);
   }
@@ -153,6 +154,8 @@ export class WorkerLoop {
       await this.states.fail(ticket.id, message.slice(0, 500)).catch((e: unknown) => this.logger.error(String(e)));
       return 'failed';
     }
+    // At a decision point with several legal moves the orchestrator may replace the default move (BUILD_PLAN v1 6.11).
+    if (this.orchestrator) outcome = await this.orchestrator.review(ticket, outcome);
     switch (outcome.kind) {
       case 'transition':
         await this.states.transition(ticket.id, outcome.to, 'system', outcome.reason, outcome.stageRunId);

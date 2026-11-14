@@ -264,6 +264,7 @@ model Ticket {
   supportTickets SupportTicket[]
   artifacts      StageArtifact[]
   events         Event[]
+  decisions      OrchestratorDecision[]
 
   @@unique([projectId, key])
   @@unique([projectId, externalKey])
@@ -468,6 +469,8 @@ model StageArtifact {
   externalUrl     String?
   externalId      String?
   externalVersion Int?
+  /// Hash of what was last sent to Confluence, so a page is only updated when its content changed.
+  externalSig     String?
   createdAt       DateTime  @default(now()) @db.Timestamptz(6)
 
   @@unique([ticketId, stage, version])
@@ -566,4 +569,25 @@ model WorkerStatus {
   intakeSeen     Int       @default(0)
   intakeError    String?
   intakeSkipped  String?
+}
+
+/// One choice between several legal moves (BUILD_PLAN v1 6.11). `fallbackUsed` is true when the answer was not a legal move or the call failed.
+model OrchestratorDecision {
+  id           String   @id @default(uuid())
+  ticketId     String
+  ticket       Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  at           DateTime @default(now()) @db.Timestamptz(6)
+  point        String
+  legalMoves   Json
+  chosen       String
+  reason       String   @default("")
+  fallbackUsed Boolean  @default(false)
+  stageRunId   String?
+  model        String?
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  costUsd      Decimal  @default(0) @db.Decimal(12, 6)
+
+  @@index([ticketId, at])
+  @@index([at])
 }

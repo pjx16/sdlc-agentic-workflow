@@ -7,6 +7,8 @@ interface Props {
   ticketId: string;
   status: string;
   planMarkdown: string | null;
+  /** The Confluence page of the current plan, when the project publishes plans there. */
+  confluenceUrl?: string | null;
 }
 
 type Notice = { kind: 'ok' | 'error'; text: string } | null;
@@ -15,7 +17,7 @@ type Notice = { kind: 'ok' | 'error'; text: string } | null;
  * The plan and its gate (F7). While the ticket awaits plan approval the plan can be edited, approved or rejected with a
  * note; at any other time it is shown read-only.
  */
-export function PlanPanel({ ticketId, status, planMarkdown }: Props) {
+export function PlanPanel({ ticketId, status, planMarkdown, confluenceUrl }: Props) {
   const router = useRouter();
   const awaiting = status === 'AWAITING_PLAN_APPROVAL';
   const [text, setText] = useState(planMarkdown ?? '');
@@ -50,9 +52,18 @@ export function PlanPanel({ ticketId, status, planMarkdown }: Props) {
     }
   }
 
+  const pageLink = confluenceUrl ? (
+    <a href={confluenceUrl} className="text-sm text-accent hover:underline">
+      Open in Confluence
+    </a>
+  ) : null;
+
   if (!awaiting) {
     return planMarkdown ? (
-      <pre className="whitespace-pre-wrap panel p-4 font-sans text-sm">{planMarkdown}</pre>
+      <div className="space-y-2">
+        {pageLink}
+        <pre className="whitespace-pre-wrap panel p-4 font-sans text-sm">{planMarkdown}</pre>
+      </div>
     ) : (
       <p className="text-sm text-muted">No plan yet. It appears here once the plan stage has run.</p>
     );
@@ -61,6 +72,7 @@ export function PlanPanel({ ticketId, status, planMarkdown }: Props) {
   const edited = text.trim() !== (planMarkdown ?? '').trim();
   return (
     <div className="space-y-4">
+      {pageLink}
       <p className="text-sm text-muted">Review the plan. You can edit it before approving; the edited text is what the next stages use.</p>
       <div>
         <label htmlFor="plan-text" className="block text-sm">

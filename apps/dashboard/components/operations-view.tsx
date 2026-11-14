@@ -163,6 +163,16 @@ export function OperationsPage({ data }: { data: OperationsView }) {
         )}
       </Block>
 
+      <Block title="Orchestrator (last 7 days)">
+        {data.orchestrator.decisions === 0 ? (
+          <p className="text-sm text-muted">The orchestrator has not been asked to choose yet. Code takes the only legal move itself.</p>
+        ) : (
+          <p className="text-sm">
+            {data.orchestrator.decisions} decision{data.orchestrator.decisions === 1 ? '' : 's'}, {data.orchestrator.fallbacks} answered with the default move ({Math.round(data.orchestrator.fallbackRate * 100)}%), cost ${data.orchestrator.costUsd.toFixed(2)}.
+          </p>
+        )}
+      </Block>
+
       <Block title="Most recent errors">
         {data.recentErrors.length === 0 ? (
           <p className="text-sm text-muted">No errors recorded.</p>

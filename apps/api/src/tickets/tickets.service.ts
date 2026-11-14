@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ErrorCodes, legalMoves, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type Move, type SubtaskDraft, type TicketStatus } from '@sdlc/shared';
+import { DECISION_POINTS, ErrorCodes, legalMoves, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type Move, type SubtaskDraft, type TicketStatus } from '@sdlc/shared';
 import { ApiException } from '../common/api-exception';
 import { allArtifacts, writeArtifact } from '../common/artifacts';
 import { parseBody } from '../common/parse-body';
@@ -12,6 +12,19 @@ import type { Prisma } from '../generated/prisma/client';
 import { type TicketDto, toTicketDto } from './ticket.dto';
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
+
+export interface DecisionDto {
+  id: string;
+  at: string;
+  point: string;
+  question: string;
+  options: { kind: string; to: string; label: string }[];
+  chosen: string;
+  reason: string;
+  fallbackUsed: boolean;
+  model: string | null;
+  costUsd: number;
+}
 
 export interface TicketListItem extends TicketDto {
   projectName: string;
@@ -171,6 +184,24 @@ export class TicketsService {
   async artifacts(id: string): Promise<ArtifactDto[]> {
     await this.findOr404(id);
     return (await allArtifacts(this.prisma, id)).map((a) => ({ id: a.id, stage: a.stage, version: a.version, data: a.data, stale: a.supersededAt !== null, supersededAt: a.supersededAt?.toISOString() ?? null, stageRunId: a.stageRunId, createdAt: a.createdAt.toISOString(), externalUrl: a.externalUrl }));
+  }
+
+  /** GET /tickets/:id/decisions: what the orchestrator was asked at each decision point, the options, its answer and why, oldest first (BUILD_PLAN v1 6.11). */
+  async decisions(id: string): Promise<DecisionDto[]> {
+    await this.findOr404(id);
+    const rows = await this.prisma.orchestratorDecision.findMany({ where: { ticketId: id }, orderBy: [{ at: 'asc' }, { id: 'asc' }] });
+    return rows.map((d) => ({
+      id: d.id,
+      at: d.at.toISOString(),
+      point: d.point,
+      question: (DECISION_POINTS as Record<string, { question: string }>)[d.point]?.question ?? d.point,
+      options: ((d.legalMoves as { kind: string; to: string; label?: string }[] | null) ?? []).map((m) => ({ kind: m.kind, to: m.to, label: m.label ?? `${m.kind} ${m.to}` })),
+      chosen: d.chosen,
+      reason: d.reason,
+      fallbackUsed: d.fallbackUsed,
+      model: d.model,
+      costUsd: Number(d.costUsd),
+    }));
   }
 
   /** GET /tickets/:id/events: the plain-English stream of everything that happened to the ticket, oldest first (BUILD_PLAN v1 6.4). */

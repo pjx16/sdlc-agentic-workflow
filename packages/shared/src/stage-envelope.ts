@@ -69,6 +69,12 @@ export const AssistData = z.object({
   draft: z.object({ kind: z.enum(ASSIST_DRAFT_KINDS), text }).nullable().default(null),
 });
 
+/** The orchestrator's answer: one of the legal moves, and why (BUILD_PLAN v1 6.11). */
+export const OrchestrateData = z.object({
+  move: z.object({ kind: z.string().min(1), to: z.string().min(1) }),
+  reason: z.string().min(1).max(400),
+});
+
 export const STAGE_DATA = {
   kbBuild: KbBuildData,
   featureMap: FeatureMapData,
@@ -83,6 +89,7 @@ export const STAGE_DATA = {
   securityReview: ReviewData,
   kbUpdate: KbUpdateData,
   ciTriage: CiTriageData,
+  orchestrate: OrchestrateData,
   assist: AssistData,
   repoProfile: RepoProfileData,
   onboardAdvise: OnboardAdviseData,

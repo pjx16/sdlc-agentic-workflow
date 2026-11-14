@@ -22,7 +22,8 @@
     "up:prod": "bash scripts/prod.sh",
     "up:dev": "bash scripts/dev.sh",
     "down": "docker compose down",
-    "agents": "node scripts/generate-agents.mjs"
+    "agents": "node scripts/generate-agents.mjs",
+    "formats": "node scripts/generate-formats.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

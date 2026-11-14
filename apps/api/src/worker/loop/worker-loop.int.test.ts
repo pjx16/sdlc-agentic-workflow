@@ -286,4 +286,20 @@ describe('worker loop (BUILD_PLAN 6.6, F4)', () => {
     expect(await prisma.ticket.count({ where: { source: 'jira' } })).toBe(0);
     jira.jira.tickets = [];
   });
+
+  it('the orchestrator hook may replace the default move of a step, and a step without it moves as before', async () => {
+    const t = await ticket('REVIEW');
+    const seen: string[] = [];
+    const config = new WorkerConfig({ DATA_DIR: '/tmp/sdlc-loop', DATABASE_URL: db.url } as NodeJS.ProcessEnv);
+    const orchestrator = {
+      async review(tk: { key: string }, outcome: StepOutcome): Promise<StepOutcome> {
+        seen.push(tk.key);
+        return outcome.kind === 'transition' ? { ...outcome, to: 'AWAITING_CI' } : outcome;
+      },
+    };
+    const loop = new WorkerLoop(prisma, new MirrorService(prisma, config, staticCredentials()), new IntakePoller(prisma, jira, () => clock), new ApprovalPoller(prisma, jira, states, new SubtasksService(prisma, jira)), states, [handler('REVIEW', () => ({ kind: 'transition', to: 'KB_UPDATE', reason: 'done' }))], () => clock, [], undefined, undefined, undefined, orchestrator);
+    await loop.tick();
+    expect(seen).toEqual([t.key]);
+    expect(await status(t.id)).toBe('AWAITING_CI');
+  });
 });
