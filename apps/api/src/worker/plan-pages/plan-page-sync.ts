@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ProjectSettingsSchema } from '@sdlc/shared';
 import type { StageArtifact, Ticket } from '../../generated/prisma/client';
 import { ConfluenceClients } from '../../confluence/confluence-clients';
@@ -8,6 +8,7 @@ import { JiraClients } from '../../jira/jira-clients';
 import { jiraMarker } from '../../jira/jira-client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { TransitionListener, TransitionResult } from '../../state/state-machine.service';
+import { FormatLoader } from '../format-loader';
 import type { Housekeeper } from '../loop/worker-loop';
 
 const EARLY = ['NEW', 'KB', 'PLANNING', 'AWAITING_PLAN_APPROVAL'];
@@ -34,7 +35,12 @@ export class PlanPageSync implements Housekeeper, TransitionListener {
     private readonly hubOf: (client: Awaited<ReturnType<ConfluenceClients['forRest']>>) => DocumentHub = (c) => new ConfluenceHub(c),
     private readonly delaysMs: readonly number[] = RETRY_DELAYS_MS,
     private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
-  ) {}
+    @Optional() formats?: FormatLoader,
+  ) {
+    this.formats = formats ?? new FormatLoader();
+  }
+
+  private readonly formats: FormatLoader;
 
   /**
    * The page follows a ticket at the moment it moves, not at the next poll: an approval, a rejection, or a rerun that supersedes the plan
@@ -122,7 +128,7 @@ export class PlanPageSync implements Housekeeper, TransitionListener {
   private async linkOnJira(ticket: Ticket, jiraMode: string, enabled: boolean, url: string, status: string): Promise<void> {
     if (!enabled || jiraMode !== 'rest' || ticket.source !== 'jira' || !ticket.externalKey || !url) return;
     try {
-      await (await this.jira.forRest()).upsertComment(ticket.externalKey, `The plan for ${ticket.key} is in Confluence: ${url}\n\nStatus: ${status}`, jiraMarker(ticket.key, 'plan-link'));
+      await (await this.jira.forRest()).upsertComment(ticket.externalKey, await this.formats.fill('jira-plan-link', { key: ticket.key, url, status }), jiraMarker(ticket.key, 'plan-link'));
     } catch (err) {
       await this.event(ticket, 'warn', `Could not post the plan link to Jira: ${err instanceof Error ? err.message : String(err)}`, false);
     }
@@ -132,7 +138,7 @@ export class PlanPageSync implements Housekeeper, TransitionListener {
     if (!enabled || jiraMode !== 'rest' || ticket.source !== 'jira' || !ticket.externalKey) return;
     const plan = (current.data as { planMarkdown?: string }).planMarkdown ?? '';
     try {
-      await (await this.jira.forRest()).comment(ticket.externalKey, `## Plan for ${ticket.key}\n\n${plan}`, jiraMarker(ticket.key, 'plan', plan));
+      await (await this.jira.forRest()).comment(ticket.externalKey, await this.formats.fill('jira-plan', { key: ticket.key, plan }), jiraMarker(ticket.key, 'plan', plan));
     } catch (err) {
       await this.event(ticket, 'warn', `Could not post the plan to Jira: ${err instanceof Error ? err.message : String(err)}`, false);
     }

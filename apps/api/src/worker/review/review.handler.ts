@@ -95,7 +95,7 @@ export class ReviewHandler implements StepHandler {
   private async reviewRound(ticket: Ticket): Promise<StepOutcome> {
     const result = await this.reviews.runRound(ticket);
     if (result.kind === 'outcome') return result.outcome;
-    const body = renderReviewComment({ round: result.round, summary: result.summary, findings: result.findings, previous: { fixed: result.fixed, stillOpen: result.stillOpen } });
+    const body = renderReviewComment({ round: result.round, summary: result.summary, findings: result.findings, previous: { fixed: result.fixed, stillOpen: result.stillOpen } }, await this.pr.formats.load('review-comment'));
     await this.pr.postComment(ticket.id, body);
     return { kind: 'continue' };
   }

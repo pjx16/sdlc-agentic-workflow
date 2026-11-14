@@ -78,6 +78,7 @@ export interface SystemView {
   worker?: WorkerStatusView | null;
   recentEvents?: RecentEvent[];
   inboxBadge?: number;
+  inboxFyi?: number;
   runningStage: { id: string; stage: string; model: string; projectId: string; ticketId: string | null; startedAt: string | null } | null;
   usage: { at: string; fiveHourPct: number | null; sevenDayPct: number | null; status: string | null; resetsAt: string | null; source: string } | null;
 }

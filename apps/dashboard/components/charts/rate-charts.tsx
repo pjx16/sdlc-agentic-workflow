@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { RateSeriesView, UsageRateView } from '@/lib/types';
 import { ChartFrame } from './chart-frame';
@@ -31,11 +32,13 @@ export function segmentRows(series: RateSeriesView): { rows: Record<string, numb
 interface Props {
   title: string;
   series: RateSeriesView;
+  /** Extra controls in the title row (the window toggle). */
+  action?: React.ReactNode;
   /** The small version for the overview page. */
   compact?: boolean;
 }
 
-export function RateChart({ title, series, compact = false }: Props) {
+export function RateChart({ title, series, action, compact = false }: Props) {
   const { rows, keys } = segmentRows(series);
   const unit = series.unit === 'pts/hour' ? 'points per hour' : 'points per day';
   const projection = series.projection;
@@ -49,6 +52,7 @@ export function RateChart({ title, series, compact = false }: Props) {
     <ChartFrame
       title={title}
       summary={summary}
+      action={action}
       empty={rows.length === 0}
       emptyText="Not enough snapshots yet to show a rate. Two snapshots close together are needed."
       table={{ columns: ['When', `Rate (${series.unit})`, 'Percent'], rows: series.segments.flatMap((s) => s.points.filter((p) => p.rate !== null).map((p) => [label(p.at), p.rate, Math.round(p.pct * 10) / 10])) }}
@@ -68,12 +72,31 @@ export function RateChart({ title, series, compact = false }: Props) {
   );
 }
 
-/** The two charts: 5-hour percentage points per hour, weekly percentage points per day, with the projection to each threshold. */
+type Window = 'fiveHour' | 'weekly';
+const WINDOWS: { id: Window; short: string; title: string }[] = [
+  { id: 'fiveHour', short: '5h', title: '5-hour window: how fast it is rising' },
+  { id: 'weekly', short: 'W', title: 'Weekly window: how fast it is rising' },
+];
+
+/** One chart for both windows, with a small `5h | W` toggle: 5-hour percentage points per hour, or weekly points per day, with the projection to the threshold. */
 export function RateCharts({ data, compact = false }: { data: UsageRateView; compact?: boolean }) {
-  return (
-    <div className={compact ? 'grid gap-4 md:grid-cols-2' : 'space-y-4'}>
-      <RateChart title="5-hour window: how fast it is rising" series={data.fiveHour} compact={compact} />
-      <RateChart title="Weekly window: how fast it is rising" series={data.weekly} compact={compact} />
+  const [window, setWindow] = useState<Window>('fiveHour');
+  const chosen = WINDOWS.find((w) => w.id === window) as (typeof WINDOWS)[number];
+  const toggle = (
+    <div role="group" aria-label="Window" className="ml-auto inline-flex overflow-hidden rounded border border-border text-xs">
+      {WINDOWS.map((w) => (
+        <button
+          key={w.id}
+          type="button"
+          aria-pressed={window === w.id}
+          aria-label={w.id === 'fiveHour' ? '5-hour window' : 'Weekly window'}
+          onClick={() => setWindow(w.id)}
+          className={`px-2 py-0.5 ${window === w.id ? 'bg-accent text-accent-text' : 'text-muted hover:text-text'}`}
+        >
+          {w.short}
+        </button>
+      ))}
     </div>
   );
+  return <RateChart title={chosen.title} series={data[window]} action={toggle} compact={compact} />;
 }

@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { FormatLoader } from '../format-loader';
 import { OrchestratorService } from '../orchestrator/orchestrator.service';
 import { writeArtifact } from '../../common/artifacts';
 import { SupportRaiser } from '../../support/support-raiser';
@@ -44,9 +45,13 @@ export class PlanHandler implements StepHandler {
     private readonly jira: JiraClients,
     @Optional() raiser?: SupportRaiser,
     @Optional() @Inject(OrchestratorService) private readonly orchestrator?: OrchestratorService,
+    @Optional() formats?: FormatLoader,
   ) {
     this.raiser = raiser ?? new SupportRaiser(prisma);
+    this.formats = formats ?? new FormatLoader();
   }
+
+  private readonly formats: FormatLoader;
 
   private readonly raiser: SupportRaiser;
 
@@ -82,6 +87,7 @@ export class PlanHandler implements StepHandler {
       {
         ticket: { key: ticket.key, title: ticket.title, body: ticket.body },
         kbDoc: match?.content,
+        planFormat: await this.formats.load('plan'),
         ...(rejection ? { previousPlan: ticket.planMarkdown ?? undefined, rejectionNote: rejection } : {}),
       },
       { workspacePath: ws },
@@ -124,7 +130,7 @@ export class PlanHandler implements StepHandler {
   private async commentOnJira(ticket: Ticket, jiraMode: string, enabled: boolean, plan: string): Promise<void> {
     if (!enabled || jiraMode !== 'rest' || ticket.source !== 'jira' || !ticket.externalKey) return;
     try {
-      await (await this.jira.forRest()).comment(ticket.externalKey, `## Plan for ${ticket.key}\n\n${plan}`, jiraMarker(ticket.key, 'plan', plan));
+      await (await this.jira.forRest()).comment(ticket.externalKey, await this.formats.fill('jira-plan', { key: ticket.key, plan }), jiraMarker(ticket.key, 'plan', plan));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Posting the plan to ${ticket.externalKey} failed: ${message}`);

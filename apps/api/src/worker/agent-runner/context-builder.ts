@@ -42,6 +42,8 @@ export interface StageInputs {
   plan?: string;
   /** For a re-run of `plan` after a rejection (F7). */
   previousPlan?: string;
+  /** The sections the plan should have (guidelines/formats/plan.md). */
+  planFormat?: string;
   /** For breakdown: the limit, and on a re-run the previous list (as JSON) and the rejection note. */
   maxSubtasks?: number;
   previousBreakdown?: string;
@@ -215,6 +217,7 @@ function planSections(stage: StageName, i: StageInputs): Plan {
     case 'solutionDesign':
     case 'bugInvestigation':
       sections.push(ticketFull(), kb());
+      if (i.planFormat) sections.push({ heading: 'Plan format', body: `Write \`planMarkdown\` with exactly these sections, in this order. This replaces the structure in your instructions.\n\n${i.planFormat.trim()}` });
       if (i.previousPlan) sections.push({ heading: 'Previous plan', body: i.previousPlan });
       if (i.rejectionNote) sections.push({ heading: 'Rejection note', body: `The developer rejected the previous plan with this note. Address every point.\n\n${i.rejectionNote}` });
       break;

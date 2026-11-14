@@ -27,6 +27,7 @@ import { GITHUB_CLIENT, GhCliClient, type GitHubClient } from './github/github-c
 import { InProgressHandler, SUBTASK_STEPS } from './pipeline/in-progress.handler';
 import { PrService } from './pipeline/pr.service';
 import { SubtaskStepsService } from './pipeline/subtask-steps.service';
+import { FormatLoader } from './format-loader';
 import { PlanHandler } from './pipeline/plan.handler';
 import { KB_BUILDER, KbHandler } from './pipeline/kb.handler';
 import { KbBuildService } from './pipeline/kb-build.service';
@@ -80,6 +81,7 @@ import { WorkerRunner } from './worker-runner';
     StageOutcomes,
     StageLauncher,
     KbBuildService,
+    { provide: FormatLoader, useFactory: (c: WorkerConfig) => new FormatLoader(c.guidelinesDir), inject: [WorkerConfig] },
     PlanHandler,
     BreakdownHandler,
     { provide: GITHUB_CLIENT, useFactory: (c: WorkerConfig, creds: CredentialsService) => new GhCliClient({ token: async () => (await creds.resolve()).github_token, tmpDir: c.dataDir }), inject: [WorkerConfig, CredentialsService] },

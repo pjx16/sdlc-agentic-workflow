@@ -9,6 +9,10 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 - Build plan for version 1.0.0 in `docs/build-plan/v1.0.0/BUILD_PLAN.md`: one-job agents, an orchestrator, reruns, error recovery, an inbox for support tickets, a scoped assistant, project onboarding, Confluence plans, usage analytics, and fixes for the worker "offline" status and missing usage history.
 
+- Dashboard and formats:
+  - The 5-hour and weekly usage rate charts are one chart with a small `5h | W` toggle.
+  - Attention: the Inbox entry shows a number for blocking items, approvals and questions, and a quieter one when only FYI items (for example a PR ready for human review) are open; the browser tab title carries the count; "Needs you" on the overview lists everything open, urgent first, with links to the tickets; the tickets list marks the tickets waiting for you (approve the plan, approve the breakdown, review the PR, on hold, failed).
+  - Formats: the ticket, the plan, the pull request description, the review comment, the review summary and the Jira comments (plan, Confluence link, needs a person) are read from `guidelines/formats/*.md`, edited in Guidelines, with placeholders such as `{{title}}` and a "Reset to the default" button. A missing or empty file means the built-in default, so nothing breaks. The ticket format starts the "New ticket" description; the plan format is given to the planning agent. `npm run formats` rewrites every file from the defaults.
 - Gaps left by phases 7 to 9 are closed:
   - Settings saved under the old stage keys (`plan`, `breakdown`, `review`) are carried over to `solutionDesign`, `technicalDesign` and `prReview` by a migration, in project settings and in the global stage defaults.
   - A quality or security reviewer that fails no longer stops the review round: it is skipped with a warning (and the warning says when the security check did not run). The PR reviewer still has to finish.

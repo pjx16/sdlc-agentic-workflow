@@ -30,6 +30,8 @@ If there is a rejection note, address every point in it and say how.
 
 ## `planMarkdown` structure (keep it to one screen)
 
+If the input has a **Plan format** section, use its sections instead of the ones below. The team edited it on purpose.
+
 ```markdown
 ## Symptom
 What is observed, and what was expected.
