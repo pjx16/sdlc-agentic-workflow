@@ -307,6 +307,19 @@ export interface ArtifactView {
   externalUrl: string | null;
 }
 
+export interface DecisionView {
+  id: string;
+  at: string;
+  point: string;
+  question: string;
+  options: { kind: string; to: string; label: string }[];
+  chosen: string;
+  reason: string;
+  fallbackUsed: boolean;
+  model: string | null;
+  costUsd: number;
+}
+
 export interface InboxCountsView {
   badge: number;
   groups: Record<InboxGroupView, number>;

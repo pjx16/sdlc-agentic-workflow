@@ -64,7 +64,7 @@ export interface StageInputs {
   /** For the security reviewer: the rules that matched. */
   securityReasons?: string[];
   /** For the orchestrator: a short summary of one ticket at a decision point. Never code or diffs. */
-  orchestrate?: { ticketKey: string; kind: string; state: string; question: string; moves: { kind: string; to: string; label: string; isDefault: boolean }[]; events: string[]; lastSummary: string; counts: string; findings: string[]; supportTickets: string[] };
+  orchestrate?: { ticketKey: string; kind: string; state: string; question: string; moves: { kind: string; to: string; label: string; isDefault: boolean }[]; events: string[]; lastSummary: string; counts: string; findings: string[]; supportTickets: string[]; facts?: string };
   /** For the CI triager. */
   ci?: { check: string; logTail: string; reruns: number };
   /** Earlier questions this stage asked for the ticket and the developer's answers (F13), oldest first. */
@@ -260,6 +260,7 @@ function planSections(stage: StageName, i: StageInputs): Plan {
         { heading: 'Open findings', body: list(o?.findings ?? []) },
         { heading: 'Open support tickets', body: list(o?.supportTickets ?? []) },
       );
+      if (o?.facts) sections.push({ heading: 'More facts', body: o.facts });
       break;
     }
     case 'ciTriage':

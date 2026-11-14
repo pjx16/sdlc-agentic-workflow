@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ProjectSettingsSchema } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -15,6 +15,7 @@ import type { StepHandler, StepOutcome } from '../pipeline/step-handler';
 import { renderFindingsForFix, renderReviewComment } from './review-comment';
 import { blocksReview } from './review-findings';
 import { nextAfterReview } from './review-rules';
+import { OrchestratorService } from '../orchestrator/orchestrator.service';
 import { ReviewService } from './review.service';
 
 /**
@@ -35,6 +36,7 @@ export class ReviewHandler implements StepHandler {
     private readonly workspaces: WorkspaceService,
     private readonly git: GitRunner,
     private readonly pr: PrService,
+    @Optional() @Inject(OrchestratorService) private readonly orchestrator?: OrchestratorService,
   ) {}
 
   async run(ticket: Ticket): Promise<StepOutcome> {
@@ -49,13 +51,41 @@ export class ReviewHandler implements StepHandler {
     const open = await this.reviews.openFindings(ticket.id);
     const blocking = open.filter((f) => blocksReview(f.severity));
     const next = nextAfterReview({ roundsRun: ticket.reviewRound, maxReviewRounds: settings.limits.maxReviewRounds, openBlocking: blocking.length });
-    if (next === 'fix' && !(await this.fixAlreadyRan(ticket))) return this.fixRound(ticket, ws, blocking);
+    if (next === 'fix' && !(await this.fixAlreadyRan(ticket))) {
+      const held = await this.escalate(ticket, 'review_findings', [{ kind: 'fix', to: 'fix', label: 'Send the findings to the fixer' }, { kind: 'support', to: 'support', label: 'Raise a support ticket: a person should look at the findings' }], 'fix', blocking);
+      return held ?? this.fixRound(ticket, ws, blocking);
+    }
+    // The rounds are used up with blocking findings left: finish as always, or (the orchestrator may choose) one more fix round, or a person.
+    if (next !== 'fix' && blocking.length > 0 && ticket.reviewRound === settings.limits.maxReviewRounds && !(await this.fixAlreadyRan(ticket))) {
+      const options = [
+        { kind: 'finish', to: 'finish', label: 'Finish and list the open findings' },
+        { kind: 'extra_round', to: 'extra_round', label: 'Run one more fix round' },
+        { kind: 'support', to: 'support', label: 'Raise a support ticket: the findings may need a re-plan' },
+      ];
+      const picked = { value: false };
+      const held = await this.escalate(ticket, 'review_limit', options, 'finish', blocking, (kind) => (picked.value = kind === 'extra_round'));
+      if (held) return held;
+      if (picked.value) return this.fixRound(ticket, ws, blocking);
+    }
 
     // The loop ends: with findings left that is not a failure; they stay listed (F10, 3.7).
     await this.pr.ensureDraftPr(ticket.id);
     return settings.stages.kbUpdate.enabled
       ? { kind: 'transition', to: 'KB_UPDATE', reason: `Review finished after ${ticket.reviewRound} round(s)` }
       : { kind: 'transition', to: 'AWAITING_CI', reason: `Review finished after ${ticket.reviewRound} round(s); the KB update is off` };
+  }
+
+  /**
+   * Asks the orchestrator what to do with open blocking findings (BUILD_PLAN v1 6.11). `support` holds the ticket for a person (returned
+   * as the outcome); any other answer returns null and the caller carries on with it. A failing orchestrator means the default.
+   */
+  private async escalate(ticket: Ticket, point: 'review_findings' | 'review_limit', options: { kind: string; to: string; label: string }[], defaultKind: string, blocking: { severity: string }[], onPick?: (kind: string) => void): Promise<StepOutcome | null> {
+    if (!this.orchestrator) return null;
+    const counts = ['critical', 'high', 'medium', 'low'].map((sv) => `${blocking.filter((f) => f.severity === sv).length} ${sv}`).join(', ');
+    const pick = await this.orchestrator.choose(ticket, point, options, defaultKind, `Open blocking findings: ${counts}. Review rounds run: ${ticket.reviewRound}.`);
+    onPick?.(pick.option.kind);
+    if (pick.option.kind !== 'support') return null;
+    return { kind: 'hold', reason: 'needs_help', note: `${point === 'review_limit' ? 'The review rounds are used up and blocking findings remain; a re-plan may be needed. ' : ''}${pick.reason}`.slice(0, 500) };
   }
 
   private async fixAlreadyRan(ticket: Ticket): Promise<boolean> {

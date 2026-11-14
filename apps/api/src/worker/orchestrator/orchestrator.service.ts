@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DECISION_POINTS, ProjectSettingsSchema, automaticMoves, decisionPointOf, legalMoves, validateDecision, type Move, type StageEnvelope } from '@sdlc/shared';
+import { DECISION_POINTS, ProjectSettingsSchema, automaticMoves, decisionPointOf, legalMoves, validateDecision, type DecisionOption, type DecisionPoint, type StageEnvelope } from '@sdlc/shared';
 import type { Ticket } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StageLauncher } from '../pipeline/stage-launcher';
@@ -40,23 +40,41 @@ export class OrchestratorService {
       });
       const fallback = legal.find((m) => m.to === outcome.to);
       if (legal.length < 2 || !fallback) return outcome; // none: wait; one: code takes it, with no AI call
-      const chosen = await this.decide(ticket, point, legal, fallback);
-      return chosen.to === outcome.to ? outcome : { ...outcome, to: chosen.to, reason: `${outcome.reason}; the orchestrator chose ${chosen.to} instead` };
+      const { option } = await this.decide(ticket, point, legal, fallback);
+      return option.to === outcome.to ? outcome : { ...outcome, to: option.to as typeof outcome.to, reason: `${outcome.reason}; the orchestrator chose ${option.to} instead` };
     } catch (err) {
       this.logger.warn(`Orchestrator failed for ${ticket.key}: ${err instanceof Error ? err.message : String(err)}`);
       return outcome;
     }
   }
 
-  async decide(ticket: Ticket, point: keyof typeof DECISION_POINTS, legal: Move[], fallback: Move): Promise<Move> {
+  /**
+   * Asks the orchestrator to choose between options that code offers at a point that is not a plain state move (BUILD_PLAN v1 6.11).
+   * With one option, or with the orchestrator switched off, the default is returned with no AI call. It never throws: a failure is the default.
+   */
+  async choose(ticket: Ticket, point: DecisionPoint, options: DecisionOption[], defaultKind: string, facts = ''): Promise<{ option: DecisionOption; reason: string; fallbackUsed: boolean }> {
+    const fallback = options.find((o) => o.kind === defaultKind) ?? (options[0] as DecisionOption);
+    try {
+      // Once a person has been called in at this point, the orchestrator does not ask again: the default applies after they resume the ticket.
+      if (await this.prisma.orchestratorDecision.count({ where: { ticketId: ticket.id, point, chosen: { startsWith: 'support' }, fallbackUsed: false } })) return { option: fallback, reason: '', fallbackUsed: true };
+      const project = await this.prisma.project.findUniqueOrThrow({ where: { id: ticket.projectId } });
+      if (options.length < 2 || !ProjectSettingsSchema.parse(project.settings).stages.orchestrate.enabled) return { option: fallback, reason: '', fallbackUsed: true };
+      return await this.decide(ticket, point, options, fallback, facts);
+    } catch (err) {
+      this.logger.warn(`Orchestrator failed for ${ticket.key}: ${err instanceof Error ? err.message : String(err)}`);
+      return { option: fallback, reason: '', fallbackUsed: true };
+    }
+  }
+
+  async decide(ticket: Ticket, point: DecisionPoint, legal: DecisionOption[], fallback: DecisionOption, facts = ''): Promise<{ option: DecisionOption; reason: string; fallbackUsed: boolean }> {
     const spec = DECISION_POINTS[point];
     const result = await this.launcher.launch(
       ticket,
       'orchestrate',
-      { orchestrate: await this.input(ticket, spec.question, legal, fallback) },
+      { orchestrate: await this.input(ticket, spec.question, legal, fallback, facts) },
       { workspacePath: this.launcher.workspaceOf(ticket), ...(spec.thinking ? { thinkingTokens: THINKING_TOKENS } : {}) },
     );
-    let move = fallback;
+    let move: DecisionOption = fallback;
     let reason = '';
     let fallbackUsed = true;
     let why = 'the orchestrator did not answer';
@@ -98,11 +116,11 @@ export class OrchestratorService {
         message: (fallbackUsed ? `The orchestrator's answer was not used (${why}); the default move to ${move.to} was taken` : `The orchestrator chose ${move.kind} ${move.to}: ${reason}`).slice(0, 500),
       },
     });
-    return move;
+    return { option: move, reason: fallbackUsed ? '' : reason, fallbackUsed };
   }
 
   /** A short summary: never code or diffs (BUILD_PLAN v1 6.11). */
-  private async input(ticket: Ticket, question: string, legal: Move[], fallback: Move) {
+  private async input(ticket: Ticket, question: string, legal: DecisionOption[], fallback: DecisionOption, facts: string) {
     const [events, run, findings, support] = await Promise.all([
       this.prisma.event.findMany({ where: { ticketId: ticket.id }, orderBy: { at: 'desc' }, take: KEPT_EVENTS }),
       this.prisma.stageRun.findFirst({ where: { ticketId: ticket.id, status: 'succeeded' }, orderBy: { endedAt: 'desc' } }),
@@ -121,6 +139,7 @@ export class OrchestratorService {
       counts: `review rounds ${ticket.reviewRound}, CI fix ${ticket.ciFixDone ? 'used' : 'not used'}, CI re-run ${ticket.ciRerunDone ? 'used' : 'not used'}`,
       findings: findings.map((f) => `${f.severity} (${f.reviewer})`),
       supportTickets: support.map((s) => `${s.kind}: ${s.title}`.slice(0, 120)),
+      ...(facts ? { facts: facts.slice(0, 600) } : {}),
     };
   }
 }

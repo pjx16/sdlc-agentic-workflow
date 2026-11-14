@@ -19,4 +19,17 @@ describe('orchestrator decisions', () => {
     expect(validateDecision({ kind: 'fail', to: 'AWAITING_CI' }, moves)).toMatchObject({ ok: false });
     expect(validateDecision(null, moves)).toMatchObject({ ok: false });
   });
+
+  it('defines the six decision points, each with a question; only the KB update belongs to a state', () => {
+    expect(Object.keys(DECISION_POINTS)).toEqual(['kb_update', 'review_findings', 'review_limit', 'security_add', 'chore_plan', 'ci_flaky']);
+    for (const spec of Object.values(DECISION_POINTS)) expect(spec.question.length).toBeGreaterThan(20);
+    expect(decisionPointOf('REVIEW')).toBe('kb_update');
+    expect(decisionPointOf('AWAITING_CI')).toBeNull();
+  });
+
+  it('validates a choice among options that are not state moves', () => {
+    const options = [{ kind: 'fix', to: 'fix', label: 'a' }, { kind: 'support', to: 'support', label: 'b' }];
+    expect(validateDecision({ kind: 'support', to: 'support' }, options)).toEqual({ ok: true, move: options[1] });
+    expect(validateDecision({ kind: 'ignore', to: 'ignore' }, options)).toMatchObject({ ok: false });
+  });
 });

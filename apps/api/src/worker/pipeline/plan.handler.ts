@@ -1,4 +1,5 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { OrchestratorService } from '../orchestrator/orchestrator.service';
 import { writeArtifact } from '../../common/artifacts';
 import { SupportRaiser } from '../../support/support-raiser';
 import { ProjectSettingsSchema, type StageEnvelope } from '@sdlc/shared';
@@ -42,6 +43,7 @@ export class PlanHandler implements StepHandler {
     private readonly outcomes: StageOutcomes,
     private readonly jira: JiraClients,
     @Optional() raiser?: SupportRaiser,
+    @Optional() @Inject(OrchestratorService) private readonly orchestrator?: OrchestratorService,
   ) {
     this.raiser = raiser ?? new SupportRaiser(prisma);
   }
@@ -57,6 +59,17 @@ export class PlanHandler implements StepHandler {
       // "plan off: the ticket body becomes the plan".
       await this.prisma.ticket.update({ where: { id: ticket.id }, data: { planMarkdown: ticket.body || ticket.title } });
       return { kind: 'transition', to: 'BREAKDOWN', reason: 'The plan stage is off: the ticket body is the plan' };
+    }
+
+    // A chore with the plan gate off may skip planning, but only when the orchestrator says so (BUILD_PLAN v1 6.11).
+    if (ticket.kind === 'chore' && !settings.gates.plan && this.orchestrator && (await this.prisma.stageArtifact.count({ where: { ticketId: ticket.id, stage: 'plan' } })) === 0) {
+      const pick = await this.orchestrator.choose(ticket, 'chore_plan', [{ kind: 'plan', to: 'plan', label: 'Write a plan' }, { kind: 'skip_plan', to: 'skip_plan', label: 'Skip planning: the ticket body is the plan' }], 'plan', `Title: ${ticket.title}. Description length: ${(ticket.body ?? '').length} characters.`);
+      if (pick.option.kind === 'skip_plan') {
+        const plan = ticket.body || ticket.title;
+        await this.prisma.ticket.update({ where: { id: ticket.id }, data: { planMarkdown: plan } });
+        await writeArtifact(this.prisma, ticket.id, 'plan', { planMarkdown: plan }, null).catch(() => undefined);
+        return { kind: 'transition', to: 'BREAKDOWN', reason: `Planning was skipped for this chore: ${pick.reason}` };
+      }
     }
 
     const ws = this.launcher.workspaceOf(ticket);

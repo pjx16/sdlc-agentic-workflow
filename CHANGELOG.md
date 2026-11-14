@@ -9,6 +9,13 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 - Build plan for version 1.0.0 in `docs/build-plan/v1.0.0/BUILD_PLAN.md`: one-job agents, an orchestrator, reruns, error recovery, an inbox for support tickets, a scoped assistant, project onboarding, Confluence plans, usage analytics, and fixes for the worker "offline" status and missing usage history.
 
+- Gaps left by phases 7 to 9 are closed:
+  - Settings saved under the old stage keys (`plan`, `breakdown`, `review`) are carried over to `solutionDesign`, `technicalDesign` and `prReview` by a migration, in project settings and in the global stage defaults.
+  - A quality or security reviewer that fails no longer stops the review round: it is skipped with a warning (and the warning says when the security check did not run). The PR reviewer still has to finish.
+  - The PR reviewer's criteria table (met, tested, note) is shown on the Versions tab; the project form has a field for extra security triggers.
+  - Confluence: the page follows an approval, a rejection or a rerun at once (on the state change, not the next poll); a rerun marks the page "Superseded by a rerun" until the new plan is written; the Jira link comment is edited in place with the page status; the 3 attempts are spaced out (now, 2 s, 6 s).
+  - Orchestrator: five more decision points are wired (review findings, review limit, adding the security reviewer, skipping planning for a chore, a second flaky CI failure), each with a default that applies when the orchestrator is off or fails, and a person already called in is not asked again. A Decisions tab on the ticket shows the question, options, choice and reason; `GET /tickets/:id/decisions`.
+
 ### Fixed
 - The worker no longer shows as offline while it runs a long stage: the heartbeat is written by its own timer every 5 seconds. The dashboard shows idle, busy (with phase and time), stalled and offline, and a banner when the worker restarts repeatedly. The `worker` service has a Docker healthcheck.
 - A usage snapshot is now recorded after every run (done, failed, killed or container error), linked to the run and model, with every window the event carried. Snapshots older than 90 days are reduced to one per hour.

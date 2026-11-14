@@ -14,6 +14,7 @@ import { StageLauncher } from '../pipeline/stage-launcher';
 import { StageOutcomes } from '../pipeline/stage-outcomes';
 import type { StepHandler, StepOutcome } from '../pipeline/step-handler';
 import { Inject } from '@nestjs/common';
+import { OrchestratorService } from '../orchestrator/orchestrator.service';
 
 /**
  * AWAITING_CI with a CI fix pending (F12): one `fix` round with the last 60 lines of the failing log, committed as
@@ -32,6 +33,7 @@ export class CiFixHandler implements StepHandler {
     private readonly git: GitRunner,
     @Inject(GITHUB_CLIENT) private readonly github: GitHubClient,
     @Optional() raiser?: SupportRaiser,
+    @Optional() @Inject(OrchestratorService) private readonly orchestrator?: OrchestratorService,
   ) {
     this.raiser = raiser ?? new SupportRaiser(prisma);
   }
@@ -94,7 +96,13 @@ export class CiFixHandler implements StepHandler {
     const data = result.envelope.data as { kind: 'code' | 'flaky' | 'infra'; summary: string };
     await this.prisma.event.create({ data: { ticketId: ticket.id, type: 'git', message: `CI failure triaged as ${data.kind}: ${data.summary}`.slice(0, 500) } });
     if (data.kind === 'code') return null;
-    if (data.kind === 'flaky' && !ticket.ciRerunDone && ticket.branch) {
+    // A second flaky failure in a row: the orchestrator may allow one more run of the checks (BUILD_PLAN v1 6.11); the default is a support ticket.
+    let again = false;
+    if (data.kind === 'flaky' && ticket.ciRerunDone && ticket.branch && this.orchestrator && (await this.prisma.orchestratorDecision.count({ where: { ticketId: ticket.id, point: 'ci_flaky' } })) === 0) {
+      const pick = await this.orchestrator.choose(ticket, 'ci_flaky', [{ kind: 'support', to: 'support', label: 'Raise a support ticket' }, { kind: 'rerun', to: 'rerun', label: 'Run the checks once more' }], 'support', `Triage summary: ${data.summary}`);
+      again = pick.option.kind === 'rerun';
+    }
+    if (data.kind === 'flaky' && (!ticket.ciRerunDone || again) && ticket.branch) {
       const project = await this.prisma.project.findUniqueOrThrow({ where: { id: ticket.projectId } });
       try {
         await this.github.rerunFailed(parseRepo(project.repoUrl), ticket.branch);

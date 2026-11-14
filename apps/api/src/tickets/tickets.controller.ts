@@ -35,6 +35,11 @@ export class TicketsController {
     return this.tickets.artifacts(id);
   }
 
+  @Get(':id/decisions')
+  decisions(@Param('id') id: string) {
+    return this.tickets.decisions(id);
+  }
+
   @Get(':id/events')
   events(@Param('id') id: string) {
     return this.tickets.events(id);

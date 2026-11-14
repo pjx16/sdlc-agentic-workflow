@@ -44,6 +44,8 @@ export interface JiraClient {
   readStatus(key: string): Promise<JiraIssueStatus>;
   /** With a `marker` the call is safe to repeat: when the issue already has a comment carrying it, nothing is posted. */
   comment(key: string, markdown: string, marker?: string): Promise<void>;
+  /** Posts the comment, or, when one carrying the marker exists, rewrites it in place (a changed body replaces the old one). */
+  upsertComment(key: string, markdown: string, marker: string): Promise<void>;
   /** Moves the issue to the status with this name (case-insensitive). Throws JiraStatusNotFoundError if there is none. */
   transition(key: string, statusName: string): Promise<void>;
   createSubtask(parentKey: string, subtask: JiraSubtaskInput): Promise<{ key: string }>;
