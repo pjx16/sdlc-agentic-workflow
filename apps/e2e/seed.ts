@@ -35,13 +35,13 @@ export async function seed(databaseUrl: string): Promise<void> {
     await ticket('BIL-6', 'Shipped ticket', 'DONE', { prNumber: 3, prUrl: 'https://github.com/acme/billing/pull/3', mergedAt: new Date(), prAdditions: 240, prDeletions: 60, prChangedFiles: 5 });
 
     const run = (over: Record<string, unknown>) =>
-      prisma.stageRun.create({ data: { projectId: project.id, ticketId: review.id, stage: 'plan', model: 'opus', attempt: 1, status: 'succeeded', startedAt: hoursAgo(3), endedAt: hoursAgo(2.9), inputTokens: 4000, outputTokens: 900, cacheWriteTokens: 300, ...over } as never });
+      prisma.stageRun.create({ data: { projectId: project.id, ticketId: review.id, stage: 'solutionDesign', model: 'opus', attempt: 1, status: 'succeeded', startedAt: hoursAgo(3), endedAt: hoursAgo(2.9), inputTokens: 4000, outputTokens: 900, cacheWriteTokens: 300, ...over } as never });
     await run({});
     await run({ stage: 'implement', model: 'haiku', startedAt: hoursAgo(2.5), endedAt: hoursAgo(2.3), inputTokens: 9000, outputTokens: 2500 });
     await run({ stage: 'fix', reason: 'review', model: 'sonnet', startedAt: hoursAgo(2), endedAt: hoursAgo(1.9), status: 'failed', error: 'Timed out after 20 minutes' });
-    await run({ stage: 'review', model: 'sonnet', startedAt: hoursAgo(26), endedAt: hoursAgo(25.9) });
-    const asked = await run({ ticketId: asking.id, stage: 'plan', status: 'needs_input', startedAt: hoursAgo(1), endedAt: hoursAgo(0.9) });
-    await prisma.supportQuery.create({ data: { ticketId: asking.id, stageRunId: asked.id, stage: 'plan', question: SEED.question } });
+    await run({ stage: 'prReview', model: 'sonnet', startedAt: hoursAgo(26), endedAt: hoursAgo(25.9) });
+    const asked = await run({ ticketId: asking.id, stage: 'solutionDesign', status: 'needs_input', startedAt: hoursAgo(1), endedAt: hoursAgo(0.9) });
+    await prisma.supportTicket.create({ data: { kind: 'open_question', title: SEED.question, body: SEED.question, ticketId: asking.id, projectId: asking.projectId, stageRunId: asked.id, stage: 'solutionDesign' } });
     await prisma.reviewFinding.createMany({
       data: [
         { ticketId: review.id, round: 1, severity: 'high', file: 'src/export.ts', line: 12, issue: 'Unvalidated input', rule: 'Security', fix: 'Validate', status: 'open' },
