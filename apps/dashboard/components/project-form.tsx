@@ -158,6 +158,10 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
           <Warnings items={warnings.stages} />
         </Section>
 
+        <Section title="Security review" description="The security reviewer runs when a change touches risky paths or code. Add your own triggers here.">
+          <TextArea path="settings.securityRiskPatterns" label="Extra security triggers" hint="One regular expression per line. A changed file path or added line that matches calls the security reviewer, besides the built-in rules." rows={4} />
+        </Section>
+
         <Section title="Gates" description="Pause for your approval before the pipeline continues.">
           <Check path="settings.gates.plan" label="Require plan approval" />
           <Check path="settings.gates.breakdown" label="Require breakdown approval" />

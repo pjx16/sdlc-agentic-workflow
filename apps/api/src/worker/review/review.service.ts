@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ProjectSettingsSchema, securityTriggered, type StageEnvelope, type StageName } from '@sdlc/shared';
 import type { ReviewFinding, Ticket } from '../../generated/prisma/client';
 import { writeArtifact } from '../../common/artifacts';
@@ -12,6 +12,7 @@ import { StageOutcomes } from '../pipeline/stage-outcomes';
 import type { StepOutcome } from '../pipeline/step-handler';
 import { WorkerConfig } from '../worker-config';
 import { computeChangedPaths, computeDiff } from './diff';
+import { OrchestratorService } from '../orchestrator/orchestrator.service';
 import { MAX_FINDINGS_PER_ROUND } from './review-findings';
 
 interface ReviewData {
@@ -34,6 +35,7 @@ export class ReviewService {
     private readonly outcomes: StageOutcomes,
     private readonly git: GitRunner,
     private readonly config: WorkerConfig,
+    @Optional() @Inject(OrchestratorService) private readonly orchestrator?: OrchestratorService,
   ) {}
 
   /** The text of the review checklist from the guidelines directory ('' if the file is missing). */
@@ -65,6 +67,20 @@ export class ReviewService {
     const reviewers: StageName[] = ['prReview'];
     if (settings.stages.qualityReview.enabled) reviewers.push('qualityReview');
     if (settings.stages.securityReview.enabled && security.triggered) reviewers.push('securityReview');
+    else if (settings.stages.securityReview.enabled && round === 1 && this.orchestrator) {
+      // The code rules did not call the security reviewer; the orchestrator may add it (BUILD_PLAN v1 6.11), once, on the first round.
+      const pick = await this.orchestrator.choose(
+        ticket,
+        'security_add',
+        [{ kind: 'skip', to: 'skip', label: 'Do not run the security review' }, { kind: 'add', to: 'add', label: 'Run the security review as well' }],
+        'skip',
+        `${changed.length} file(s) changed: ${changed.slice(0, 12).join(', ')}`,
+      );
+      if (pick.option.kind === 'add') {
+        reviewers.push('securityReview');
+        security.reasons.push(`the orchestrator asked for it: ${pick.reason || 'no reason given'}`);
+      }
+    }
     // A reviewer that ran before keeps its own open findings in sight; one that did not run this round leaves them open.
 
     const seen = new Set<string>();
@@ -74,6 +90,7 @@ export class ReviewService {
     let summary = '';
     let firstRunId = '';
     let criteria: unknown = undefined;
+    const failedReviewers: StageName[] = [];
     for (const reviewer of reviewers) {
       const mine = allPrevious.filter((p) => p.reviewer === reviewer);
       const result = await this.launcher.launch(
@@ -89,7 +106,14 @@ export class ReviewService {
         },
         { workspacePath: ws, round, validate: (envelope) => this.validate(envelope) },
       );
-      if (result.kind !== 'done') return { kind: 'outcome', outcome: await this.outcomes.forResult(ticket.id, reviewer, result) };
+      if (result.kind !== 'done') {
+        // The PR reviewer is the review: without it the round cannot finish. An extra reviewer that fails is recorded and skipped, so one
+        // flaky optional agent never holds the ticket.
+        if (reviewer === 'prReview') return { kind: 'outcome', outcome: await this.outcomes.forResult(ticket.id, reviewer, result) };
+        failedReviewers.push(reviewer);
+        await this.prisma.event.create({ data: { ticketId: ticket.id, type: 'review', level: 'warn', source: 'review', message: `The ${reviewer === 'securityReview' ? 'security' : 'quality'} reviewer did not finish (${result.kind}); the round went on without it${reviewer === 'securityReview' ? ', so the security check did NOT run' : ''}` } });
+        continue;
+      }
       const data = (result.envelope as StageEnvelope).data as ReviewData & { criteria?: unknown };
       if (!firstRunId) {
         firstRunId = result.stageRunId;
@@ -116,7 +140,7 @@ export class ReviewService {
       stored.push(await this.prisma.reviewFinding.create({ data: { ticketId: ticket.id, round, reviewer, severity: f.severity, file: f.file, line: f.line, issue: f.issue, rule: f.rule, fix: f.fix, status: 'open' } }));
     }
     await this.prisma.ticket.update({ where: { id: ticket.id }, data: { reviewRound: round, lastReviewedSha: head } });
-    await writeArtifact(this.prisma, ticket.id, 'review', { round, summary, reviewers, criteria, findings: merged.map((m) => ({ ...m.f, reviewer: m.reviewer })) }, firstRunId).catch(() => undefined);
+    await writeArtifact(this.prisma, ticket.id, 'review', { round, summary, reviewers, failedReviewers, criteria, findings: merged.map((m) => ({ ...m.f, reviewer: m.reviewer })) }, firstRunId).catch(() => undefined);
     const stillOpen = considered.size - fixedIds.length;
     return { kind: 'reviewed', round, summary, findings: stored, fixed: fixedIds.length, stillOpen, stageRunId: firstRunId };
   }

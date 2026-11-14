@@ -42,6 +42,8 @@ export interface StageInputs {
   plan?: string;
   /** For a re-run of `plan` after a rejection (F7). */
   previousPlan?: string;
+  /** The sections the plan should have (guidelines/formats/plan.md). */
+  planFormat?: string;
   /** For breakdown: the limit, and on a re-run the previous list (as JSON) and the rejection note. */
   maxSubtasks?: number;
   previousBreakdown?: string;
@@ -64,7 +66,7 @@ export interface StageInputs {
   /** For the security reviewer: the rules that matched. */
   securityReasons?: string[];
   /** For the orchestrator: a short summary of one ticket at a decision point. Never code or diffs. */
-  orchestrate?: { ticketKey: string; kind: string; state: string; question: string; moves: { kind: string; to: string; label: string; isDefault: boolean }[]; events: string[]; lastSummary: string; counts: string; findings: string[]; supportTickets: string[] };
+  orchestrate?: { ticketKey: string; kind: string; state: string; question: string; moves: { kind: string; to: string; label: string; isDefault: boolean }[]; events: string[]; lastSummary: string; counts: string; findings: string[]; supportTickets: string[]; facts?: string };
   /** For the CI triager. */
   ci?: { check: string; logTail: string; reruns: number };
   /** Earlier questions this stage asked for the ticket and the developer's answers (F13), oldest first. */
@@ -215,6 +217,7 @@ function planSections(stage: StageName, i: StageInputs): Plan {
     case 'solutionDesign':
     case 'bugInvestigation':
       sections.push(ticketFull(), kb());
+      if (i.planFormat) sections.push({ heading: 'Plan format', body: `Write \`planMarkdown\` with exactly these sections, in this order. This replaces the structure in your instructions.\n\n${i.planFormat.trim()}` });
       if (i.previousPlan) sections.push({ heading: 'Previous plan', body: i.previousPlan });
       if (i.rejectionNote) sections.push({ heading: 'Rejection note', body: `The developer rejected the previous plan with this note. Address every point.\n\n${i.rejectionNote}` });
       break;
@@ -260,6 +263,7 @@ function planSections(stage: StageName, i: StageInputs): Plan {
         { heading: 'Open findings', body: list(o?.findings ?? []) },
         { heading: 'Open support tickets', body: list(o?.supportTickets ?? []) },
       );
+      if (o?.facts) sections.push({ heading: 'More facts', body: o.facts });
       break;
     }
     case 'ciTriage':

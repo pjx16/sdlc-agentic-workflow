@@ -91,6 +91,14 @@ export class JiraRestClient implements JiraClient {
     await this.request('POST', `/rest/api/3/issue/${encodeURIComponent(key)}/comment`, { body: markdownToAdf(marker ? `${markdown}\n\n${marker}` : markdown) });
   }
 
+  async upsertComment(key: string, markdown: string, marker: string): Promise<void> {
+    const existing = await this.request<Json>('GET', `/rest/api/3/issue/${encodeURIComponent(key)}/comment?maxResults=1000`);
+    const hit = (existing.comments ?? []).find((c: Json) => JSON.stringify(c).includes(marker));
+    const body = markdownToAdf(`${markdown}\n\n${marker}`);
+    if (!hit) await this.request('POST', `/rest/api/3/issue/${encodeURIComponent(key)}/comment`, { body });
+    else if (JSON.stringify(hit.body) !== JSON.stringify(body)) await this.request('PUT', `/rest/api/3/issue/${encodeURIComponent(key)}/comment/${encodeURIComponent(String(hit.id))}`, { body });
+  }
+
   async transition(key: string, statusName: string): Promise<void> {
     // Read the current status first: moving an issue to the status it is in is a repeat, not a change.
     const current = await this.request<Json>('GET', `/rest/api/3/issue/${encodeURIComponent(key)}?fields=status`);

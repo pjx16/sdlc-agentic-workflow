@@ -19,8 +19,9 @@ All of it is in the prompt, short, with no code or diffs; you have no tools and 
 ## Steps
 
 1. Read the question and the legal moves.
-2. Look for a reason to leave the default: a change that is tiny or only touches tests or docs, findings that point to a bigger problem, a loop count close to its limit.
-3. If you have no such reason, choose the default move.
+2. Know the point you are at. The question says which: knowledge-base update (skip it for a tiny or test/docs-only change), review findings (fixer, or a person when the findings contradict the plan or point to a bigger problem), the review limit (finish, one more fix round, or a person; a re-plan may be needed), the security review (add it when the change touches something sensitive the rules missed), a small chore (skip planning only when the ticket body already says what to do), a flaky CI failure for the second time (run once more, or a person).
+3. Look for a reason to leave the default: a change that is tiny or only touches tests or docs, findings that point to a bigger problem, a loop count close to its limit.
+4. If you have no such reason, choose the default move.
 
 ## Rules
 

@@ -16,6 +16,7 @@ describe('the plan page sync (BUILD_PLAN v1 6.10)', () => {
   let sync: PlanPageSync;
   let projectId: string;
   let n = 0;
+  const sleeps: number[] = [];
 
   const ticket = (over: Record<string, unknown> = {}) =>
     prisma.ticket.create({ data: { projectId, key: `PG-${++n}`, source: 'jira', externalKey: `SDA-${n}`, title: 'Export bookings', status: 'AWAITING_PLAN_APPROVAL', ...over } });
@@ -35,7 +36,7 @@ describe('the plan page sync (BUILD_PLAN v1 6.10)', () => {
     fake = clients.confluence;
     const jiraClients = new FakeJiraClients();
     jira = jiraClients.jira;
-    sync = new PlanPageSync(prisma, clients, jiraClients);
+    sync = new PlanPageSync(prisma, clients, jiraClients, undefined, undefined, async (ms) => void sleeps.push(ms));
   }, 180_000);
   afterAll(async () => {
     await prisma?.onModuleDestroy();
@@ -48,6 +49,7 @@ describe('the plan page sync (BUILD_PLAN v1 6.10)', () => {
     fake.failWrites = null;
     jira.commentBodies = {};
     jira.failWith = null;
+    sleeps.length = 0;
     await configure();
   });
 
@@ -143,5 +145,58 @@ describe('the plan page sync (BUILD_PLAN v1 6.10)', () => {
     await sync.syncTicket(t);
     expect(fake.calls).toEqual([]);
     expect(await prisma.stageArtifact.count({ where: { ticketId: t.id, externalId: { not: null } } })).toBe(0);
+  });
+
+  it('the Jira link comment is edited in place with the status, never posted twice', async () => {
+    const t = await ticket();
+    await plan(t.id, 1, '## Goal\nX');
+    await sync.syncTicket(t);
+    expect(links(t.externalKey as string)[0]).toContain('Status: Draft, waiting for approval');
+    await prisma.ticket.update({ where: { id: t.id }, data: { status: 'BREAKDOWN' } });
+    await sync.syncTicket(await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } }));
+    const all = links(t.externalKey as string);
+    expect(all).toHaveLength(1);
+    expect(all[0]).toContain('Status: Approved on');
+  });
+
+  it('a rerun marks the page as superseded until the new plan is written, then replaces it', async () => {
+    const t = await ticket();
+    const v1 = await plan(t.id, 1, '## Goal\nfirst');
+    await sync.syncTicket(t);
+    const id = (await current(t.id)).externalId as string;
+    await prisma.stageArtifact.update({ where: { id: v1.id }, data: { supersededAt: new Date() } });
+    await sync.syncTicket(t);
+    expect(fake.pages[id]?.storage).toContain('Superseded by a rerun');
+    expect(fake.pages[id]?.storage).toContain('first');
+    expect(links(t.externalKey as string)[0]).toContain('Superseded by a rerun');
+    await sync.syncTicket(t); // unchanged: nothing more is sent
+    expect(fake.pages[id]?.version).toBe(2);
+    await plan(t.id, 2, '## Goal\nsecond');
+    await sync.syncTicket(t);
+    expect(fake.pages[id]?.storage).toContain('second');
+    expect(fake.pages[id]?.storage).not.toContain('Superseded');
+  });
+
+  it('retries are spaced out: the first attempt at once, the next two after a wait', async () => {
+    const t = await ticket();
+    await plan(t.id, 1, 'x');
+    fake.failWrites = new Error('down');
+    await sync.syncTicket(t);
+    expect(sleeps).toEqual([2000, 6000]);
+  });
+
+  it('a transition updates an existing page at once, but never creates one', async () => {
+    const t = await ticket();
+    await plan(t.id, 1, '## Goal\nX');
+    const transition = (to: string) => ({ ticket: { ...t, status: to }, transition: { fromStatus: 'AWAITING_PLAN_APPROVAL', toStatus: to, kind: 'advance' } }) as never;
+    await sync.onTransition(transition('BREAKDOWN'));
+    expect(fake.calls).toEqual([]); // no page yet: left to the poll
+    await sync.syncTicket(t);
+    const id = (await current(t.id)).externalId as string;
+    await sync.onTransition(transition('BREAKDOWN'));
+    expect(fake.pages[id]?.storage).toContain('Approved on');
+    const before = fake.calls.length;
+    await sync.onTransition({ ticket: t, transition: { fromStatus: 'IN_PROGRESS', toStatus: 'REVIEW', kind: 'advance' } } as never);
+    expect(fake.calls.length).toBe(before); // unrelated moves do nothing
   });
 });
