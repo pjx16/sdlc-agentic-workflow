@@ -11,9 +11,9 @@ const NOT_MAPPED = { value: '', label: 'Not mapped' };
 
 /**
  * One row per pipeline state: which Jira status to move the issue to (F15). In REST mode (for a saved project) the
- * choices come from Jira; in MCP mode, or if Jira cannot be reached, the status name is typed.
+ * choices come from Jira; if Jira cannot be reached, the status name is typed.
  */
-export function StatusMapping({ projectId, mode }: { projectId?: string; mode: 'rest' | 'mcp' }) {
+export function StatusMapping({ projectId, mode }: { projectId?: string; mode: 'rest' | 'off' }) {
   const { values } = useForm();
   const [load, setLoad] = useState<Load>({ state: 'idle' });
 

@@ -4,7 +4,7 @@ export type ProjectStack = (typeof PROJECT_STACKS)[number];
 export const CLAUDE_MD_MODES = ['ours', 'theirs', 'both'] as const;
 export type ClaudeMdMode = (typeof CLAUDE_MD_MODES)[number];
 
-export const JIRA_MODES = ['rest', 'mcp', 'off'] as const;
+export const JIRA_MODES = ['rest', 'off'] as const;
 export type JiraMode = (typeof JIRA_MODES)[number];
 
 export const MIRROR_STATUSES = ['pending', 'ok', 'failed'] as const;
@@ -17,7 +17,8 @@ export const TICKET_STATUSES = [
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
 
 export const STAGE_NAMES = [
-  'kbBuild', 'plan', 'breakdown', 'tests', 'implement', 'fix', 'review', 'kbUpdate', 'jiraIntake', 'jiraSync',
+  'kbBuild', 'featureMap', 'solutionDesign', 'bugInvestigation', 'technicalDesign', 'tests', 'implement', 'fix',
+  'prReview', 'qualityReview', 'securityReview', 'kbUpdate', 'ciTriage', 'orchestrate', 'assist', 'repoProfile', 'onboardAdvise',
 ] as const;
 export type StageName = (typeof STAGE_NAMES)[number];
 

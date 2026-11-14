@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs one AI stage (BUILD_PLAN 6.4). Everything comes from the read-only /context directory
-# written by the worker: stage.json, prompt.md, system.md, schema.json (and mcp.json for Jira stages).
+# written by the worker: stage.json, prompt.md, system.md, schema.json.
 # CONTEXT_DIR and WORKSPACE_DIR can be overridden for tests.
 set -euo pipefail
 # The workspace is shared with the worker, which runs as another user (root in Docker, a normal user in development or CI).
@@ -29,17 +29,19 @@ args=(
   --dangerously-skip-permissions
 )
 
-# Jira MCP stages: only the listed tools, only the given MCP config.
-ALLOWED_TOOLS="$(jq -r '(.allowedTools // []) | join(",")' "$CONTEXT_DIR/stage.json")"
-if [ -n "$ALLOWED_TOOLS" ]; then
-  args+=(--allowedTools "$ALLOWED_TOOLS")
-fi
-if [ "$(jq -r '(.mcpConfig // false) | tostring' "$CONTEXT_DIR/stage.json")" != "false" ]; then
-  MCP_FILE="$(jq -r 'if (.mcpConfig | type) == "string" then .mcpConfig else "mcp.json" end' "$CONTEXT_DIR/stage.json")"
-  args+=(--mcp-config "$CONTEXT_DIR/$MCP_FILE" --strict-mcp-config)
+# The assistant continues its conversation's CLI session.
+RESUME="$(jq -r '.resumeSession // empty' "$CONTEXT_DIR/stage.json")"
+if [ -n "$RESUME" ]; then
+  args+=(--resume "$RESUME")
 fi
 
-# Jira stages have no workspace.
+# Extended thinking only where the worker asks for it (the orchestrator at a decision point).
+THINKING="$(jq -r '.thinkingTokens // empty' "$CONTEXT_DIR/stage.json")"
+if [ -n "$THINKING" ]; then
+  export MAX_THINKING_TOKENS="$THINKING"
+fi
+
+# A stage without a workspace runs in the context directory.
 if [ -d "$WORKSPACE_DIR" ]; then
   cd "$WORKSPACE_DIR"
 fi

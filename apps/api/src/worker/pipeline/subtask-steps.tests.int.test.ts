@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { StageEnvelope } from '@sdlc/shared';
@@ -52,19 +53,25 @@ describe('tests stage (F9)', () => {
   });
 
   describe('redo tests', () => {
-    it('discards the old tests and implementation, starts from the commit before the tests, and gives the tests stage the failure', async () => {
+    /** A commit made as the orchestrator's own identity: only such commits are ever reverted. */
+    const botCommit = (ws: string, message: string) => {
+      const env = { ...process.env, GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com', GIT_COMMITTER_NAME: 'Dev Bot', GIT_COMMITTER_EMAIL: 'bot@example.com' };
+      execFileSync('git', ['add', '.'], { cwd: ws, env });
+      execFileSync('git', ['commit', '-q', '-m', message], { cwd: ws, env });
+      return sh(ws, 'rev-parse', 'HEAD');
+    };
+
+    it('removes the old tests and implementation with a revert commit, history untouched, and gives the tests stage the failure', async () => {
       const t = await h.ticket();
       const s = await h.subtask(t.id, 1);
       const ws = h.ws(t);
       const before = sh(ws, 'rev-parse', 'HEAD');
       h.write(ws, 'src/f1.test.ts', 'old test');
-      sh(ws, 'add', '.');
-      sh(ws, 'commit', '-q', '-m', 'test: old');
-      const testCommit = sh(ws, 'rev-parse', 'HEAD');
+      const testCommit = botCommit(ws, 'test: old');
       h.write(ws, 'src/f1.ts', 'old implementation'); // uncommitted: the implementation made after the tests
       const redo = await h.prisma.subtask.update({
         where: { id: s.id },
-        data: { status: 'TESTS', testCommit, testFiles: ['src/f1.test.ts'], redoTests: true, lastFailure: 'The previous tests could not be satisfied.' },
+        data: { status: 'TESTS', testCommit, testFiles: ['src/f1.test.ts'], redoTests: true, rerunPart: 'tests', lastFailure: 'The previous tests could not be satisfied.' },
       });
       let seenOldWork = true;
       h.agent.scripts.tests = ({ ws: w }) => {
@@ -74,32 +81,33 @@ describe('tests stage (F9)', () => {
       };
       expect(await steps.tests(t, redo)).toEqual({ kind: 'continue' });
       expect(seenOldWork).toBe(false); // the tests stage started from the clean state
-      expect(sh(ws, 'rev-parse', 'HEAD')).toBe(before);
+      // Append-only: the old commit is still in history, followed by a revert; the files are back to how they were.
+      expect(sh(ws, 'log', '--format=%H')).toContain(testCommit);
+      expect(sh(ws, 'log', '-n', '3', '--format=%s')).toContain('revert(');
       expect(h.agent.requests[0]?.inputs.previousAttempt).toBe('The previous tests could not be satisfied.');
-      expect(await h.reload(s.id)).toMatchObject({ status: 'VERIFY_RED', redoTests: false, testCommit: null, testFiles: ['src/f1.test.ts'] });
-      expect((await h.prisma.event.findMany({ where: { ticketId: t.id } })).some((e) => e.message.includes('Redo tests: discarded'))).toBe(true);
+      expect(await h.reload(s.id)).toMatchObject({ status: 'VERIFY_RED', redoTests: false, rerunPart: null, testCommit: null, testFiles: ['src/f1.test.ts'] });
+      expect((await h.prisma.event.findMany({ where: { ticketId: t.id } })).some((e) => e.message.includes('Rerun: reverted the tests of subtask 1'))).toBe(true);
+      expect(before).not.toBe(sh(ws, 'rev-parse', 'HEAD')); // a new commit on top, not a reset
     });
 
-    it('never discards commits that are newer than the subtask tests', async () => {
+    it('never reverts commits it did not make: a person pushed after the tests, so nothing is discarded', async () => {
       const t = await h.ticket();
       const s = await h.subtask(t.id, 1);
       const ws = h.ws(t);
       h.write(ws, 'src/f1.test.ts', 'old test');
+      const testCommit = botCommit(ws, 'test: old');
+      h.write(ws, 'src/later.ts', 'a later commit by a person');
       sh(ws, 'add', '.');
-      sh(ws, 'commit', '-q', '-m', 'test: old');
-      const testCommit = sh(ws, 'rev-parse', 'HEAD');
-      h.write(ws, 'src/later.ts', 'a later commit');
-      sh(ws, 'add', '.');
-      sh(ws, 'commit', '-q', '-m', 'feat: later');
+      sh(ws, 'commit', '-q', '-m', 'feat: later'); // `sh` commits as someone else
       const later = sh(ws, 'rev-parse', 'HEAD');
-      const redo = await h.prisma.subtask.update({ where: { id: s.id }, data: { status: 'TESTS', testCommit, redoTests: true } });
+      const redo = await h.prisma.subtask.update({ where: { id: s.id }, data: { status: 'TESTS', testCommit, redoTests: true, rerunPart: 'tests' } });
       h.agent.scripts.tests = ({ ws: w }) => {
         h.write(w, 'src/f1.test.ts', 'new test');
         return done(['src/f1.test.ts']);
       };
       await steps.tests(t, redo);
       expect(sh(ws, 'log', '--format=%H', '-n', '3')).toContain(later);
-      expect((await h.prisma.event.findMany({ where: { ticketId: t.id } })).some((e) => e.message.includes('nothing was discarded'))).toBe(true);
+      expect((await h.prisma.event.findMany({ where: { ticketId: t.id } })).some((e) => e.message.includes('not made by sdlc-agent'))).toBe(true);
     });
   });
 
@@ -181,7 +189,7 @@ describe('tests stage (F9)', () => {
   it('turns a stage that fails, asks a question or is killed into the documented hold', async () => {
     const t = await h.ticket();
     h.agent.override = { kind: 'turn_limit', stageRunId: 'x', attempts: 1 };
-    expect(await steps.tests(t, await h.subtask(t.id, 1))).toMatchObject({ kind: 'hold', reason: 'needs_help', note: 'The tests stage reached its turn limit' });
+    expect(await steps.tests(t, await h.subtask(t.id, 1))).toMatchObject({ kind: 'hold', reason: 'needs_help', note: 'tests ran out of turns.' });
     h.agent.override = { kind: 'killed', stageRunId: 'x', attempts: 1 };
     expect(await steps.tests(t, await h.subtask(t.id, 2))).toMatchObject({ kind: 'hold', reason: 'manual' });
   });

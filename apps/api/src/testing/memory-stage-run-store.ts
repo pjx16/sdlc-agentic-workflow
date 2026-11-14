@@ -20,6 +20,10 @@ export class MemoryStore implements StageRunStore {
   async finish(id: string, r: FinishStageRun) {
     Object.assign(this.runs.get(id) as object, { status: r.status, finished: r });
   }
+  retryAt = new Map<string, Date>();
+  async setRetryAt(id: string, at: Date) {
+    this.retryAt.set(id, at);
+  }
   async saveRateLimit(l: RateLimit) {
     this.rateLimits.push(l);
   }

@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { mapJiraIssueType } from '@sdlc/shared';
+import { ProjectSettingsSchema, kindForIssueType, kindOfType, mapJiraIssueType } from '@sdlc/shared';
 import { JiraUnavailableError, type JiraTicket } from '../../jira/jira-client';
 import { JiraClients, JiraNotConfiguredError } from '../../jira/jira-clients';
 import { Prisma, type Project } from '../../generated/prisma/client';
+import { SupportRaiser, isAuthFailure } from '../../support/support-raiser';
 import { PrismaService } from '../../prisma/prisma.service';
 import { recordIntake } from '../status/worker-status';
 
@@ -31,6 +32,7 @@ export class IntakePoller {
     private readonly prisma: PrismaService,
     private readonly clients: JiraClients,
     private readonly now: () => number = () => Date.now(),
+    private readonly raiser?: SupportRaiser,
   ) {}
 
   /** Milliseconds of intake backoff still to run (0 when polling is allowed). */
@@ -38,7 +40,7 @@ export class IntakePoller {
     return Math.max(0, this.backoffUntil - this.now());
   }
 
-  async poll(mode: 'rest' | 'mcp' = 'rest', only?: (project: Project) => boolean): Promise<PollResult> {
+  async poll(mode: 'rest' = 'rest', only?: (project: Project) => boolean): Promise<PollResult> {
     const result: PollResult = { projects: 0, created: 0, duplicates: 0, errors: [], subtasksIgnored: 0 };
 
     // Pausing intake and pausing the pipeline are separate switches: only the intake switch stops polling.
@@ -47,11 +49,11 @@ export class IntakePoller {
     if (this.backoffRemainingMs() > 0) return this.finish(mode, { ...result, skipped: 'backoff' });
 
     // A project accepts tickets only when its mirror is ready (F2).
-    const projects = await this.prisma.project.findMany({ where: { enabled: true, jiraMode: mode, mirrorStatus: 'ok' }, orderBy: { createdAt: 'asc' } });
+    const projects = await this.prisma.project.findMany({ where: { enabled: true, onboardingStatus: 'confirmed', jiraMode: mode, mirrorStatus: 'ok' }, orderBy: { createdAt: 'asc' } });
     for (const project of projects.filter((p) => !only || only(p))) {
       result.projects++;
       try {
-        const tickets = await (await this.clients.forMode(mode)).searchTickets(project);
+        const tickets = await (await this.clients.forRest()).searchTickets(project);
         for (const jt of tickets) {
           if (await this.isSubtask(jt)) {
             result.subtasksIgnored++;
@@ -60,6 +62,7 @@ export class IntakePoller {
           const outcome = await this.store(project, jt);
           if (outcome === 'created') result.created++;
           else if (outcome === 'duplicate') result.duplicates++;
+          else if (outcome === 'ignored') continue;
           else result.errors.push({ project: project.name, message: `Jira issue ${jt.key} collides with a pasted ticket key in "${project.name}"` });
         }
       } catch (err) {
@@ -73,14 +76,15 @@ export class IntakePoller {
         const message = err instanceof Error ? err.message : String(err);
         result.errors.push({ project: project.name, message });
         if (!(err instanceof JiraNotConfiguredError)) this.logger.warn(`Polling "${project.name}" failed: ${message}`);
+        if (isAuthFailure(err)) await this.raiser?.credentialFailed('jira', `Jira refused the credential while polling "${project.name}": ${message}`).catch(() => undefined);
       }
     }
     return this.finish(mode, result);
   }
 
   /** Remembers the outcome of this poll for the dashboard, then returns it. */
-  private async finish(mode: 'rest' | 'mcp', result: PollResult): Promise<PollResult> {
-    const waiting = await this.prisma.project.count({ where: { enabled: true, jiraMode: mode, mirrorStatus: { not: 'ok' } } }).catch(() => 0);
+  private async finish(mode: 'rest', result: PollResult): Promise<PollResult> {
+    const waiting = await this.prisma.project.count({ where: { enabled: true, onboardingStatus: 'confirmed', jiraMode: mode, mirrorStatus: { not: 'ok' } } }).catch(() => 0);
     await recordIntake(this.prisma, {
       mode,
       projects: result.projects,
@@ -103,7 +107,11 @@ export class IntakePoller {
     return (await this.prisma.subtask.count({ where: { externalKey: jt.key } })) > 0;
   }
 
-  private async store(project: Project, jt: JiraTicket): Promise<'created' | 'duplicate' | 'collision'> {
+  private async store(project: Project, jt: JiraTicket): Promise<'created' | 'duplicate' | 'collision' | 'ignored'> {
+    // The project's routing says what each issue type becomes; a type routed to `ignore` is never picked up (BUILD_PLAN v1 6.7).
+    const routing = ProjectSettingsSchema.parse(project.settings).jiraIssueTypeRouting;
+    const kind = kindForIssueType(routing, jt.issuetype, kindOfType(mapJiraIssueType(jt.issuetype)));
+    if (kind === 'ignore') return 'ignored';
     try {
       const ticket = await this.prisma.ticket.create({
         data: {
@@ -112,6 +120,7 @@ export class IntakePoller {
           externalKey: jt.key,
           source: 'jira',
           type: mapJiraIssueType(jt.issuetype),
+          kind,
           title: jt.summary,
           body: jt.description,
           labels: jt.labels,

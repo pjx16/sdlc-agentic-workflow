@@ -133,3 +133,25 @@ describe('GhCliClient (BUILD_PLAN 6.3)', () => {
     expect(calls()).toHaveLength(1);
   });
 });
+
+describe('repoFacts (onboarding)', () => {
+  it('reports the default branch and the languages, biggest first', async () => {
+    reply({
+      'api repos/acme/billing': { stdout: JSON.stringify({ default_branch: 'main', private: true }) },
+      'api repos/acme/billing/languages': { stdout: JSON.stringify({ JavaScript: 1200, TypeScript: 90000, Shell: 40 }) },
+    });
+    expect(await client.repoFacts('acme/billing')).toEqual({ defaultBranch: 'main', languages: ['TypeScript', 'JavaScript', 'Shell'] });
+    expect(calls().map((c) => c.args.slice(0, 2).join(' '))).toEqual(['api repos/acme/billing', 'api repos/acme/billing/languages']);
+    expect(calls()[0]?.token).toBe('ghs_secret_token_value');
+  });
+
+  it('fails with the first line of the error when the token cannot reach the repository', async () => {
+    reply({ 'api repos/acme/secret': { stderr: 'gh: Not Found (HTTP 404)\nmore', exit: 1 } });
+    await expect(client.repoFacts('acme/secret')).rejects.toThrow('gh: Not Found (HTTP 404)');
+  });
+
+  it('fails clearly when GitHub reports no default branch', async () => {
+    reply({ 'api repos/acme/empty': { stdout: '{}' }, 'api repos/acme/empty/languages': { stdout: '{}' } });
+    await expect(client.repoFacts('acme/empty')).rejects.toThrow(/default branch/);
+  });
+});

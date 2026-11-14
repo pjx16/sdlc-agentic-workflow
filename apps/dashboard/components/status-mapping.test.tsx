@@ -9,7 +9,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 const fetchMock = vi.fn();
 const reply = (body: unknown, status = 200) => ({ ok: status < 400, status, json: async () => body });
 
-const project = (jiraMode: 'rest' | 'mcp', map: Record<string, string | null> = {}): ProjectView => ({
+const project = (jiraMode: 'rest' | 'off', map: Record<string, string | null> = {}): ProjectView => ({
   id: 'p1', name: 'Billing', repoUrl: 'https://github.com/a/b', baseBranch: 'dev', stack: 'nestjs', installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit',
   testCmdTemplate: 'npx jest {files}', kbDir: 'docs/kb', claudeMdMode: 'both', jiraMode, jiraProjectKey: 'ABC', localKeyPrefix: 'BILL', enabled: true,
   mirrorStatus: 'ok', mirrorError: null, nextLocalNumber: 1, createdAt: '', updatedAt: '',
@@ -55,12 +55,6 @@ describe('Jira status mapping table (F15)', () => {
     const done = screen.getByLabelText('DONE');
     expect(done.tagName).toBe('INPUT');
     expect(done).toHaveValue('Done');
-  });
-
-  it('MCP mode: free text, and no request to Jira', () => {
-    render(<ProjectForm project={project('mcp')} />);
-    expect(screen.getByLabelText('DONE').tagName).toBe('INPUT');
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('REST mode on a new project: free text with a hint to save first', async () => {

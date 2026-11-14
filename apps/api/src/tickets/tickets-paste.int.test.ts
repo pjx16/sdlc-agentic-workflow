@@ -39,8 +39,20 @@ describe('Pasted tickets (F3)', () => {
     expect(await t.prisma.event.count({ where: { type: 'intake' } })).toBe(2);
   });
 
+  it('a pasted ticket carries a kind, and the older type stays consistent with it', async () => {
+    const make = async (body: Record<string, unknown>) => (await t.agent.post('/tickets').send({ projectId, title: 'x', ...body }).expect(201)).body.id as string;
+    const stored = async (id: string) => t.prisma.ticket.findUniqueOrThrow({ where: { id } });
+    expect(await stored(await make({}))).toMatchObject({ kind: 'feature', type: 'story' });
+    expect(await stored(await make({ kind: 'bug' }))).toMatchObject({ kind: 'bug', type: 'bug' });
+    expect(await stored(await make({ kind: 'chore' }))).toMatchObject({ kind: 'chore', type: 'tech' });
+    expect(await stored(await make({ type: 'tech' }))).toMatchObject({ kind: 'chore', type: 'tech' }); // only the old field sent
+    expect(await stored(await make({ kind: 'feature', type: 'bug' }))).toMatchObject({ kind: 'feature', type: 'story' }); // the kind wins
+    const bad = await t.agent.post('/tickets').send({ projectId, title: 'x', kind: 'epic' }).expect(400);
+    expect(bad.body.fields.kind).toContain('feature, bug, chore');
+  });
+
   it('works in every Jira mode', async () => {
-    for (const jiraMode of ['off', 'rest', 'mcp'] as const) {
+    for (const jiraMode of ['off', 'rest'] as const) {
       const p = await makeProject({ jiraMode, localKeyPrefix: jiraMode.toUpperCase() });
       const res = await t.agent.post('/tickets').send({ projectId: p.id, title: `in ${jiraMode}` }).expect(201);
       expect(res.body).toMatchObject({ key: `${jiraMode.toUpperCase()}-1`, status: 'NEW', source: 'paste' });

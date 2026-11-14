@@ -7,7 +7,6 @@ import type { ProjectView } from './types';
 
 const NUMERIC_PATHS = [
   ...STAGE_NAMES.map((s) => `settings.stages.${s}.maxTurns`),
-  'settings.intake.mcpPollIntervalSec',
   'settings.pr.ciTimeoutMin',
   'settings.limits.maxSubtasks',
   'settings.limits.maxTestFixRounds',
@@ -60,6 +59,7 @@ function formSettings(settings: ProjectView['settings']): FormValues {
     jiraApprovalStatuses: Record<string, string | undefined>;
   };
   s.verify.redInvalidPatterns = settings.verify.redInvalidPatterns.join('\n');
+  (s as unknown as { securityRiskPatterns: string }).securityRiskPatterns = (settings.securityRiskPatterns ?? []).join('\n');
   for (const status of TICKET_STATUSES) s.jiraStatusMap[status] = settings.jiraStatusMap[status] ?? '';
   s.jiraApprovalStatuses = { plan: settings.jiraApprovalStatuses.plan ?? '', breakdown: settings.jiraApprovalStatuses.breakdown ?? '' };
   return s;
@@ -76,6 +76,7 @@ export function toPayload(values: FormValues): Record<string, unknown> {
   }
   const s = out.settings;
   s.verify.redInvalidPatterns = splitLines(String(s.verify.redInvalidPatterns ?? ''));
+  s.securityRiskPatterns = splitLines(String(s.securityRiskPatterns ?? ''));
   for (const status of TICKET_STATUSES) {
     const v = String(s.jiraStatusMap[status] ?? '').trim();
     s.jiraStatusMap[status] = v === '' ? null : v;

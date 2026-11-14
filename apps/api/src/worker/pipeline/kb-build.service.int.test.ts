@@ -94,7 +94,7 @@ describe('kbBuild stage (F6)', () => {
     failWith = null;
     lastRequest = null;
     await prisma.event.deleteMany();
-    await prisma.project.update({ where: { id: projectId }, data: { settings: {} as never } });
+    await prisma.project.update({ where: { id: projectId }, data: { settings: { stages: { featureMap: { enabled: false } } } as never } });
   });
 
   it('builds a new doc: updates the index, commits it on the ticket branch, and moves to PLANNING', async () => {
@@ -183,7 +183,7 @@ describe('kbBuild stage (F6)', () => {
       script = () => undefined;
       answer = newDoc();
       expect((await run()).note).toContain('was not written');
-      await prisma.project.update({ where: { id: projectId }, data: { settings: { limits: { kbDocMaxLines: 50 } } as never } });
+      await prisma.project.update({ where: { id: projectId }, data: { settings: { stages: { featureMap: { enabled: false } }, limits: { kbDocMaxLines: 50 } } as never } });
       script = (w) => write(w, 'docs/kb/billing-export.md', Array.from({ length: 80 }, (_, i) => `line ${i}`).join('\n'));
       expect((await run()).note).toContain('more than the limit of 50');
       answer = newDoc('Bad Key!');
@@ -197,7 +197,7 @@ describe('kbBuild stage (F6)', () => {
     const asked = await prisma.stageRun.create({ data: { projectId, ticketId: t.id, stage: 'kbBuild', model: 'sonnet', status: 'needs_input' } });
     failWith = { kind: 'needs_input', question: 'Which feature is this?', stageRunId: asked.id, attempts: 1 };
     expect(await service.run(t)).toMatchObject({ kind: 'hold', reason: 'awaiting_answer' });
-    expect(await prisma.supportQuery.count({ where: { ticketId: t.id } })).toBe(1);
+    expect(await prisma.supportTicket.count({ where: { ticketId: t.id } })).toBe(1);
     failWith = { kind: 'killed', stageRunId: 'run-k', attempts: 1 };
     expect(await service.run(await ticket())).toMatchObject({ kind: 'hold', reason: 'manual' });
   });

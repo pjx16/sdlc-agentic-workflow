@@ -23,16 +23,15 @@ export interface EgressFixture {
 
 /**
  * The real egress setup from BUILD_PLAN 6.1 for tests: the internal agent network, an egress network, and the
- * Squid proxy image attached to both (alias `proxy`). `mcpHost` is written to the port-3129 allowlist.
+ * Squid proxy image attached to both (alias `proxy`).
  */
-export async function startEgress(mcpHost?: string): Promise<EgressFixture> {
+export async function startEgress(): Promise<EgressFixture> {
   const createdAgent = await ensureNetwork(AGENT_NETWORK, true);
   const createdEgress = await ensureNetwork(EGRESS_NETWORK, false);
   await docker.getContainer(PROXY_NAME).remove({ force: true }).catch(() => undefined);
   const proxy = await docker.createContainer({
     name: PROXY_NAME,
     Image: PROXY_IMAGE,
-    Env: mcpHost ? [`JIRA_MCP_HOST=${mcpHost}`] : [],
     HostConfig: { NetworkMode: EGRESS_NETWORK },
   });
   await proxy.start();

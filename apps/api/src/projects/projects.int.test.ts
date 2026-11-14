@@ -34,7 +34,7 @@ describe('Projects API (F2)', () => {
       name: 'Billing API', baseBranch: 'dev', mirrorStatus: 'pending', mirrorError: null, enabled: true,
       localKeyPrefix: 'BILL', nextLocalNumber: 1, claudeMdMode: 'both', jiraMode: 'off', kbDir: 'docs/kb',
     });
-    expect(res.body.settings.stages.plan).toEqual({ enabled: true, model: 'opus', maxTurns: 15 });
+    expect(res.body.settings.stages.solutionDesign).toEqual({ enabled: true, model: 'opus', maxTurns: 15 });
     expect((await t.agent.get('/projects').expect(200)).body).toHaveLength(1);
   });
 
@@ -44,7 +44,7 @@ describe('Projects API (F2)', () => {
       baseBranch: 'main', installCmd: 'npm ci', typecheckCmd: 'npx tsc --noEmit', kbDir: 'kb/docs', claudeMdMode: 'ours',
       jiraMode: 'rest', jiraProjectKey: 'BILL', jiraJql: 'project = BILL AND status = "To Do"', localKeyPrefix: 'BLG', enabled: true,
       settings: {
-        stages: { plan: { enabled: false, model: 'sonnet', maxTurns: 7 }, review: { enabled: false }, implement: { maxTurns: 55 } },
+        stages: { solutionDesign: { enabled: false, model: 'sonnet', maxTurns: 7 }, prReview: { enabled: false }, implement: { maxTurns: 55 } },
         gates: { plan: false, breakdown: true },
         intake: { paste: false, mcpPollIntervalSec: 300 },
         jiraWriteBack: { comments: false, transitions: true, createSubtasks: false },
@@ -60,14 +60,14 @@ describe('Projects API (F2)', () => {
     const fetched = (await t.agent.get(`/projects/${created.id}`).expect(200)).body;
     expect(fetched).toEqual(created);
     expect(fetched).toMatchObject({ baseBranch: 'main', claudeMdMode: 'ours', jiraMode: 'rest', jiraProjectKey: 'BILL', localKeyPrefix: 'BLG' });
-    expect(fetched.settings.stages.plan).toEqual({ enabled: false, model: 'sonnet', maxTurns: 7 });
+    expect(fetched.settings.stages.solutionDesign).toEqual({ enabled: false, model: 'sonnet', maxTurns: 7 });
     expect(fetched.settings.stages.implement.maxTurns).toBe(55);
     expect(fetched.settings.jiraStatusMap.DONE).toBe('Closed');
     expect(fetched.settings.jiraStatusMap.NEW).toBeNull();
     expect(fetched.settings.limits).toEqual(full.settings.limits);
     expect(fetched.settings.pr).toEqual(full.settings.pr);
     const row = await t.prisma.project.findUniqueOrThrow({ where: { id: created.id } });
-    expect((row.settings as { stages: { plan: { maxTurns: number } } }).stages.plan.maxTurns).toBe(7);
+    expect((row.settings as { stages: { solutionDesign: { maxTurns: number } } }).stages.solutionDesign.maxTurns).toBe(7);
   });
 
   it('returns field-level errors', async () => {
@@ -91,8 +91,8 @@ describe('Projects API (F2)', () => {
 
   it('PATCH merges nested settings and validates the result', async () => {
     const { id } = (await t.agent.post('/projects').send(valid).expect(201)).body;
-    const res = await t.agent.patch(`/projects/${id}`).send({ settings: { stages: { plan: { maxTurns: 9 } }, gates: { breakdown: false } }, installCmd: 'npm ci' }).expect(200);
-    expect(res.body.settings.stages.plan).toEqual({ enabled: true, model: 'opus', maxTurns: 9 });
+    const res = await t.agent.patch(`/projects/${id}`).send({ settings: { stages: { solutionDesign: { maxTurns: 9 } }, gates: { breakdown: false } }, installCmd: 'npm ci' }).expect(200);
+    expect(res.body.settings.stages.solutionDesign).toEqual({ enabled: true, model: 'opus', maxTurns: 9 });
     expect(res.body.settings.gates).toEqual({ plan: true, breakdown: false });
     expect(res.body.installCmd).toBe('npm ci');
     expect(res.body.name).toBe('Billing API');
@@ -154,7 +154,7 @@ describe('Projects API (F2)', () => {
       const ticket = await t.prisma.ticket.create({ data: { projectId, key: 'BILL-1', source: 'paste', title: 'x', status: 'IN_PROGRESS' } });
       await t.prisma.subtask.create({ data: { ticketId: ticket.id, seq: 1, title: 's', description: 'd', acceptanceCriteria: [], files: [], dependsOn: [] } });
       await t.prisma.event.create({ data: { ticketId: ticket.id, type: 'system', message: 'hi' } });
-      await t.prisma.stageRun.create({ data: { projectId, ticketId: ticket.id, stage: 'plan', model: 'opus', attempt: 1, status: 'succeeded' } });
+      await t.prisma.stageRun.create({ data: { projectId, ticketId: ticket.id, stage: 'solutionDesign', model: 'opus', attempt: 1, status: 'succeeded' } });
       await t.prisma.stageRun.create({ data: { projectId, stage: 'kbBuild', model: 'sonnet', attempt: 1, status: 'succeeded' } }); // not tied to a ticket
       return ticket;
     };
@@ -185,7 +185,7 @@ describe('Projects API (F2)', () => {
 
     it('refuses while a stage of the project is running', async () => {
       const { body: project } = await t.agent.post('/projects').send(valid).expect(201);
-      await t.prisma.stageRun.create({ data: { projectId: project.id, stage: 'plan', model: 'opus', attempt: 1, status: 'running' } });
+      await t.prisma.stageRun.create({ data: { projectId: project.id, stage: 'solutionDesign', model: 'opus', attempt: 1, status: 'running' } });
       const res = await t.agent.delete(`/projects/${project.id}/permanent`).expect(409);
       expect(res.body.error).toBe('conflict');
       await t.agent.get(`/projects/${project.id}`).expect(200);

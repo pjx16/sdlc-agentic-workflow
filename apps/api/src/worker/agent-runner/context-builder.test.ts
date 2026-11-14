@@ -16,8 +16,9 @@ const inputs: StageInputs = {
   ticket: { key: 'ABC-1', title: 'Add parser', body: 'First paragraph of the body.\n\nSecond paragraph with more detail.' },
   kbDoc: '# KB\nthe doc', indexKeys: ['auth', 'billing'], plan: '# Plan\nDo it', subtask, testFiles: ['src/parser.test.ts'],
   exampleTestFile: 'src/util.test.ts', failureOutput: 'FAIL src/parser.test.ts\nexpected 1', acceptanceCriteria: ['It parses'],
-  diff: 'diff --git a/x b/x', reviewChecklist: '- be correct', existingDoc: '# Old doc', docTemplate: '# Template', jql: 'project = ABC',
-  projectKey: 'ABC', ticketSchema: '{"type":"object"}', syncPayload: '{"op":"comment"}',
+  diff: 'diff --git a/x b/x', reviewChecklist: '- be correct', existingDoc: '# Old doc', docTemplate: '# Template',
+  onboard: { facts: 'Default branch: main' },
+  assist: { pack: '### Question\n\nWhich db?', summary: null, history: [{ role: 'user', text: 'hi' }, { role: 'assistant', text: 'hello' }], message: 'what should I answer?' },
 };
 
 async function build(stage: StageName, over: Partial<BuildContextInput> = {}, inputOver: Partial<StageInputs> = {}) {
@@ -38,8 +39,8 @@ beforeAll(() => {
   writeFileSync(path.join(guidelines, 'stacks', 'nestjs.md'), 'NEST GUIDELINE\n');
   writeFileSync(path.join(guidelines, 'stacks', 'ts-node.md'), 'TS GUIDELINE\n');
   writeFileSync(path.join(guidelines, 'default-CLAUDE.md'), 'OUR CLAUDE MD\n');
-  writeFileSync(path.join(guidelines, 'stages', 'plan.md'), 'PLAN INSTRUCTIONS\n');
-  writeFileSync(path.join(guidelines, 'stages', 'kb-build.md'), 'KB BUILD INSTRUCTIONS\n');
+  writeFileSync(path.join(guidelines, 'stages', 'solution-architect.md'), 'PLAN INSTRUCTIONS\n');
+  writeFileSync(path.join(guidelines, 'stages', 'documentor.md'), 'KB BUILD INSTRUCTIONS\n');
 });
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
@@ -53,16 +54,23 @@ describe('prompt.md (BUILD_PLAN 6.4)', () => {
   });
 
   const expected: Record<StageName, string[]> = {
-    kbBuild: ['Instructions', 'Ticket', 'Index keys', 'Stack guideline', 'Output'],
-    plan: ['Instructions', 'Ticket', 'KB doc', 'Output'],
-    breakdown: ['Ticket', 'Approved plan', 'KB doc', 'Output'],
+    featureMap: ['Ticket', 'Index keys', 'Output'],
+    kbBuild: ['Instructions', 'Mode', 'Ticket', 'Index keys', 'Stack guideline', 'Output'],
+    bugInvestigation: ['Ticket', 'KB doc', 'Output'],
+    qualityReview: ['Acceptance criteria', 'Diff', 'Review checklist', 'Output'],
+    securityReview: ['Acceptance criteria', 'Diff', 'Review checklist', 'Output'],
+    orchestrate: ['Ticket', 'Question', 'Legal moves', 'Recent events', 'Last stage', 'Counts', 'Open findings', 'Open support tickets', 'Output'],
+    ciTriage: ['Failing check', 'Times the checks were run again', 'Log tail', 'Output'],
+    solutionDesign: ['Instructions', 'Ticket', 'KB doc', 'Output'],
+    technicalDesign: ['Ticket', 'Approved plan', 'KB doc', 'Output'],
     tests: ['Ticket', 'Approved plan', 'Subtask', 'KB doc', 'Example test file', 'Output'],
     implement: ['Ticket', 'Plan', 'Subtask', 'KB doc', 'Test files', 'Output'],
     fix: ['Failure output', 'Subtask', 'Output'],
-    review: ['Acceptance criteria', 'Diff', 'Review checklist', 'Output'],
-    kbUpdate: ['Diff', 'Existing doc', 'Doc template', 'Output'],
-    jiraIntake: ['JQL', 'Project key', 'Ticket schema', 'Output'],
-    jiraSync: ['Operation', 'Output'],
+    prReview: ['Acceptance criteria', 'Diff', 'Review checklist', 'Output'],
+    kbUpdate: ['Instructions', 'Mode', 'Diff', 'Existing doc', 'Doc template', 'Output'],
+    assist: ['Context', 'Conversation so far', 'Message', 'Output'],
+    repoProfile: ['Facts', 'Output'],
+    onboardAdvise: ['Facts', 'Output'],
   };
   it.each(STAGE_NAMES)('%s has its sections in the documented order', async (stage) => {
     const { runDir } = await build(stage);
@@ -70,7 +78,7 @@ describe('prompt.md (BUILD_PLAN 6.4)', () => {
   });
 
   it('includes the stage instruction file (kebab-case name) when it exists', async () => {
-    expect(read((await build('plan')).runDir, 'prompt.md')).toContain('PLAN INSTRUCTIONS');
+    expect(read((await build('solutionDesign')).runDir, 'prompt.md')).toContain('PLAN INSTRUCTIONS');
     expect(read((await build('kbBuild')).runDir, 'prompt.md')).toContain('KB BUILD INSTRUCTIONS');
   });
 
@@ -79,9 +87,9 @@ describe('prompt.md (BUILD_PLAN 6.4)', () => {
   });
 
   it('adds the previous plan and the rejection note to a re-run of plan, and nothing on the first run', async () => {
-    const first = await build('plan');
+    const first = await build('solutionDesign');
     expect(headings(read(first.runDir, 'prompt.md'))).not.toContain('Previous plan');
-    const rerun = await build('plan', {}, { previousPlan: '# Old plan', rejectionNote: 'Use the existing queue, not a new table' });
+    const rerun = await build('solutionDesign', {}, { previousPlan: '# Old plan', rejectionNote: 'Use the existing queue, not a new table' });
     const prompt = read(rerun.runDir, 'prompt.md');
     expect(headings(prompt)).toEqual(['Instructions', 'Ticket', 'KB doc', 'Previous plan', 'Rejection note', 'Output']);
     expect(prompt).toContain('# Old plan');
@@ -89,10 +97,10 @@ describe('prompt.md (BUILD_PLAN 6.4)', () => {
   });
 
   it('gives breakdown its limit, and on a re-run the previous breakdown and the note', async () => {
-    const first = await build('breakdown', {}, { maxSubtasks: 6 });
+    const first = await build('technicalDesign', {}, { maxSubtasks: 6 });
     expect(headings(read(first.runDir, 'prompt.md'))).toEqual(['Ticket', 'Approved plan', 'KB doc', 'Limits', 'Output']);
     expect(read(first.runDir, 'prompt.md')).toContain('At most 6 subtasks.');
-    const rerun = await build('breakdown', {}, { maxSubtasks: 6, previousBreakdown: '[{"seq":1}]', rejectionNote: 'Split the API from the UI' });
+    const rerun = await build('technicalDesign', {}, { maxSubtasks: 6, previousBreakdown: '[{"seq":1}]', rejectionNote: 'Split the API from the UI' });
     expect(headings(read(rerun.runDir, 'prompt.md'))).toEqual(['Ticket', 'Approved plan', 'KB doc', 'Limits', 'Previous breakdown', 'Rejection note', 'Output']);
     expect(read(rerun.runDir, 'prompt.md')).toContain('Split the API from the UI');
   });
@@ -104,25 +112,18 @@ describe('prompt.md (BUILD_PLAN 6.4)', () => {
     expect(read(retry.runDir, 'prompt.md')).toContain('the tests pass, but they must fail');
   });
 
-  it('with the tests stage off, tells implement to write tests', async () => {
-    expect(headings(read((await build('implement')).runDir, 'prompt.md'))).not.toContain('Tests');
-    const off = await build('implement', {}, { writeTests: true });
-    expect(headings(read(off.runDir, 'prompt.md'))).toEqual(['Ticket', 'Plan', 'Subtask', 'KB doc', 'Test files', 'Tests', 'Output']);
-    expect(read(off.runDir, 'prompt.md')).toContain('write tests for your change');
-  });
-
   it('for a very large diff, gives the stat and tells the review to read it file by file', async () => {
-    const big = await build('review', {}, { diffStat: ' src/a.ts | 900 ++++\n 1 file changed', diffRange: 'origin/dev...HEAD', diffLines: 5200, diff: undefined });
+    const big = await build('prReview', {}, { diffStat: ' src/a.ts | 900 ++++\n 1 file changed', diffRange: 'origin/dev...HEAD', diffLines: 5200, diff: undefined });
     expect(readdirSync(big.runDir)).not.toContain('diff.patch');
     const prompt = read(big.runDir, 'prompt.md');
     expect(prompt).toContain('The diff is large (5200 lines)');
     expect(prompt).toContain('git diff origin/dev...HEAD -- <file>');
     expect(prompt).toContain('src/a.ts | 900');
-    expect(readdirSync((await build('review')).runDir)).toContain('diff.patch');
+    expect(readdirSync((await build('prReview')).runDir)).toContain('diff.patch');
   });
 
   it('omits the previous-findings section unless there are findings, and the subtask for fix when absent', async () => {
-    const withFindings = await build('review', {}, { previousFindings: [{ id: 'f1', severity: 'high', file: 'a.ts', line: 3, issue: 'bad', rule: 'r', fix: 'fix it' }] });
+    const withFindings = await build('prReview', {}, { previousFindings: [{ id: 'f1', severity: 'high', file: 'a.ts', line: 3, issue: 'bad', rule: 'r', fix: 'fix it' }] });
     expect(headings(read(withFindings.runDir, 'prompt.md'))).toContain('Previous findings');
     expect(read(withFindings.runDir, 'prompt.md')).toContain('[f1] high a.ts:3: bad');
     const fixNoSubtask = await build('fix', {}, { subtask: undefined });
@@ -132,7 +133,7 @@ describe('prompt.md (BUILD_PLAN 6.4)', () => {
   it('notes retries and says when there is no KB doc', async () => {
     const retry = await build('implement', { config: { stage: 'implement', modelAlias: 'haiku', modelAliases: aliases, maxTurns: 40, attempt: 2 } });
     expect(read(retry.runDir, 'prompt.md')).toContain('partial changes');
-    const noKb = await build('plan', {}, { kbDoc: undefined });
+    const noKb = await build('solutionDesign', {}, { kbDoc: undefined });
     expect(read(noKb.runDir, 'prompt.md')).toContain('No knowledge-base document exists');
   });
 
@@ -141,25 +142,18 @@ describe('prompt.md (BUILD_PLAN 6.4)', () => {
     expect(readdirSync(impl.runDir)).not.toContain('ticket.md');
     expect(read(impl.runDir, 'prompt.md')).toContain('First paragraph of the body.');
     expect(read(impl.runDir, 'prompt.md')).not.toContain('Second paragraph');
-    const plan = await build('plan');
+    const plan = await build('solutionDesign');
     expect(read(plan.runDir, 'ticket.md')).toContain('Second paragraph with more detail.');
   });
 
   it('writes diff.patch and kb.md as context files', async () => {
-    const review = await build('review');
+    const review = await build('prReview');
     expect(read(review.runDir, 'diff.patch')).toBe('diff --git a/x b/x');
     expect(read((await build('implement')).runDir, 'kb.md')).toBe('# KB\nthe doc');
   });
 
-  it('keeps Jira stages self-contained: everything inline, no context files', async () => {
-    const intake = await build('jiraIntake', { mcpConfigJson: '{"mcpServers":{}}' });
-    expect(intake.files.sort()).toEqual(['mcp.json', 'prompt.md', 'schema.json', 'stage.json', 'system.md']);
-    expect(read(intake.runDir, 'prompt.md')).toContain('project = ABC');
-    expect(read(intake.runDir, 'mcp.json')).toBe('{"mcpServers":{}}');
-  });
-
   it('writes schema.json verbatim', async () => {
-    expect(JSON.parse(read((await build('plan', { schema: { type: 'object', required: ['status'] } })).runDir, 'schema.json'))).toEqual({ type: 'object', required: ['status'] });
+    expect(JSON.parse(read((await build('solutionDesign', { schema: { type: 'object', required: ['status'] } })).runDir, 'schema.json'))).toEqual({ type: 'object', required: ['status'] });
   });
 });
 
@@ -194,7 +188,7 @@ describe('hide-mount decision', () => {
 
 describe('stage.json', () => {
   it('resolves the model alias and disables web tools for every stage', () => {
-    const j = buildStageJson({ stage: 'plan', modelAlias: 'opus', modelAliases: aliases, maxTurns: 15 });
+    const j = buildStageJson({ stage: 'solutionDesign', modelAlias: 'opus', modelAliases: aliases, maxTurns: 15 });
     expect(j).toMatchObject({ model: 'claude-opus-5-5', maxTurns: 15, attempt: 1, round: 0 });
     expect(j.disallowedTools).toEqual(['WebFetch', 'WebSearch', 'Edit', 'Write', 'NotebookEdit']);
     for (const stage of STAGE_NAMES) expect(buildStageJson({ stage, modelAlias: 'haiku', modelAliases: aliases, maxTurns: 1 }).disallowedTools).toEqual(expect.arrayContaining(['WebFetch', 'WebSearch']));
@@ -207,18 +201,12 @@ describe('stage.json', () => {
     }
   });
 
-  it('gives Jira stages only the listed MCP tools and no file or shell tools', () => {
-    const j = buildStageJson({ stage: 'jiraIntake', modelAlias: 'haiku', modelAliases: aliases, maxTurns: 10, jiraTools: ['getJiraIssue', 'searchJiraIssuesUsingJql'] });
-    expect(j.allowedTools).toEqual(['mcp__atlassian__getJiraIssue', 'mcp__atlassian__searchJiraIssuesUsingJql']);
-    expect(j.mcpConfig).toBe(true);
-    expect(j.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Read', 'Edit', 'Write', 'Grep', 'Glob', 'WebFetch', 'WebSearch']));
-  });
 });
 
 describe('earlier questions and answers (F13)', () => {
   it('adds one section with every question and answer, for any stage', async () => {
     const qa = [{ question: 'Which currency?', answer: 'EUR' }, { question: 'Rounding?', answer: 'Half up' }];
-    for (const stage of ['plan', 'breakdown', 'implement'] as const) {
+    for (const stage of ['solutionDesign', 'technicalDesign', 'implement'] as const) {
       const { runDir } = await build(stage, {}, { qa });
       const prompt = read(runDir, 'prompt.md');
       expect(headings(prompt)).toContain('Earlier questions and answers');
@@ -227,7 +215,7 @@ describe('earlier questions and answers (F13)', () => {
     }
   });
   it('adds nothing when there are none', async () => {
-    const { runDir } = await build('plan', {}, { qa: [] });
+    const { runDir } = await build('solutionDesign', {}, { qa: [] });
     expect(headings(read(runDir, 'prompt.md'))).not.toContain('Earlier questions and answers');
   });
 });

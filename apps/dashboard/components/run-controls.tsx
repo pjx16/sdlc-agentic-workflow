@@ -47,7 +47,7 @@ export function RunControls({ pipelinePaused, intakePaused }: { pipelinePaused: 
         type="button"
         onClick={() => toggle('pipeline', pipelinePaused)}
         disabled={busy !== null}
-        title={pipelinePaused ? 'Let the pipeline run stages again' : 'Stop starting new stages (and, in MCP mode, stop polling Jira). A running stage finishes.'}
+        title={pipelinePaused ? 'Let the pipeline run stages again' : 'Stop starting new stages. A running stage finishes.'}
         className={`${button} ${pipelinePaused ? 'border-amber text-amber' : 'border-border text-muted hover:text-text'}`}
       >
         {pipelinePaused ? 'Resume pipeline' : 'Pause pipeline'}

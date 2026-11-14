@@ -11,7 +11,7 @@ const read = (rel: string) => readFileSync(path.join(GUIDELINES, rel), 'utf8');
 
 describe('shipped guideline files (BUILD_PLAN 6.9)', () => {
   it('has every file this milestone owns', () => {
-    for (const f of ['default-CLAUDE.md', 'kb-doc-template.md', 'stacks/ts-node.md', 'stacks/nestjs.md', 'stacks/nextjs.md', 'stages/kb-build.md', 'stages/plan.md', 'stages/breakdown.md', 'stages/tests.md', 'stages/implement.md', 'stages/fix.md', 'stages/review.md', 'review-checklist.md']) expect(existsSync(path.join(GUIDELINES, f)), f).toBe(true);
+    for (const f of ['default-CLAUDE.md', 'kb-doc-template.md', 'stacks/ts-node.md', 'stacks/nestjs.md', 'stacks/nextjs.md', 'stages/documentor.md', 'stages/solution-architect.md', 'stages/technical-architect.md', 'stages/test-writer.md', 'stages/coder.md', 'stages/fixer.md', 'stages/pr-reviewer.md', 'review-checklist.md']) expect(existsSync(path.join(GUIDELINES, f)), f).toBe(true);
   });
 
   it('default-CLAUDE.md carries the required rules', () => {
@@ -27,26 +27,19 @@ describe('shipped guideline files (BUILD_PLAN 6.9)', () => {
   });
 
   it('every stage file states its goal, inputs, steps, rules, the data shape and what to do when it cannot go on', () => {
-    for (const f of ['kb-build', 'plan', 'breakdown', 'tests', 'implement', 'fix', 'review', 'kb-update', 'jira-intake', 'jira-sync']) {
+    for (const f of ['documentor', 'solution-architect', 'bug-investigator', 'feature-mapper', 'technical-architect', 'test-writer', 'coder', 'fixer', 'pr-reviewer', 'quality-reviewer', 'security-reviewer', 'ci-triager', 'assistant', 'repo-profiler', 'onboarding-advisor']) {
       const t = read(`stages/${f}.md`);
       for (const needle of ['## Goal', '## Inputs', '## Steps', '## Rules', '## Output `data`', '`needs_input`']) expect(t, `${f} ${needle}`).toContain(needle);
     }
-    expect(read('stages/plan.md')).toContain('{ "planMarkdown": "…", "risks": ["…"], "openQuestions": ["…"] }');
-    expect(read('stages/kb-build.md')).toContain('"featureKey": "bookings", "isNew": true');
-    expect(read('stages/plan.md')).toContain('read-only');
+    expect(read('stages/solution-architect.md')).toContain('{ "planMarkdown": "…", "risks": ["…"], "openQuestions": ["…"] }');
+    expect(read('stages/documentor.md')).toContain('"featureKey": "bookings", "isNew": true');
+    expect(read('stages/solution-architect.md')).toContain('read-only');
   });
 
   it('the KB stages leave the index to the orchestrator, and kbUpdate rewrites statements the change made false', () => {
-    for (const f of ['kb-build', 'kb-update']) expect(read(`stages/${f}.md`), f).toContain('features.json');
-    expect(read('stages/kb-update.md')).toContain('do not exist yet');
-    expect(read('stages/kb-update.md')).toMatch(/never\s+edit `features.json`/i);
-  });
-
-  it('the Jira stages name the tools and the extra fields the code reads', () => {
-    expect(read('stages/jira-intake.md')).toContain('searchJiraIssuesUsingJql');
-    expect(read('stages/jira-intake.md')).toContain('"status"');
-    expect(read('stages/jira-sync.md')).toContain('transitionJiraIssue');
-    expect(read('stages/jira-sync.md')).toContain('createdKey');
+    expect(read('stages/documentor.md')).toContain('features.json');
+    expect(read('stages/documentor.md')).toContain('do not exist yet');
+    expect(read('stages/documentor.md')).toMatch(/never\s+edit `features.json`/i);
   });
 
   it('stack guidelines cover conventions, error handling, tests and what to avoid', () => {
@@ -82,18 +75,18 @@ describe('the prompt builder picks the shipped files up', () => {
   });
 
   const aliases = { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' } as const;
-  const build = (stage: 'plan' | 'kbBuild', inputs = {}) =>
+  const build = (stage: 'solutionDesign' | 'kbBuild', inputs = {}) =>
     buildStageContext({ stageRunId: `r-${stage}`, stage, stack: 'nestjs', claudeMdMode: 'both', inputs: { ticket: { key: 'A-1', title: 't', body: 'b' }, ...inputs }, schema: {}, config: { stage, modelAlias: 'opus', modelAliases: aliases, maxTurns: 5 }, runsDir: tmp, guidelinesDir: GUIDELINES });
 
   it('puts the plan stage instructions into the plan prompt', async () => {
-    const { runDir } = await build('plan');
-    expect(readFileSync(path.join(runDir, 'prompt.md'), 'utf8')).toContain('# Stage: plan');
+    const { runDir } = await build('solutionDesign');
+    expect(readFileSync(path.join(runDir, 'prompt.md'), 'utf8')).toContain('# Agent: solution-architect');
   });
 
   it('puts the kb-build instructions, the stack guideline, and the KB location into the kbBuild prompt', async () => {
     const { runDir } = await build('kbBuild', { indexKeys: ['auth'], kbDir: 'docs/kb', kbDocMaxLines: 300 });
     const prompt = readFileSync(path.join(runDir, 'prompt.md'), 'utf8');
-    expect(prompt).toContain('# Stage: kbBuild');
+    expect(prompt).toContain('# Agent: documentor');
     expect(prompt).toContain('Write a new doc under `docs/kb/`');
     expect(prompt).toContain('at most 300 lines');
     expect(prompt).toContain('DTO validation');

@@ -117,7 +117,7 @@ describe('draft PR and its description (F9, BUILD_PLAN 6.3 and 6.9)', () => {
     await until(t.id, s1.id);
     expect((await h.reload(s1.id)).status).toBe('DONE');
     expect((await h.reloadTicket(t.id)).prNumber).toBeNull();
-    expect((await h.prisma.event.findMany({ where: { ticketId: t.id } })).some((e) => e.message.includes('could not open the draft PR: HTTP 401'))).toBe(true);
+    expect((await h.prisma.event.findMany({ where: { ticketId: t.id } })).some((e) => e.message.includes('could not open the draft PR: GitHub failed: HTTP 401'))).toBe(true);
     h.github.failOpenWith = null;
     await until(t.id, s2.id);
     expect((await h.reloadTicket(t.id)).prNumber).toBe(100);

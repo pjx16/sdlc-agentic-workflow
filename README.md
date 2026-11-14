@@ -71,14 +71,14 @@ Key points:
 - **Usage gate:** the pipeline pauses at a configurable share of the 5-hour window (default 50%) and the 7-day window (default 80%), with *Resume* and *Ignore usage for this window* actions.
 - **Knowledge base:** per-feature docs live in the target repository and are looked up through a deterministic index, then built or updated by AI stages.
 - **Dashboard:** single-user password login, live logs, queue, approvals, support queries, settings, guideline editing and minimal charts.
-- **Jira integration:** REST polling with a configurable JQL per project (default), or an optional Jira MCP mode for organisations that block API access. Pasting tickets works in every mode. Ticket states can be mapped to Jira statuses.
+- **Jira integration:** REST polling with a configurable JQL per project (default). Pasting tickets works with or without Jira. Ticket states can be mapped to Jira statuses.
 
 The full flow, state machine and acceptance criteria are in [`BUILD_PLAN.md`](./docs/build-plan/v0.0.0/BUILD_PLAN.md). For how the pieces fit together (services, trust boundaries, ticket lifecycle, worker loop, data model) and how that has changed over time, see [`docs/architecture`](./docs/architecture/README.md).
 
 ## Design principles
 
 1. **Code does everything that needs no judgment.** Jira calls, git, GitHub, running tests, state tracking and scheduling are plain deterministic code. AI is used only for planning, breakdown, test writing, implementation, fixing, review and knowledge-base writing.
-2. **Agents only edit files.** The orchestrator makes every commit, push, PR and Jira call. Agent containers never hold GitHub credentials (and Jira credentials only in the optional Jira MCP mode).
+2. **Agents only edit files.** The orchestrator makes every commit, push, PR and Jira call. Agent containers never hold GitHub credentials, and never Jira or Confluence credentials.
 3. **Every AI stage is a fresh, narrow, capped run:** its own container, its own model, its own step limit, and only the context it needs.
 4. **Humans gate three points:** plan approval, breakdown approval, and merge.
 5. **One AI stage runs at a time**, system-wide, to keep usage predictable.
@@ -210,11 +210,11 @@ Open **Projects → New** and enter:
 - **Stack** (TypeScript/Node, NestJS or Next.js). Choosing it pre-fills the install, typecheck and targeted-test commands; all are editable. The test command must contain `{files}`.
 - **Knowledge-base directory**, relative to the repository root (default `docs/kb`).
 - **CLAUDE.md mode**: `ours` (our defaults, the repository's own `CLAUDE.md` is hidden from Claude), `theirs` (only the repository's), or `both`.
-- **Jira** mode (REST, MCP or off), Jira project key and JQL.
+- **Jira** mode (REST or off), Jira project key and JQL.
 
 Save. The worker clones a bare mirror in the background and checks that the base branch exists. The project shows *Cloning*, then *Ready*, or *Failed* with the error (fix the URL or token and press Retry). A project accepts tickets only when it is *Ready*.
 
-**Which Jira tickets are picked up.** By default only issues that carry the label **`sdlc-agent`** are picked up. Leave the project's **JQL** empty and it uses `project = "KEY" AND labels = "sdlc-agent" ORDER BY created ASC` (the form shows it as the placeholder). Add the label to an issue when you want the agent to work on it. To change this, write your own JQL in the project's settings (REST and MCP mode): it is used exactly as written, so you can drop the label or filter on a status instead. Jira sub-tasks are never picked up as tickets, whatever the query.
+**Which Jira tickets are picked up.** By default only issues that carry the label **`sdlc-agent`** are picked up. Leave the project's **JQL** empty and it uses `project = "KEY" AND labels = "sdlc-agent" ORDER BY created ASC` (the form shows it as the placeholder). Add the label to an issue when you want the agent to work on it. To change this, write your own JQL in the project's settings: it is used exactly as written, so you can drop the label or filter on a status instead. Jira sub-tasks are never picked up as tickets, whatever the query.
 
 A **suggested JQL** for REST mode, so each ticket is picked up once and only when you mean it:
 
@@ -252,7 +252,6 @@ Environment variables (`.env.example` lists all of them with comments):
 | `POSTGRES_PASSWORD` | yes | Database password |
 | `DATA_DIR` | yes | Absolute host path for mirrors, workspaces, runs and logs |
 | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira REST mode | Jira Cloud access |
-| `JIRA_MCP_CONFIG_FILE`, `JIRA_MCP_CONFIG_PATH`, `JIRA_MCP_HOST`, `JIRA_MCP_AUTH` | Jira MCP mode | Jira MCP server file (host path, and `/config/jira-mcp.json` in the worker), the proxy allowlist host, and the credential the file refers to as `${JIRA_MCP_AUTH}`. Only the two Jira stages receive it. Each MCP read or write is a stage run (about 50-70k tokens), so prefer REST mode where it works. |
 | `COOKIE_SECURE` | no | `true` when the dashboard is served over HTTPS (marks the session cookie `Secure`) |
 | `DASHBOARD_BIND` | no | Address the dashboard port binds to (default `127.0.0.1`) |
 | `AGENT_IMAGE`, `AGENT_MEMORY`, `AGENT_CPUS` | no | Agent image, and the memory and CPU limit of each agent container |
@@ -316,7 +315,7 @@ The first build was split into 14 milestones, defined in [`BUILD_PLAN.md`](./doc
 | 8 | Review, KB update and CI | done |
 | 9 | Support queries, hold and retry | done |
 | 10 | Usage gate | done |
-| 11 | Jira MCP mode | done (tested against a stand-in, not a live MCP server) |
+| 11 | Jira MCP mode | done in v0, removed in v1 (Jira is REST only) |
 | 12 | Metrics and charts | done |
 | 13 | Hardening, documentation and a live end-to-end run | done (one small live run, see below) |
 
@@ -339,7 +338,7 @@ What went wrong (the first two are fixed, the last two remain):
 
 A second run on a two-function ticket (`slugify` and `truncate`) produced a ready PR with six commits, 17 passing tests and a clean typecheck. It also showed two problems that are now fixed: the ticket text was sent under the wrong field name and silently dropped (the API now rejects unknown fields), and the knowledge-base doc kept "does not exist yet" notes (the `kbUpdate` stage now rewrites them).
 
-Not exercised in these runs: a review that finds issues, CI failures, support queries, Jira (REST or MCP), the usage gate pausing a run, and a multi-subtask ticket.
+Not exercised in these runs: a review that finds issues, CI failures, support queries, Jira, the usage gate pausing a run, and a multi-subtask ticket.
 
 ## Scope and known limitations
 
@@ -349,7 +348,6 @@ Known limitations:
 
 - Targeted tests must be runnable inside a plain Node container with no external services (no database, no network beyond the npm registry).
 - The usage gate reads the `rate_limit_event` that Claude Code prints (SPIKE.md 0.2). If a future CLI stops printing it, the gate falls back to an estimate from tokens, which needs `calibratedWindowTokens` to be set on the Usage page.
-- Jira MCP mode works headlessly with a scoped Atlassian API token (SPIKE.md 0.7), but the organisation must allow API-token access to the Rovo MCP server. It has only been tested against a stand-in, and every MCP read or write is a stage run (about 50-70k tokens), so use REST mode where it works.
 - Only one stage runs at a time, system-wide, and a ticket's whole run is sequential.
 - The first-pass rate on the Overview is approximate: a subtask has no completion time of its own, so it counts in the range where its last stage run ended.
 - Only one small ticket (one subtask, then two) has run with live Claude. Review fixes, CI fixes, support queries, Jira and larger tickets have only been tested against the stand-in.

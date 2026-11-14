@@ -6,7 +6,7 @@ export interface StageLog {
 }
 
 export interface LogSink {
-  /** `extraSecrets` are per-run credentials (for example the Jira credential of an MCP stage) to redact as well. */
+  /** `extraSecrets` are per-run credentials to redact as well. */
   open(stageRunId: string, extraSecrets?: readonly string[]): StageLog;
 }
 

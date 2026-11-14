@@ -3,20 +3,27 @@ import { CONTAINER_ENGINE, type ContainerEngine } from './agent-runner/container
 import { AdvisoryLock } from './loop/advisory-lock';
 import { RestartRecovery } from './loop/restart-recovery';
 import { WorkerLoop } from './loop/worker-loop';
+import { PrismaService } from '../prisma/prisma.service';
+import { HeartbeatTimer, recordStart } from './status/worker-status';
+import { AssistantRunner } from './assistant/assistant-runner';
 import { WorkerConfig } from './worker-config';
 
 @Injectable()
 export class WorkerRunner implements OnModuleDestroy {
   private readonly logger = new Logger(WorkerRunner.name);
   private readonly lock: AdvisoryLock;
+  private readonly heartbeat: HeartbeatTimer;
 
   constructor(
     private readonly config: WorkerConfig,
     private readonly loop: WorkerLoop,
     private readonly recovery: RestartRecovery,
+    private readonly assistant: AssistantRunner,
     @Inject(CONTAINER_ENGINE) private readonly engine: ContainerEngine,
+    private readonly prisma: PrismaService,
   ) {
     this.lock = new AdvisoryLock(config.databaseUrl);
+    this.heartbeat = new HeartbeatTimer(prisma);
   }
 
   /** Takes the single-worker lock and starts the loop. Returns false if another worker already runs. */
@@ -26,9 +33,12 @@ export class WorkerRunner implements OnModuleDestroy {
       return false;
     }
     this.logger.log('Worker lock acquired');
+    await recordStart(this.prisma, process.env.npm_package_version ?? '0.0.1');
+    await this.heartbeat.start();
     await this.ensureAgentImage();
     await this.recovery.recover();
     this.loop.start();
+    this.assistant.start();
     this.logger.log('Worker loop started');
     return true;
   }
@@ -45,6 +55,8 @@ export class WorkerRunner implements OnModuleDestroy {
 
   async onModuleDestroy(): Promise<void> {
     this.loop.stop();
+    this.assistant.stop();
+    this.heartbeat.stop();
     await this.lock.release();
   }
 }

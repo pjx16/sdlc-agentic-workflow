@@ -71,7 +71,7 @@ describe('breakdown stage (F8)', () => {
     const t = await ticket();
     const out = await handler.run(t);
     expect(out).toEqual({ kind: 'transition', to: 'AWAITING_BREAKDOWN_APPROVAL', reason: 'Breakdown ready for approval (2 subtasks)', stageRunId: 'run-bd' });
-    expect(requests[0]).toMatchObject({ stage: 'breakdown', modelAlias: 'haiku', maxTurns: 10 });
+    expect(requests[0]).toMatchObject({ stage: 'technicalDesign', modelAlias: 'sonnet', maxTurns: 10 });
     expect(requests[0]?.inputs).toMatchObject({ plan: '# Approved plan', maxSubtasks: 8 });
     const draft = (await prisma.ticket.findUniqueOrThrow({ where: { id: t.id } })).breakdownDraft as { seq: number }[];
     expect(draft.map((s) => s.seq)).toEqual([1, 2]);
@@ -147,7 +147,7 @@ describe('breakdown stage (F8)', () => {
     });
 
     it('with the breakdown stage off, runs the ticket as one subtask whose description is the plan, and does not run the stage', async () => {
-      await setSettings({ stages: { breakdown: { enabled: false } } });
+      await setSettings({ stages: { technicalDesign: { enabled: false } } });
       const t = await ticket({ body: 'Add an export.\n\n## Acceptance criteria\n- Exports all rows\n- Handles empty data' });
       expect(await handler.run(t)).toMatchObject({ kind: 'transition', to: 'IN_PROGRESS', reason: 'The breakdown stage is off: one subtask runs the whole plan' });
       expect(requests).toHaveLength(0);
@@ -157,14 +157,14 @@ describe('breakdown stage (F8)', () => {
     });
 
     it('with no "Acceptance criteria" section the single subtask gets the default criterion', async () => {
-      await setSettings({ stages: { breakdown: { enabled: false } } });
+      await setSettings({ stages: { technicalDesign: { enabled: false } } });
       const t = await ticket({ body: 'Just a description.' });
       await handler.run(t);
       expect((await subtasksOf(t.id))[0]?.acceptanceCriteria).toEqual(['The change described in the ticket is implemented and tested']);
     });
 
     it('breakdown off falls back to the ticket body when there is no plan', async () => {
-      await setSettings({ stages: { breakdown: { enabled: false } } });
+      await setSettings({ stages: { technicalDesign: { enabled: false } } });
       const t = await ticket({ planMarkdown: null, body: 'The body is the plan.' });
       await handler.run(t);
       expect((await subtasksOf(t.id))[0]?.description).toBe('The body is the plan.');
@@ -205,7 +205,7 @@ describe('breakdown stage (F8)', () => {
     });
 
     it('works with breakdown off too (one Jira sub-task)', async () => {
-      await setSettings({ stages: { breakdown: { enabled: false } } }, { jiraMode: 'rest' });
+      await setSettings({ stages: { technicalDesign: { enabled: false } } }, { jiraMode: 'rest' });
       const t = await jiraTicket();
       await handler.run(t);
       expect(jira.calls.filter((c) => c.startsWith('subtask'))).toHaveLength(1);
@@ -223,7 +223,7 @@ describe('breakdown stage (F8)', () => {
 
   it('turns a failed or killed stage into the documented hold', async () => {
     failWith = { kind: 'turn_limit', stageRunId: 'r', attempts: 1 };
-    expect(await handler.run(await ticket())).toMatchObject({ kind: 'hold', reason: 'needs_help', note: 'The breakdown stage reached its turn limit' });
+    expect(await handler.run(await ticket())).toMatchObject({ kind: 'hold', reason: 'needs_help', note: 'technicalDesign ran out of turns.' });
     failWith = { kind: 'killed', stageRunId: 'r', attempts: 1 };
     expect(await handler.run(await ticket())).toMatchObject({ kind: 'hold', reason: 'manual' });
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { JiraHttpError, JiraStatusNotFoundError, JiraUnavailableError } from './jira-client';
+import { JiraHttpError, JiraStatusNotFoundError, JiraUnavailableError, jiraMarker, markerLabel } from './jira-client';
 import { JiraRestClient } from './jira-rest-client';
 
 interface Call {
@@ -117,6 +117,29 @@ describe('readStatus, comment, createSubtask, listStatuses', () => {
     expect(calls[0]?.body.body.content[0]).toMatchObject({ type: 'heading' });
   });
 
+  it('skips a comment whose marker is already on the issue, and posts it otherwise (safe to repeat)', async () => {
+    const marker = jiraMarker('SDA-1', 'plan', 'the plan');
+    const seen = make([{ json: { comments: [{ id: '1', body: { type: 'doc', content: [{ type: 'text', text: `old\n\n${marker}` }] } }] } }]);
+    await seen.client.comment('ABC-1', 'plan text', marker);
+    expect(seen.calls).toHaveLength(1); // only the lookup
+    const fresh = make([{ json: { comments: [] } }, { status: 201, json: { id: '2' } }]);
+    await fresh.client.comment('ABC-1', 'plan text', marker);
+    expect(fresh.calls.map((c) => c.method)).toEqual(['GET', 'POST']);
+    expect(JSON.stringify(fresh.calls[1]?.body)).toContain(marker);
+    expect(jiraMarker('SDA-1', 'plan', 'the plan')).toBe(marker);
+    expect(jiraMarker('SDA-1', 'plan', 'other plan')).not.toBe(marker);
+  });
+
+  it('finds an earlier sub-task by its marker label instead of creating another', async () => {
+    const marker = jiraMarker('ABC-5', 'subtask-1', 'Add parser');
+    const found = make([{ json: { issues: [{ key: 'ABC-12' }] } }]);
+    expect(await found.client.createSubtask('ABC-5', { summary: 'Add parser', description: '', marker })).toEqual({ key: 'ABC-12' });
+    expect(found.calls).toHaveLength(1);
+    const none = make([{ json: { issues: [] } }, { status: 201, json: { key: 'ABC-13' } }]);
+    expect(await none.client.createSubtask('ABC-5', { summary: 'Add parser', description: '', marker })).toEqual({ key: 'ABC-13' });
+    expect(none.calls[1]?.body.fields.labels).toEqual([markerLabel(marker)]);
+  });
+
   it('creates a sub-task under the parent, in the parent project, with the configured type', async () => {
     const { client, calls } = make([{ status: 201, json: { key: 'ABC-12' } }]);
     expect(await client.createSubtask('ABC-5', { summary: 'Add parser', description: 'Parse it', issueTypeName: 'Subtask' })).toEqual({ key: 'ABC-12' });
@@ -136,27 +159,34 @@ describe('readStatus, comment, createSubtask, listStatuses', () => {
 });
 
 describe('transition', () => {
+  const toDo = { json: { fields: { status: { name: 'To Do' } } } };
   const transitions = { transitions: [{ id: '11', name: 'Start', to: { name: 'In Progress' } }, { id: '31', name: 'Finish', to: { name: 'Done' } }] };
 
   it('finds the transition by target status name, case-insensitively, and performs it', async () => {
-    const { client, calls } = make([{ json: transitions }, { status: 204 }]);
+    const { client, calls } = make([toDo, { json: transitions }, { status: 204 }]);
     await client.transition('ABC-1', '  in progress ');
-    expect(calls).toHaveLength(2);
-    expect(calls[0]).toMatchObject({ method: 'GET', url: 'https://acme.atlassian.net/rest/api/3/issue/ABC-1/transitions' });
-    expect(calls[1]).toMatchObject({ method: 'POST', body: { transition: { id: '11' } } });
+    expect(calls).toHaveLength(3);
+    expect(calls[1]).toMatchObject({ method: 'GET', url: 'https://acme.atlassian.net/rest/api/3/issue/ABC-1/transitions' });
+    expect(calls[2]).toMatchObject({ method: 'POST', body: { transition: { id: '11' } } });
+  });
+
+  it('is a no-op when the issue is already in that status (safe to repeat)', async () => {
+    const { client, calls } = make([{ json: { fields: { status: { name: 'In Progress' } } } }]);
+    await client.transition('ABC-1', 'in progress');
+    expect(calls).toHaveLength(1); // only the status read
   });
 
   it('throws JiraStatusNotFoundError listing what is available when the status does not exist', async () => {
-    const { client, calls } = make([{ json: transitions }]);
+    const { client, calls } = make([toDo, { json: transitions }]);
     const err = await client.transition('ABC-1', 'Shipped').catch((e) => e);
     expect(err).toBeInstanceOf(JiraStatusNotFoundError);
     expect(err.message).toBe('Jira has no transition to "Shipped" for ABC-1 (available: In Progress, Done)');
     expect(err.available).toEqual(['In Progress', 'Done']);
-    expect(calls).toHaveLength(1); // nothing was posted
+    expect(calls).toHaveLength(2); // nothing was posted
   });
 
   it('copes with an issue that has no transitions at all', async () => {
-    const err = await make([{ json: {} }]).client.transition('ABC-1', 'Done').catch((e) => e);
+    const err = await make([toDo, { json: {} }]).client.transition('ABC-1', 'Done').catch((e) => e);
     expect(err).toBeInstanceOf(JiraStatusNotFoundError);
     expect(err.available).toEqual([]);
   });
@@ -211,5 +241,31 @@ describe('retries (BUILD_PLAN 6.3)', () => {
     expect(calls).toHaveLength(1);
     expect(sleeps).toEqual([]);
     for (const status of [401, 403, 404]) expect((await make([{ status, text: 'nope' }]).client.readStatus('A-1').catch((e) => e)).status).toBe(status);
+  });
+});
+
+
+describe('projectFacts (onboarding)', () => {
+  const project = { name: 'Billing', issueTypes: [{ name: 'Story', subtask: false }, { name: 'Epic', subtask: false }, { name: 'Sub-task', subtask: true }] };
+  const statuses = [
+    { name: 'Story', statuses: [{ name: 'To Do', statusCategory: { key: 'new' } }, { name: 'In Progress', statusCategory: { key: 'indeterminate' } }, { name: 'Done', statusCategory: { key: 'done' } }] },
+    { name: 'Epic', statuses: [{ name: 'Open', statusCategory: { key: 'new' } }] },
+  ];
+
+  it('collects the project, its issue types, statuses per type and the labels in use', async () => {
+    const { client, calls } = make([{ json: project }, { json: statuses }, { json: { issues: [{ fields: { labels: ['backend', 'sdlc-agent'] } }, { fields: { labels: ['backend'] } }, { fields: {} }] } }]);
+    const facts = await client.projectFacts('SDA');
+    expect(facts.projectName).toBe('Billing');
+    expect(facts.issueTypes).toEqual([{ name: 'Story', subtask: false }, { name: 'Epic', subtask: false }, { name: 'Sub-task', subtask: true }]);
+    expect(facts.statusesByType[0]).toEqual({ type: 'Story', statuses: [{ name: 'To Do', category: 'new' }, { name: 'In Progress', category: 'indeterminate' }, { name: 'Done', category: 'done' }] });
+    expect(facts.labels).toEqual(['backend', 'sdlc-agent']);
+    expect(calls.map((c) => `${c.method} ${c.url.replace('https://acme.atlassian.net', '')}`)).toEqual(['GET /rest/api/3/project/SDA', 'GET /rest/api/3/project/SDA/statuses', 'POST /rest/api/3/search/jql']);
+    // Jira has no per-project label endpoint: labels come from a search that asks only for them.
+    expect(calls[2]?.body).toMatchObject({ jql: 'project = "SDA" ORDER BY created DESC', fields: ['labels'] });
+  });
+
+  it('a project key Jira does not know is an error, not an empty answer', async () => {
+    const { client } = make([{ status: 404, json: { errorMessages: ['No project could be found with key NOPE.'] } }]);
+    await expect(client.projectFacts('NOPE')).rejects.toThrow(/No project could be found/);
   });
 });

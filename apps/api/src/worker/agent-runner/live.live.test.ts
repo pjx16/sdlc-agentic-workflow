@@ -34,7 +34,7 @@ describe.skipIf(!live)('live smoke test (LIVE_CLAUDE=1)', () => {
     chmodSync(workspace, 0o777);
 
     const res = await runner.run({
-      projectId: 'live', stage: 'plan', stack: 'ts_node', claudeMdMode: 'both', modelAlias: 'haiku', modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
+      projectId: 'live', stage: 'solutionDesign', stack: 'ts_node', claudeMdMode: 'both', modelAlias: 'haiku', modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
       maxTurns: 5, stageTimeoutMin: 5, workspacePath: workspace,
       inputs: { ticket: { key: 'LIVE-1', title: 'Say hello', body: 'This is a smoke test. Do not use any tools. Reply with a plan whose planMarkdown is exactly "hello", with empty risks and openQuestions.' } },
     });

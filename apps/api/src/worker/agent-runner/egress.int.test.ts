@@ -10,7 +10,7 @@ const outcome = async (script: string) => (await shellInAgent(script)).lines.joi
 describe('egress from an agent container (BUILD_PLAN 6.1, F5)', () => {
   let egress: EgressFixture;
   beforeAll(async () => {
-    egress = await startEgress('example.org');
+    egress = await startEgress();
   }, 120_000);
   afterAll(async () => egress?.stop());
 
@@ -40,12 +40,6 @@ describe('egress from an agent container (BUILD_PLAN 6.1, F5)', () => {
     expect(out).toMatch(/^000/);
     expect(out).not.toMatch(/exit=0/);
   }, 60_000);
-
-  it('allows the Jira MCP host only on the MCP port (3129)', async () => {
-    expect(await outcome(through(3129, 'example.org'))).toMatch(/exit=0/);
-    expect(await outcome(through(3128, 'example.org'))).not.toMatch(/exit=0/);
-    expect(await outcome(through(3129, 'example.com'))).not.toMatch(/exit=0/); // MCP port allows only the configured host
-  }, 90_000);
 
   it('cannot reach the database or other internal services from the agent network', async () => {
     expect(await outcome('getent hosts postgres api worker || echo unresolved')).toBe('unresolved');

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { type TestApp, createTestApp } from '../testing/test-app';
 import { type TestDatabase, createTestDatabase } from '../testing/test-db';
 import { SystemSettingsModule } from './system-settings.module';
+import { workerState } from './system-settings.service';
 
 describe('System and global settings API', () => {
   let db: TestDatabase;
@@ -37,7 +38,7 @@ describe('System and global settings API', () => {
       verifyTimeoutSec: 600, workspaceRetentionDays: 7, logRetentionDays: 30, pipelinePaused: false, pausedReason: null, intakePaused: false,
       modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
     });
-    expect(res.body.settings.jiraMcp.readTools).toContain('getJiraIssue');
+    expect(res.body.settings).not.toHaveProperty('jiraMcp');
   });
 
   it('GET /system reports the worker: none before it has run, online with a fresh heartbeat, offline with an old one, plus recent events', async () => {
@@ -45,10 +46,10 @@ describe('System and global settings API', () => {
     expect((await t.agent.get('/system').expect(200)).body.worker).toBeNull();
 
     await t.prisma.workerStatus.create({ data: { heartbeatAt: new Date(), tickOutcome: 'not_configured', tickDetail: 'claude_token' } });
-    await t.prisma.workerStatus.create({ data: { id: 'intake-mcp', heartbeatAt: new Date(), tickOutcome: 'intake', intakeMode: 'mcp', intakeAt: new Date(), intakeProjects: 1, intakeError: 'boom' } });
+    await t.prisma.workerStatus.create({ data: { id: 'intake-rest', heartbeatAt: new Date(), tickOutcome: 'intake', intakeMode: 'rest', intakeAt: new Date(), intakeProjects: 1, intakeError: 'boom' } });
     await t.prisma.event.create({ data: { type: 'jira', message: 'Jira (MCP) intake: 1 new ticket' } });
     const online = (await t.agent.get('/system').expect(200)).body;
-    expect(online.worker).toMatchObject({ online: true, tickOutcome: 'not_configured', tickDetail: 'claude_token', intake: [{ mode: 'mcp', projects: 1, error: 'boom', created: 0 }] });
+    expect(online.worker).toMatchObject({ online: true, tickOutcome: 'not_configured', tickDetail: 'claude_token', intake: [{ mode: 'rest', projects: 1, error: 'boom', created: 0 }] });
     expect(online.recentEvents[0]).toMatchObject({ type: 'jira', message: 'Jira (MCP) intake: 1 new ticket', ticketKey: null });
 
     await t.prisma.workerStatus.update({ where: { id: 'worker' }, data: { heartbeatAt: new Date(Date.now() - 5 * 60_000) } });
@@ -72,7 +73,7 @@ describe('System and global settings API', () => {
     const patch = {
       usageThresholdPct: 40, usageThresholdWeeklyPct: 70, calibratedWindowTokens: 5_000_000, pollIntervalSec: 60, stageTimeoutMin: 30,
       verifyTimeoutSec: 300, workspaceRetentionDays: 3, logRetentionDays: 10,
-      modelAliases: { opus: 'claude-opus-5-5' }, jiraMcp: { readTools: ['getJiraIssue'], writeTools: [] },
+      modelAliases: { opus: 'claude-opus-5-5' },
     };
     const res = await t.agent.patch('/system/settings').send(patch).expect(200);
     expect(res.body).toMatchObject({ ...patch, modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'claude-opus-5-5' } });
@@ -88,10 +89,10 @@ describe('System and global settings API', () => {
   it('returns field-level errors and saves nothing', async () => {
     const res = await t.agent
       .patch('/system/settings')
-      .send({ usageThresholdPct: 0, pollIntervalSec: 1, stageTimeoutMin: 'x', modelAliases: { haiku: '' }, jiraMcp: { readTools: [''] } })
+      .send({ usageThresholdPct: 0, pollIntervalSec: 1, stageTimeoutMin: 'x', modelAliases: { haiku: '' } })
       .expect(400);
     expect(res.body.error).toBe('validation_error');
-    expect(Object.keys(res.body.fields).sort()).toEqual(['jiraMcp.readTools.0', 'modelAliases.haiku', 'pollIntervalSec', 'stageTimeoutMin', 'usageThresholdPct']);
+    expect(Object.keys(res.body.fields).sort()).toEqual(['modelAliases.haiku', 'pollIntervalSec', 'stageTimeoutMin', 'usageThresholdPct']);
     expect((await t.agent.get('/system')).body.settings.usageThresholdPct).toBe(50);
   });
 
@@ -130,4 +131,15 @@ describe('System and global settings API', () => {
     const events = await t.prisma.event.findMany({ where: { ticketId: null }, orderBy: { at: 'asc' } });
     expect(events.map((e) => e.type)).toEqual(expect.arrayContaining(['settings', 'state']));
   });
+});
+
+describe('workerState', () => {
+  const now = Date.parse('2026-11-14T12:00:00Z');
+  const row = (beatAgoS: number, phase: string, sinceAgoMin: number) => ({ heartbeatAt: new Date(now - beatAgoS * 1000), phase, phaseSince: new Date(now - sinceAgoMin * 60_000) });
+  it('is offline when the heartbeat is older than 30 seconds', () => expect(workerState(row(31, 'stage', 1), now, 20)).toBe('offline'));
+  it('is idle when idle, paused or not configured', () => {
+    for (const p of ['idle', 'paused', 'not_configured']) expect(workerState(row(3, p, 500), now, 20)).toBe('idle');
+  });
+  it('is busy while a phase is within the stage limit plus 5 minutes', () => expect(workerState(row(3, 'stage', 24), now, 20)).toBe('busy'));
+  it('is stalled when a phase outlasts the stage limit plus 5 minutes', () => expect(workerState(row(3, 'stage', 26), now, 20)).toBe('stalled'));
 });

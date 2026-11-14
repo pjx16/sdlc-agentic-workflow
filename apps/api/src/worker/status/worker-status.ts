@@ -1,15 +1,88 @@
+import { events } from '@sdlc/shared';
+import { writeEvent } from '../../common/event-log';
 import type { PrismaService } from '../../prisma/prisma.service';
 
 const ID = 'worker';
 
-/** The worker's heartbeat: written every iteration, so the dashboard can tell "online and idle" from "not running". */
+/** How often the heartbeat timer writes (BUILD_PLAN v1 6.1). The dashboard calls the worker offline after 30 s. */
+export const HEARTBEAT_INTERVAL_MS = 5000;
+
+/** The worker's heartbeat: a bare timestamp, written by a timer that does not depend on the loop. */
+export async function recordHeartbeat(prisma: Pick<PrismaService, 'workerStatus'>, now: Date = new Date()): Promise<void> {
+  await prisma.workerStatus
+    .upsert({ where: { id: ID }, update: { heartbeatAt: now }, create: { id: ID, heartbeatAt: now, tickOutcome: 'starting' } })
+    .catch(() => undefined);
+}
+
+/** The outcome of one loop iteration. It no longer doubles as the heartbeat: an iteration can run for minutes. */
 export async function recordTick(prisma: Pick<PrismaService, 'workerStatus'>, outcome: string, detail?: string): Promise<void> {
-  const data = { heartbeatAt: new Date(), tickOutcome: outcome, tickDetail: detail ?? null };
-  await prisma.workerStatus.upsert({ where: { id: ID }, update: data, create: { id: ID, ...data } }).catch(() => undefined);
+  const data = { tickOutcome: outcome, tickDetail: detail ?? null };
+  await prisma.workerStatus.upsert({ where: { id: ID }, update: data, create: { id: ID, heartbeatAt: new Date(), ...data } }).catch(() => undefined);
+}
+
+export type WorkerPhase = 'idle' | 'cloning' | 'intake' | 'stage' | 'housekeeping' | 'paused' | 'not_configured';
+
+const lastPhase = new WeakMap<object, string>();
+
+/** What the worker is doing right now. `phaseSince` only moves when the phase or its detail changes. Best effort. */
+export async function setPhase(prisma: Pick<PrismaService, 'workerStatus'>, phase: WorkerPhase, detail?: string): Promise<void> {
+  const key = `${phase}|${detail ?? ''}`;
+  if (lastPhase.get(prisma) === key) return;
+  lastPhase.set(prisma, key);
+  const now = new Date();
+  const data = { phase, phaseDetail: detail ?? null, phaseSince: now };
+  await prisma.workerStatus
+    .upsert({ where: { id: ID }, update: data, create: { id: ID, heartbeatAt: now, tickOutcome: 'starting', ...data } })
+    .catch(() => undefined);
+}
+
+export const RESTART_WINDOW_MS = 10 * 60_000;
+export const RESTART_LIMIT = 3;
+
+/**
+ * Called once when the worker starts: records process facts and a "Worker started" event. Three starts within
+ * 10 minutes also write an error event, so a crash loop is visible (BUILD_PLAN v1 6.1).
+ */
+export async function recordStart(prisma: Pick<PrismaService, 'workerStatus' | 'event'>, version: string, pid: number = process.pid): Promise<void> {
+  try {
+    lastPhase.delete(prisma);
+    const now = new Date();
+    const data = { heartbeatAt: now, tickOutcome: 'starting', tickDetail: null, phase: 'idle', phaseDetail: null, phaseSince: now, startedAt: now, pid, version };
+    await prisma.workerStatus.upsert({ where: { id: ID }, update: data, create: { id: ID, ...data } });
+    await writeEvent(prisma, events.workerStarted({ version, pid }));
+    const since = new Date(now.getTime() - RESTART_WINDOW_MS);
+    const starts = await prisma.event.count({ where: { type: 'worker', message: { startsWith: 'Worker started' }, at: { gte: since } } });
+    if (starts >= RESTART_LIMIT) await writeEvent(prisma, events.workerRestarting());
+  } catch {
+    /* status is best effort */
+  }
+}
+
+/** Writes the heartbeat on its own timer, whether or not a loop iteration is running. */
+export class HeartbeatTimer {
+  private timer: NodeJS.Timeout | null = null;
+
+  constructor(
+    private readonly prisma: Pick<PrismaService, 'workerStatus'>,
+    private readonly intervalMs: number = HEARTBEAT_INTERVAL_MS,
+  ) {}
+
+  /** Writes one beat now, then one every interval. Calling it twice does nothing. */
+  async start(): Promise<void> {
+    if (this.timer) return;
+    this.timer = setInterval(() => void recordHeartbeat(this.prisma), this.intervalMs);
+    this.timer.unref();
+    await recordHeartbeat(this.prisma);
+  }
+
+  stop(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
 }
 
 export interface IntakeRecord {
-  mode: 'rest' | 'mcp';
+  mode: 'rest';
   /** Enabled projects in this Jira mode whose mirror is ready: the ones that were polled. */
   projects: number;
   /** Enabled projects in this Jira mode that were left out because the mirror is not ready. */
@@ -20,7 +93,7 @@ export interface IntakeRecord {
   skipped?: string;
 }
 
-/** The result of the last Jira intake poll, one row per mode (`intake-rest`, `intake-mcp`). Also leaves an Event when tickets arrived or a new error appeared. */
+/** The result of the last Jira intake poll, one row (`intake-rest`). Also leaves an Event when tickets arrived or a new error appeared. */
 export async function recordIntake(prisma: Pick<PrismaService, 'workerStatus' | 'event'>, r: IntakeRecord): Promise<void> {
   try {
     const id = `intake-${r.mode}`;
@@ -36,7 +109,7 @@ export async function recordIntake(prisma: Pick<PrismaService, 'workerStatus' | 
       intakeSkipped: r.skipped ?? null,
     };
     await prisma.workerStatus.upsert({ where: { id }, update: data, create: { id, heartbeatAt: new Date(), tickOutcome: 'intake', ...data } });
-    const label = r.mode === 'rest' ? 'Jira (REST)' : 'Jira (MCP)';
+    const label = 'Jira (REST)';
     if (r.created > 0) await prisma.event.create({ data: { type: 'jira', message: `${label} intake: ${r.created} new ticket${r.created === 1 ? '' : 's'}` } });
     if (r.error && r.error !== previous?.intakeError) await prisma.event.create({ data: { type: 'jira', message: `${label} intake failed: ${r.error}`.slice(0, 500) } });
   } catch {

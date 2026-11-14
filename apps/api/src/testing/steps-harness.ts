@@ -160,6 +160,7 @@ export class StepsHarness {
     h.launcher = new StageLauncher(h.prisma, h.config, h.agent as never);
     h.outcomes = new StageOutcomes(h.prisma);
     h.pr = new PrService(h.prisma, h.config, staticCredentials(), h.github);
+    h.pr.retry = { scale: 0 }; // the policy's 1, 4 and 10 minute waits would stall a test
     return h;
   }
 

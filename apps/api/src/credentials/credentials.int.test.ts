@@ -27,6 +27,18 @@ afterEach(async () => {
 });
 
 describe('CredentialsService', () => {
+  it('saving a new Claude token ends a pause caused by CLAUDE_AUTH, and only that pause', async () => {
+    process.env.ENCRYPTION_KEY = randomBytes(32).toString('base64');
+    delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    await prisma.globalSettings.upsert({ where: { id: 'global' }, update: { pipelinePaused: true, pausedCode: 'CLAUDE_USAGE_LIMIT', pausedReason: 'limit' }, create: { id: 'global', pipelinePaused: true, pausedCode: 'CLAUDE_USAGE_LIMIT', pausedReason: 'limit' } });
+    await svc.set('claude_token', 'sk-ant-oat01-' + 'a'.repeat(40));
+    expect((await prisma.globalSettings.findUniqueOrThrow({ where: { id: 'global' } })).pipelinePaused).toBe(true);
+    await prisma.globalSettings.update({ where: { id: 'global' }, data: { pausedCode: 'CLAUDE_AUTH' } });
+    await svc.set('claude_token', 'sk-ant-oat01-' + 'b'.repeat(40));
+    expect(await prisma.globalSettings.findUniqueOrThrow({ where: { id: 'global' } })).toMatchObject({ pipelinePaused: false, pausedCode: null });
+    await prisma.globalSettings.deleteMany();
+  });
+
   it('stores secrets encrypted, plain values as plain text, and decrypts on resolve', async () => {
     process.env.ENCRYPTION_KEY = randomBytes(32).toString('base64');
     delete process.env.GITHUB_TOKEN;

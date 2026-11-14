@@ -8,7 +8,7 @@ import { JiraNotConfiguredError, JiraClients } from './jira-clients';
 import { JiraUnavailableError } from './jira-client';
 
 /**
- * Inbound approval (F15; in MCP mode each read is a stage run, so it follows the MCP poll interval): for tickets awaiting plan or breakdown approval, read the issue's
+ * Inbound approval (F15): for tickets awaiting plan or breakdown approval, read the issue's
  * Jira status; if it equals the configured approval status, approve. Any other manual Jira change is ignored.
  */
 @Injectable()
@@ -23,9 +23,9 @@ export class ApprovalPoller {
   ) {}
 
   /** Returns how many tickets were approved. Throws JiraUnavailableError if Jira is down (the loop pauses intake). */
-  async check(mode: 'rest' | 'mcp' = 'rest', only?: (project: Project) => boolean): Promise<number> {
+  async check(only?: (project: Project) => boolean): Promise<number> {
     const tickets = await this.prisma.ticket.findMany({
-      where: { source: 'jira', externalKey: { not: null }, status: { in: ['AWAITING_PLAN_APPROVAL', 'AWAITING_BREAKDOWN_APPROVAL'] }, project: { enabled: true, jiraMode: mode } },
+      where: { source: 'jira', externalKey: { not: null }, status: { in: ['AWAITING_PLAN_APPROVAL', 'AWAITING_BREAKDOWN_APPROVAL'] }, project: { enabled: true, onboardingStatus: 'confirmed', jiraMode: 'rest' } },
       include: { project: true },
       orderBy: { createdAt: 'asc' },
     });
@@ -34,7 +34,7 @@ export class ApprovalPoller {
       const approvals = ProjectSettingsSchema.parse(ticket.project.settings).jiraApprovalStatuses;
       if (!approvals.plan && !approvals.breakdown) continue;
       try {
-        const issue = await (await this.clients.forMode(mode)).readStatus(ticket.externalKey as string);
+        const issue = await (await this.clients.forRest()).readStatus(ticket.externalKey as string);
         const { status } = issue;
         const next = approvalTarget(ticket.status as TicketStatus, status, approvals);
         if (!next) continue;

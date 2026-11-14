@@ -1,3 +1,4 @@
+import type { JiraFacts } from '@sdlc/shared';
 import type { JiraClient, JiraIssueStatus, JiraProjectRef, JiraSubtaskInput, JiraTicket } from '../jira/jira-client';
 import { JiraStatusNotFoundError } from '../jira/jira-client';
 import { JiraClients } from '../jira/jira-clients';
@@ -25,17 +26,44 @@ export class FakeJira implements JiraClient {
     this.guard(`read ${key}`);
     return { key, status: this.statuses[key] ?? 'To Do', summary: '', description: '' };
   }
-  async comment(key: string) {
+  commentBodies: Record<string, string[]> = {};
+  async comment(key: string, markdown?: string, marker?: string) {
     this.guard(`comment ${key}`);
+    const list = (this.commentBodies[key] ??= []);
+    if (marker && list.some((c) => c.includes(marker))) return;
+    list.push(marker ? `${markdown}\n\n${marker}` : (markdown ?? ''));
+  }
+  async upsertComment(key: string, markdown: string, marker: string) {
+    this.guard(`comment ${key}`);
+    const list = (this.commentBodies[key] ??= []);
+    const at = list.findIndex((c) => c.includes(marker));
+    const body = `${markdown}\n\n${marker}`;
+    if (at === -1) list.push(body);
+    else list[at] = body;
   }
   async transition(key: string, statusName: string) {
     this.guard(`transition ${key} -> ${statusName}`);
+    if ((this.statuses[key] ?? '').trim().toLowerCase() === statusName.trim().toLowerCase()) return;
     if (!this.existingTargets.has(statusName.trim().toLowerCase())) throw new JiraStatusNotFoundError(key, statusName, [...this.existingTargets]);
     this.statuses[key] = statusName;
   }
+  createdSubtasks: Record<string, string> = {}; // marker -> key
   async createSubtask(parentKey: string, subtask: JiraSubtaskInput) {
     this.guard(`subtask ${parentKey} ${subtask.summary}`);
-    return { key: `${parentKey}-S` };
+    if (subtask.marker && this.createdSubtasks[subtask.marker]) return { key: this.createdSubtasks[subtask.marker] as string };
+    const key = `${parentKey}-S`;
+    if (subtask.marker) this.createdSubtasks[subtask.marker] = key;
+    return { key };
+  }
+  facts: JiraFacts = {
+    projectName: 'Demo',
+    issueTypes: [{ name: 'Story', subtask: false }, { name: 'Bug', subtask: false }, { name: 'Epic', subtask: false }, { name: 'Sub-task', subtask: true }],
+    statusesByType: [{ type: 'Story', statuses: [{ name: 'To Do', category: 'new' }, { name: 'In Progress', category: 'indeterminate' }, { name: 'Done', category: 'done' }] }],
+    labels: ['backend'],
+  };
+  async projectFacts(projectKey: string) {
+    this.guard(`facts ${projectKey}`);
+    return this.facts;
   }
   async listStatuses(projectKey: string) {
     this.guard(`statuses ${projectKey}`);
@@ -50,9 +78,6 @@ export class FakeJiraClients extends JiraClients {
   }
   override async forRest() {
     return this.jira;
-  }
-  override hasMcp() {
-    return true;
   }
   override async forMode() {
     return this.jira;

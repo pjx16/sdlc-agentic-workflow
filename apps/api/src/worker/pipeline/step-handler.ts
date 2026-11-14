@@ -5,6 +5,8 @@ import type { Ticket } from '../../generated/prisma/client';
 export type StepOutcome =
   | { kind: 'transition'; to: TicketStatus; reason?: string; stageRunId?: string }
   | { kind: 'hold'; reason: HoldReason; note?: string; stageRunId?: string }
+  /** The recovery policy says to give up on the ticket (CONTAINER_ERROR, TIMEOUT after the retry). */
+  | { kind: 'fail'; reason: string; stageRunId?: string }
   /** A step ran and its work is recorded, but the ticket's state does not change (for example one subtask step of IN_PROGRESS). */
   | { kind: 'continue' }
   /** Nothing to change now (for example the usage gate paused the pipeline); the loop waits before the next pick. */

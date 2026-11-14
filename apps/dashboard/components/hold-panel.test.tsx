@@ -46,7 +46,7 @@ describe('HoldPanel', () => {
     expect(screen.getByRole('group', { name: 'Redo tests' })).toHaveTextContent('throws away the tests and the code');
     await userEvent.type(screen.getByLabelText(/Tell the agent what to change/), 'accept export const');
     await userEvent.click(screen.getByRole('button', { name: 'Discard and redo the tests' }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/tickets/t1/redo-tests', expect.objectContaining({ method: 'POST', body: JSON.stringify({ note: 'accept export const' }) })));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/tickets/t1/subtasks/1/rerun', expect.objectContaining({ method: 'POST', body: JSON.stringify({ part: 'tests', note: 'accept export const' }) })));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(screen.queryByRole('group', { name: 'Redo tests' })).toBeNull();
   });
@@ -63,7 +63,7 @@ describe('HoldPanel', () => {
     expect(screen.queryByRole('button', { name: 'Redo tests' })).toBeNull();
     rerender(<HoldPanel ticketId="t1" info={info({ holdReason: 'awaiting_answer' })} />);
     expect(screen.queryByRole('button')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Go to Support' })).toHaveAttribute('href', '/support');
+    expect(screen.getByRole('link', { name: 'Go to Inbox' })).toHaveAttribute('href', '/inbox');
   });
 
   it('shows the server error', async () => {

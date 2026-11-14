@@ -43,7 +43,7 @@ function workspace(): string {
 }
 
 const request = (over: Partial<StageRequest> = {}): StageRequest => ({
-  projectId, stage: 'plan', stack: 'nestjs', claudeMdMode: 'both', modelAlias: 'sonnet', modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
+  projectId, stage: 'solutionDesign', stack: 'nestjs', claudeMdMode: 'both', modelAlias: 'sonnet', modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' },
   maxTurns: 10, stageTimeoutMin: 2, inputs: { ticket: { key: 'KEY-1', title: 'Add a thing', body: 'Please add a thing.' } }, workspacePath: workspace(), ...over,
 });
 
@@ -94,7 +94,7 @@ describe('fake stage end to end, in a real container', () => {
 
   it('a read-only stage cannot change the workspace', async () => {
     const ws = workspace();
-    const res = await runnerFor('ok').run(request({ stage: 'plan', workspacePath: ws }));
+    const res = await runnerFor('ok').run(request({ stage: 'solutionDesign', workspacePath: ws }));
     expect(res.kind).toBe('done');
     // the plan stage mounts read-only: an edit attempt from the same container would fail
     const probe = await shellInAgent('touch /workspace/should-fail 2>&1; echo "exit=$?"', { workspace: { path: ws, readOnly: true } });
@@ -104,11 +104,11 @@ describe('fake stage end to end, in a real container', () => {
 
   it('a schema failure is retried once and then fails; both attempts are recorded', async () => {
     const res = await runnerFor('schema-fail').run(request());
-    expect(res).toMatchObject({ kind: 'failed', attempts: 2 });
+    expect(res).toMatchObject({ kind: 'failed', errorCode: 'INVALID_OUTPUT', attempts: 2 });
     expect((res as { reason: string }).reason).toContain('data.planMarkdown');
     const runs = await prisma.stageRun.findMany({ where: { id: (res as { stageRunId: string }).stageRunId } });
     expect(runs[0]).toMatchObject({ attempt: 2, status: 'failed' });
-    const all = await prisma.stageRun.findMany({ where: { projectId, stage: 'plan', status: 'failed' }, orderBy: { attempt: 'asc' } });
+    const all = await prisma.stageRun.findMany({ where: { projectId, stage: 'solutionDesign', status: 'failed' }, orderBy: { attempt: 'asc' } });
     expect(all.slice(-2).map((r) => r.attempt)).toEqual([1, 2]);
   }, 180_000);
 
@@ -124,8 +124,8 @@ describe('fake stage end to end, in a real container', () => {
   it('kills a stage that exceeds the stage timeout, retries once, then fails', async () => {
     const started = Date.now();
     const res = await runnerFor('slow').run(request({ stageTimeoutMin: 0.05 })); // 3 seconds
-    expect(res).toMatchObject({ kind: 'failed', attempts: 2 });
-    expect((res as { reason: string }).reason).toContain('Timed out');
+    expect(res).toMatchObject({ kind: 'failed', errorCode: 'TIMEOUT', attempts: 2 });
+    expect((res as { reason: string }).reason).toContain('took longer than');
     expect(Date.now() - started).toBeLessThan(60_000);
   }, 120_000);
 
@@ -147,8 +147,8 @@ describe('fake stage end to end, in a real container', () => {
     expect(await prisma.stageRun.findUniqueOrThrow({ where: { id: runId } })).toMatchObject({ status: 'killed', killRequested: true });
   }, 120_000);
 
-  it('holds at the turn limit without retrying, and reports needs_input and rate limits', async () => {
-    expect(await runnerFor('turn-limit').run(request())).toMatchObject({ kind: 'turn_limit', attempts: 1 });
+  it('retries once at the turn limit, and reports needs_input and rate limits', async () => {
+    expect(await runnerFor('turn-limit').run(request())).toMatchObject({ kind: 'turn_limit', attempts: 2 });
     expect(await runnerFor('needs-input').run(request())).toMatchObject({ kind: 'needs_input', question: 'Which database should be used?' });
     const limited = await runnerFor('rate-limit').run(request());
     expect(limited).toMatchObject({ kind: 'rate_limited', attempts: 1 });

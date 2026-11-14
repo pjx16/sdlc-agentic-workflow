@@ -1,3 +1,4 @@
+import type { GithubFacts } from '@sdlc/shared';
 import type { CheckBucket, GitHubClient, OpenedPr, PrCheck, PrState } from '../worker/github/github-client';
 
 /** A GitHub client that records every call and answers from a script. For tests. */
@@ -8,6 +9,9 @@ export class FakeGitHub implements GitHubClient {
   comments: { number: number; body: string }[] = [];
   nextNumber = 100;
   failOpenWith: Error | null = null;
+  failComment: Error | null = null;
+  facts: GithubFacts = { defaultBranch: 'main', languages: ['TypeScript'] };
+  failFacts: Error | null = null;
   checksResult: PrCheck[] = [];
   state: PrState = { state: 'OPEN', mergedAt: null };
   failLog = '';
@@ -20,12 +24,18 @@ export class FakeGitHub implements GitHubClient {
     const number = this.nextNumber++;
     return { number, url: `https://github.com/${a.repo}/pull/${number}` };
   }
+  async repoFacts(): Promise<GithubFacts> {
+    this.calls.push('repoFacts');
+    if (this.failFacts) throw this.failFacts;
+    return this.facts;
+  }
   async markReady(_repo: string, number: number) {
     this.calls.push('markReady');
     this.ready.push(number);
   }
   async comment(_repo: string, number: number, body: string) {
     this.calls.push('comment');
+    if (this.failComment) throw this.failComment;
     this.comments.push({ number, body });
   }
   async checks(): Promise<PrCheck[]> {
@@ -35,6 +45,9 @@ export class FakeGitHub implements GitHubClient {
   async failingLogTail() {
     this.calls.push('failingLogTail');
     return this.failLog;
+  }
+  async rerunFailed() {
+    this.calls.push('rerunFailed');
   }
   async prState(): Promise<PrState> {
     this.calls.push('prState');

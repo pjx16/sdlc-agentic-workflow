@@ -10,6 +10,16 @@ export class UsageController {
     return this.usage.snapshots({ from, to });
   }
 
+  @Get('models')
+  models(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.usage.models({ from, to });
+  }
+
+  @Get('rate')
+  rate(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.usage.rate({ from, to });
+  }
+
   @Get('summary')
   summary() {
     return this.usage.summary();

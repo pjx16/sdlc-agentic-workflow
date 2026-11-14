@@ -4,19 +4,19 @@ export type WorkspaceAccess = 'rw' | 'ro' | 'none';
 
 /** Workspace mounting per stage (BUILD_PLAN 6.4 table). kbBuild and kbUpdate may only change `kbDir`. */
 export const STAGE_WORKSPACE: Record<StageName, WorkspaceAccess> = {
-  kbBuild: 'rw', plan: 'ro', breakdown: 'ro', tests: 'rw', implement: 'rw', fix: 'rw',
-  review: 'ro', kbUpdate: 'rw', jiraIntake: 'none', jiraSync: 'none',
+  orchestrate: 'none', featureMap: 'ro', kbBuild: 'rw', solutionDesign: 'ro', bugInvestigation: 'ro', technicalDesign: 'ro', tests: 'rw', implement: 'rw', fix: 'rw',
+  prReview: 'ro', qualityReview: 'ro', securityReview: 'ro', kbUpdate: 'rw', ciTriage: 'none', assist: 'ro', repoProfile: 'ro', onboardAdvise: 'none',
 };
-
-export const isJiraStage = (stage: StageName): boolean => stage === 'jiraIntake' || stage === 'jiraSync';
 
 /** `stage.json`, read by run-stage (BUILD_PLAN 6.4). `attempt` and `round` are extra, for the test stub and diagnostics. */
 export interface StageJson {
   model: string;
   maxTurns: number;
   disallowedTools: string[];
-  allowedTools?: string[];
-  mcpConfig?: boolean;
+  /** Continue this CLI session (the assistant keeps one conversation per support ticket). */
+  resumeSession?: string;
+  /** Extended thinking budget in tokens; set only at the orchestrator's decision points. */
+  thinkingTokens?: number;
   attempt: number;
   round: number;
 }
@@ -30,20 +30,17 @@ export interface StageConfigInput {
   maxTurns: number;
   attempt?: number;
   round?: number;
-  /** Jira stages only: the project's MCP tool names (bare), and the MCP server's name in the config file. */
-  jiraTools?: string[];
-  mcpServerName?: string;
+  resumeSession?: string;
+  thinkingTokens?: number;
 }
 
 const ALWAYS_DISALLOWED = ['WebFetch', 'WebSearch'];
 const READ_ONLY_EXTRA = ['Edit', 'Write', 'NotebookEdit'];
-const JIRA_EXTRA = ['Bash', 'Read', 'Edit', 'Write', 'Grep', 'Glob'];
 
 export function buildStageJson(input: StageConfigInput): StageJson {
-  const jira = isJiraStage(input.stage);
   const disallowed = [...ALWAYS_DISALLOWED];
-  if (jira) disallowed.push(...JIRA_EXTRA);
-  else if (STAGE_WORKSPACE[input.stage] === 'ro') disallowed.push(...READ_ONLY_EXTRA);
+  // Only a stage with a read-write workspace may edit files; a read-only or workspace-less stage has nothing it may change.
+  if (STAGE_WORKSPACE[input.stage] !== 'rw') disallowed.push(...READ_ONLY_EXTRA);
 
   const json: StageJson = {
     model: input.modelAliases[input.modelAlias],
@@ -51,12 +48,9 @@ export function buildStageJson(input: StageConfigInput): StageJson {
     disallowedTools: disallowed,
     attempt: input.attempt ?? 1,
     round: input.round ?? 0,
+    ...(input.resumeSession ? { resumeSession: input.resumeSession } : {}),
+    ...(input.thinkingTokens ? { thinkingTokens: input.thinkingTokens } : {}),
   };
-  if (jira) {
-    const server = input.mcpServerName ?? 'atlassian';
-    json.allowedTools = (input.jiraTools ?? []).map((t) => `mcp__${server}__${t}`);
-    json.mcpConfig = true;
-  }
   return json;
 }
 

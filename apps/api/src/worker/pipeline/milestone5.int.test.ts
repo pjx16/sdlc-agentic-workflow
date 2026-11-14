@@ -143,7 +143,7 @@ describe('milestone 5 end to end (real containers, fake-claude)', () => {
     expect(row.featureKey).toBe('billing-export');
     expect(row.planMarkdown).toContain('# Plan');
     const runs = await prisma.stageRun.findMany({ where: { ticketId: t.id }, orderBy: { startedAt: 'asc' } });
-    expect(runs.map((r) => [r.stage, r.status])).toEqual([['kbBuild', 'succeeded'], ['plan', 'succeeded']]);
+    expect(runs.map((r) => [r.stage, r.status])).toEqual([['featureMap', 'succeeded'], ['kbBuild', 'succeeded'], ['solutionDesign', 'succeeded']]);
     for (const r of runs) expect(existsSync(r.logPath as string)).toBe(true);
     expect(await leftoverAgentContainers()).toEqual([]);
 
@@ -171,7 +171,7 @@ describe('milestone 5 end to end (real containers, fake-claude)', () => {
     await runUntilIdle();
     expect(await status(t.id)).toBe('AWAITING_PLAN_APPROVAL');
 
-    const planRuns = await prisma.stageRun.findMany({ where: { ticketId: t.id, stage: 'plan' }, orderBy: { startedAt: 'asc' } });
+    const planRuns = await prisma.stageRun.findMany({ where: { ticketId: t.id, stage: 'solutionDesign' }, orderBy: { startedAt: 'asc' } });
     expect(planRuns).toHaveLength(2);
     const prompt = readFileSync(path.join(dataDir, 'runs', (planRuns[1] as { id: string }).id, 'prompt.md'), 'utf8');
     expect(prompt).toContain('## Previous plan');

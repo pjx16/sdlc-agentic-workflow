@@ -1,12 +1,11 @@
-import { splitLines, stringifyNumbers, toNumber, type FormValues } from './form';
+import { STAGE_NAMES } from '@sdlc/shared';
+import { stringifyNumbers, toNumber, type FormValues } from './form';
 import type { GlobalSettingsView } from './types';
 
 const NUMERIC_PATHS = [
   'usageThresholdPct', 'usageThresholdWeeklyPct', 'calibratedWindowTokens', 'pollIntervalSec',
-  'stageTimeoutMin', 'verifyTimeoutSec', 'workspaceRetentionDays', 'logRetentionDays',
+  'stageTimeoutMin', 'verifyTimeoutSec', 'workspaceRetentionDays', 'logRetentionDays', 'assistantTokenCap',
 ] as const;
-
-export const LIST_PATHS = ['jiraMcp.readTools', 'jiraMcp.writeTools'] as const;
 
 export function initialSettingsValues(s: GlobalSettingsView): FormValues {
   return {
@@ -18,10 +17,11 @@ export function initialSettingsValues(s: GlobalSettingsView): FormValues {
       verifyTimeoutSec: s.verifyTimeoutSec,
       workspaceRetentionDays: s.workspaceRetentionDays,
       logRetentionDays: s.logRetentionDays,
+      assistantTokenCap: s.assistantTokenCap,
     }),
     calibratedWindowTokens: s.calibratedWindowTokens === null ? '' : String(s.calibratedWindowTokens),
     modelAliases: { ...s.modelAliases },
-    jiraMcp: { readTools: s.jiraMcp.readTools.join('\n'), writeTools: s.jiraMcp.writeTools.join('\n') },
+    stageDefaults: Object.fromEntries(STAGE_NAMES.map((st) => [st, { model: s.stageDefaults?.[st]?.model ?? 'sonnet', maxTurns: String(s.stageDefaults?.[st]?.maxTurns ?? '') }])),
   };
 }
 
@@ -29,7 +29,7 @@ export function initialSettingsValues(s: GlobalSettingsView): FormValues {
 export function toSettingsPayload(values: FormValues): Record<string, unknown> {
   const out: Record<string, any> = { ...values }; // eslint-disable-line @typescript-eslint/no-explicit-any
   for (const key of NUMERIC_PATHS) out[key] = toNumber(values[key]);
-  const mcp = values.jiraMcp as { readTools: string; writeTools: string };
-  out.jiraMcp = { readTools: splitLines(mcp.readTools), writeTools: splitLines(mcp.writeTools) };
+  const defaults = (values.stageDefaults ?? {}) as Record<string, { model: string; maxTurns: string }>;
+  out.stageDefaults = Object.fromEntries(Object.entries(defaults).map(([stage, d]) => [stage, { model: d.model, maxTurns: toNumber(d.maxTurns) }]));
   return out;
 }

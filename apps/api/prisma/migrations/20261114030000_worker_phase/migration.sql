@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "WorkerStatus" ADD COLUMN "phase" TEXT NOT NULL DEFAULT 'idle',
+ADD COLUMN "phaseDetail" TEXT,
+ADD COLUMN "phaseSince" TIMESTAMPTZ(6),
+ADD COLUMN "startedAt" TIMESTAMPTZ(6),
+ADD COLUMN "pid" INTEGER,
+ADD COLUMN "version" TEXT;

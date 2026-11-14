@@ -73,9 +73,9 @@ describe('Plan gate API (F7, BUILD_PLAN 8)', () => {
       expect(await reload(tk.id)).toMatchObject({ status: 'BREAKDOWN', title: 'Retitled in Jira', body: 'Rewritten in Jira' });
     });
 
-    it('does not re-read Jira for pasted tickets or other Jira modes', async () => {
+    it('does not re-read Jira for pasted tickets or projects with Jira off', async () => {
       await t.agent.post(`/tickets/${(await ticket()).id}/plan/approve`).send({}).expect(200);
-      await setProject({ jiraMode: 'mcp' });
+      await setProject({ jiraMode: 'off' });
       await t.agent.post(`/tickets/${(await ticket({ source: 'jira', externalKey: 'ABC-8' })).id}/plan/approve`).send({}).expect(200);
       expect(t.jira.jira.calls.filter((c) => c.startsWith('read'))).toEqual([]);
     });

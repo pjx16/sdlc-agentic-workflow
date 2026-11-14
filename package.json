@@ -21,7 +21,9 @@
     "test:e2e": "turbo run build --filter=@sdlc/api... && npm run test:e2e -w @sdlc/e2e",
     "up:prod": "bash scripts/prod.sh",
     "up:dev": "bash scripts/dev.sh",
-    "down": "docker compose down"
+    "down": "docker compose down",
+    "agents": "node scripts/generate-agents.mjs",
+    "formats": "node scripts/generate-formats.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

@@ -55,6 +55,13 @@ services:
       dockerfile: docker/worker/Dockerfile
     restart: unless-stopped
     user: root
+    healthcheck:
+      # Fails when the worker's heartbeat is older than 30 s, so `docker ps` shows a hung worker as unhealthy.
+      test: ["CMD", "node", "dist/scripts/worker-health.js"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     depends_on:
       api: { condition: service_healthy }
     environment:
@@ -67,9 +74,6 @@ services:
       JIRA_BASE_URL: ${JIRA_BASE_URL:-}
       JIRA_EMAIL: ${JIRA_EMAIL:-}
       JIRA_API_TOKEN: ${JIRA_API_TOKEN:-}
-      JIRA_MCP_CONFIG_PATH: ${JIRA_MCP_CONFIG_PATH:-}
-      # Any variable the MCP config refers to as ${NAME} must be listed here; only those reach the two Jira stages.
-      JIRA_MCP_AUTH: ${JIRA_MCP_AUTH:-}
       DATA_DIR: ${DATA_DIR:?set DATA_DIR in .env}
       AGENT_IMAGE: ${AGENT_IMAGE:-sdlc-agent/agent:latest}
       AGENT_MEMORY: ${AGENT_MEMORY:-4g}
@@ -79,8 +83,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${DATA_DIR}:${DATA_DIR}
       - ./guidelines:/app/guidelines:ro
-      # Jira MCP mode: the MCP server description (see docker/jira-mcp.example.json); JIRA_MCP_CONFIG_PATH=/config/jira-mcp.json
-      - ${JIRA_MCP_CONFIG_FILE:-./docker/jira-mcp.example.json}:/config/jira-mcp.json:ro
     networks: [internal, egress]
 
   dashboard:
@@ -95,8 +97,6 @@ services:
   proxy:
     build: docker/proxy
     restart: unless-stopped
-    environment:
-      JIRA_MCP_HOST: ${JIRA_MCP_HOST:-}
     networks: [agent_net, egress]
 
   # Build only: `docker compose --profile build build` produces sdlc-agent/agent:latest.

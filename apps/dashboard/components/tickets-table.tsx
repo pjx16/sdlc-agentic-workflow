@@ -4,6 +4,15 @@ import { StateBadge } from './state-badge';
 import { formatDateTime, humanizeStatus } from '@/lib/ticket-status';
 import type { TicketListItem } from '@/lib/types';
 
+/** The states where the pipeline waits for a person, and what it waits for. */
+export const ATTENTION: Record<string, string> = {
+  AWAITING_PLAN_APPROVAL: 'Approve the plan',
+  AWAITING_BREAKDOWN_APPROVAL: 'Approve the breakdown',
+  IN_HUMAN_REVIEW: 'Review the PR',
+  ON_HOLD: 'On hold',
+  FAILED: 'Failed',
+};
+
 export interface Filters {
   projectId?: string;
   status?: string;
@@ -74,6 +83,7 @@ export function TicketsTable({ tickets, filtered }: { tickets: TicketListItem[];
             <td className="py-3 text-muted">{t.projectName}</td>
             <td className="py-3">
               <StateBadge status={t.status} />
+              {ATTENTION[t.status] && <span className="ml-2 rounded border border-amber px-1.5 py-0.5 text-xs text-amber">{ATTENTION[t.status]}</span>}
             </td>
             <td className="py-3 text-muted">{formatDateTime(t.updatedAt)}</td>
           </tr>
