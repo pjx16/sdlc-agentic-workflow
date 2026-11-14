@@ -13,6 +13,9 @@ const NUMERIC_PATHS = [
   'settings.limits.maxReviewRounds',
   'settings.limits.kbDocMaxLines',
   'settings.limits.reviewMaxDiffLines',
+  'settings.loopLimits.ciFix',
+  'settings.loopLimits.userRerun',
+  'settings.loopLimits.orchestratorReplan',
 ];
 
 export function initialValues(project?: ProjectView): FormValues {
