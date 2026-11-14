@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { MODEL_ALIASES, STAGE_NAMES } from '@sdlc/shared';
-import { FormProvider, Num, Section, Select, Text, TextArea } from './form';
+import { FormProvider, Num, Section, Select, Text } from './form';
 import { STAGE_LABELS } from '@/lib/stage-labels';
 import { setIn, type FormValues } from '@/lib/form';
 import { initialSettingsValues, toSettingsPayload } from '@/lib/settings-form';

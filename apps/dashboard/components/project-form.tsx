@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import {
   CLAUDE_MD_MODES, DEFAULT_INTAKE_LABEL, JIRA_MODES, MODEL_ALIASES, PROJECT_STACKS, STAGE_NAMES,
-  ProjectSettingsSchema, defaultJiraJql, commandWarnings, stageWarnings, type ProjectStack, type StageName,
+  ProjectSettingsSchema, defaultJiraJql, commandWarnings, stageWarnings, type ProjectStack,
 } from '@sdlc/shared';
 import { Check, FormProvider, Num, Section, Select, Text, TextArea, Warnings } from './form';
 import { MirrorStatus } from './mirror-status';

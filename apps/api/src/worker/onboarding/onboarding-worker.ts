@@ -170,15 +170,15 @@ export class OnboardingWorker implements Housekeeper {
     try {
       github = await this.github.repoFacts(parseRepo(project.repoUrl));
     } catch (err) {
-      throw new Error(`GitHub: ${err instanceof Error ? err.message : String(err)}. Check the GitHub token in Settings → Connections and the repository URL.`);
+      throw new Error(`GitHub: ${err instanceof Error ? err.message : String(err)}. Check the GitHub token in Settings → Connections and the repository URL.`, { cause: err });
     }
     let jira: JiraFacts | null = null;
     if (project.jiraMode === 'rest' && project.jiraProjectKey) {
       try {
         jira = await (await this.jira.forRest()).projectFacts(project.jiraProjectKey);
       } catch (err) {
-        if (err instanceof JiraNotConfiguredError) throw new Error(`${err.message}. Or onboard without a Jira project key.`);
-        throw new Error(`Jira: ${err instanceof Error ? err.message : String(err)}. Check the project key and the Jira credential.`);
+        if (err instanceof JiraNotConfiguredError) throw new Error(`${err.message}. Or onboard without a Jira project key.`, { cause: err });
+        throw new Error(`Jira: ${err instanceof Error ? err.message : String(err)}. Check the project key and the Jira credential.`, { cause: err });
       }
     }
     let confluence: OnboardingFacts['confluence'];

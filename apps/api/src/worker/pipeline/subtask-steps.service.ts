@@ -238,7 +238,7 @@ export class SubtaskStepsService implements SubtaskSteps {
    * (otherwise the implementation already in place would make any new test pass at once, which verify-red rejects). Only done when the
    * test commit is still the latest commit: anything committed after it is never discarded.
    */
-  private async discardSubtaskWork(ticket: Ticket, subtask: Subtask, ws: string): Promise<void> {
+  private async discardSubtaskWork(ticket: Ticket, subtask: Subtask, _ws: string): Promise<void> {
     const part = subtask.rerunPart === 'implementation' ? 'implementation' : 'tests';
     // Tests: back to before the tests were committed (the implementation goes with them). Implementation: back to just after the tests.
     const from = part === 'tests' ? subtask.testCommit : subtask.featCommit;
