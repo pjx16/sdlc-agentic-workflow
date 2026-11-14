@@ -1,4 +1,4 @@
-import { DEFAULT_PROJECT_SETTINGS, STACK_PREFILLS } from '@sdlc/shared';
+import { DEFAULT_PROJECT_SETTINGS, ProjectInputSchema, STACK_PREFILLS } from '@sdlc/shared';
 import { describe, expect, it } from 'vitest';
 import { applyStackChange, initialValues, toPayload } from './project-form';
 import type { ProjectView } from './types';
@@ -26,6 +26,15 @@ describe('initialValues', () => {
     expect(v.settings.jiraStatusMap.DONE).toBe('Closed');
     expect(v.settings.jiraStatusMap.NEW).toBe('');
     expect(v.settings.jiraApprovalStatuses).toEqual({ plan: 'Plan OK', breakdown: '' });
+  });
+});
+
+describe('a new project payload', () => {
+  it('passes the shared schema, loop limits included', () => {
+    const v = initialValues() as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    Object.assign(v, { name: 'Shipping', repoUrl: 'https://github.com/acme/shipping' });
+    const r = ProjectInputSchema.safeParse(toPayload(v));
+    expect(r.success ? [] : r.error.issues).toEqual([]);
   });
 });
 

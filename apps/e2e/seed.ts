@@ -41,7 +41,7 @@ export async function seed(databaseUrl: string): Promise<void> {
     await run({ stage: 'fix', reason: 'review', model: 'sonnet', startedAt: hoursAgo(2), endedAt: hoursAgo(1.9), status: 'failed', error: 'Timed out after 20 minutes' });
     await run({ stage: 'prReview', model: 'sonnet', startedAt: hoursAgo(26), endedAt: hoursAgo(25.9) });
     const asked = await run({ ticketId: asking.id, stage: 'solutionDesign', status: 'needs_input', startedAt: hoursAgo(1), endedAt: hoursAgo(0.9) });
-    await prisma.supportTicket.create({ data: { kind: 'open_question', title: SEED.question, body: SEED.question, ticketId: asking.id, projectId: asking.projectId, stageRunId: asked.id, stage: 'solutionDesign' } });
+    await prisma.supportTicket.create({ data: { kind: 'question', title: SEED.question, body: SEED.question, ticketId: asking.id, projectId: asking.projectId, stageRunId: asked.id, stage: 'solutionDesign' } });
     await prisma.reviewFinding.createMany({
       data: [
         { ticketId: review.id, round: 1, severity: 'high', file: 'src/export.ts', line: 12, issue: 'Unvalidated input', rule: 'Security', fix: 'Validate', status: 'open' },

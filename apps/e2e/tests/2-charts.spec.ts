@@ -52,7 +52,7 @@ test('the ticket timeline shows one bar per run, and its data', async ({ page })
 test('the usage page lists the snapshots', async ({ page }) => {
   await login(page);
   await page.goto('/usage');
-  await expect(page.getByRole('table').first()).toContainText('allowed_warning');
+  await expect(page.getByRole('table').filter({ hasText: 'allowed_warning' }).first()).toBeVisible();
 });
 
 test('without data: every chart shows an empty state instead of a chart', async ({ page }) => {

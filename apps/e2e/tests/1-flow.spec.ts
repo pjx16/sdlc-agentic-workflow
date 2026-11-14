@@ -25,7 +25,7 @@ test('pages need a session; a wrong password is refused; the right one logs in',
 
 test('create a project', async ({ page }) => {
   await login(page);
-  await page.goto('/projects/new');
+  await page.goto('/projects/new?manual=1');
   await page.getByLabel('Name', { exact: true }).fill('Shipping');
   await page.getByLabel('Repository URL').fill('https://github.com/acme/shipping');
   await page.getByLabel('Local ticket prefix').fill('SHIP');
@@ -45,7 +45,7 @@ test('paste a ticket into a ready project', async ({ page }) => {
   await page.getByRole('button', { name: 'Create ticket' }).click();
   await page.waitForURL(/\/tickets\/[0-9a-f-]+/);
   await expect(page.getByRole('heading', { name: 'Pasted from the browser' })).toBeVisible();
-  await expect(page.getByText('BIL-10')).toBeVisible();
+  await expect(page.getByText('BIL-10 · Billing · pasted')).toBeVisible();
 });
 
 test('approve a plan', async ({ page }) => {
@@ -74,7 +74,7 @@ test('answer a support query, which resumes the ticket', async ({ page }) => {
   await expect(page.getByText(SEED.question)).toBeVisible();
   await page.getByLabel('Your answer').fill('EUR');
   await page.getByRole('button', { name: 'Answer' }).click();
-  await expect(page.getByText('Answer: EUR')).toBeVisible();
+  await expect(page.getByText(SEED.question)).toHaveCount(0); // an answered item moves to History
   await page.goto('/tickets');
   await ticketLink(page, 'BIL-4').click();
   await expect(page.getByText('Planning').first()).toBeVisible();
@@ -105,7 +105,7 @@ test('every dashboard page opens', async ({ page }) => {
   const ticket = (await withDb((c) => c.query(`SELECT id FROM "Ticket" WHERE key = $1`, [SEED.review.key]))).rows[0].id as string;
   const pages: [string, string | RegExp][] = [
     ['/', 'Overview'], ['/tickets', 'Tickets'], [`/tickets/${ticket}`, SEED.review.title], [`/tickets/${ticket}?tab=runs`, SEED.review.title], [`/tickets/${ticket}?tab=history`, SEED.review.title],
-    ['/support', 'Support queries'], ['/projects', 'Projects'], ['/projects/new', 'New project'], ['/guidelines', 'Guidelines'], ['/usage', 'Usage'], ['/settings', 'Settings'], ['/tickets/new', 'New ticket'],
+    ['/inbox', 'Inbox'], ['/projects', 'Projects'], ['/projects/new', 'New project'], ['/guidelines', 'Guidelines'], ['/usage', 'Usage'], ['/settings', 'Settings'], ['/tickets/new', 'New ticket'],
   ];
   for (const [url, heading] of pages) {
     const res = await page.goto(url);
