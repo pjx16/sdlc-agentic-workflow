@@ -10,12 +10,14 @@ describe('ProjectSettings defaults (section 7)', () => {
   it('fills every default from an empty object', () => {
     const s = ProjectSettingsSchema.parse({});
     expect(s.stages.kbBuild).toEqual({ enabled: true, model: 'sonnet', maxTurns: 30 });
-    expect(s.stages.plan).toEqual({ enabled: true, model: 'opus', maxTurns: 15 });
-    expect(s.stages.breakdown).toEqual({ enabled: true, model: 'haiku', maxTurns: 10 });
+    expect(s.stages.solutionDesign).toEqual({ enabled: true, model: 'opus', maxTurns: 15 });
+    expect(s.stages.technicalDesign).toEqual({ enabled: true, model: 'sonnet', maxTurns: 10 });
+    expect(s.stages.featureMap).toEqual({ enabled: true, model: 'haiku', maxTurns: 8 });
+    expect(s.stages.ciTriage).toEqual({ enabled: true, model: 'haiku', maxTurns: 5 });
     expect(s.stages.tests).toEqual({ enabled: true, model: 'sonnet', maxTurns: 25 });
-    expect(s.stages.implement).toEqual({ enabled: true, model: 'haiku', maxTurns: 40 });
+    expect(s.stages.implement).toEqual({ enabled: true, model: 'sonnet', maxTurns: 40 });
     expect(s.stages.fix).toEqual({ enabled: true, model: 'sonnet', maxTurns: 15 });
-    expect(s.stages.review).toEqual({ enabled: true, model: 'sonnet', maxTurns: 10 });
+    expect(s.stages.prReview).toEqual({ enabled: true, model: 'sonnet', maxTurns: 10 });
     expect(s.stages.kbUpdate).toEqual({ enabled: true, model: 'sonnet', maxTurns: 15 });
     expect(Object.keys(s.stages)).not.toContain('jiraIntake');
     expect(Object.keys(s.stages)).not.toContain('jiraSync');
@@ -35,23 +37,23 @@ describe('ProjectSettings defaults (section 7)', () => {
   });
 
   it('keeps unspecified siblings when one nested value is given', () => {
-    const s = ProjectSettingsSchema.parse({ stages: { plan: { maxTurns: 20 } }, limits: { maxSubtasks: 3 } });
-    expect(s.stages.plan).toEqual({ enabled: true, model: 'opus', maxTurns: 20 });
+    const s = ProjectSettingsSchema.parse({ stages: { solutionDesign: { maxTurns: 20 } }, limits: { maxSubtasks: 3 } });
+    expect(s.stages.solutionDesign).toEqual({ enabled: true, model: 'opus', maxTurns: 20 });
     expect(s.limits.maxSubtasks).toBe(3);
     expect(s.limits.maxReviewRounds).toBe(2);
   });
 
   it('reports field-level errors with dotted paths', () => {
     const r = ProjectSettingsSchema.safeParse({
-      stages: { plan: { maxTurns: 0, model: 'gpt' }, implement: { enabled: false } },
+      stages: { solutionDesign: { maxTurns: 0, model: 'gpt' }, implement: { enabled: false } },
       limits: { maxSubtasks: 'many' },
       pr: { ciTimeoutMin: 0 },
       verify: { redInvalidPatterns: ['('] },
     });
     expect(r.success).toBe(false);
     const fields = zodFields(r.error!);
-    expect(fields['stages.plan.maxTurns']).toBe('must be at least 1');
-    expect(fields['stages.plan.model']).toBeTruthy();
+    expect(fields['stages.solutionDesign.maxTurns']).toBe('must be at least 1');
+    expect(fields['stages.solutionDesign.model']).toBeTruthy();
     expect(fields['stages.implement.enabled']).toBe('The implement stage cannot be disabled');
     expect(fields['limits.maxSubtasks']).toBe('must be a number');
     expect(fields['pr.ciTimeoutMin']).toBe('must be at least 1');
@@ -70,9 +72,9 @@ describe('stage dependency warnings (F2)', () => {
     expect(stageWarnings(DEFAULT_PROJECT_SETTINGS)).toEqual([]);
   });
   it('warns for each disabled dependent stage', () => {
-    const s = ProjectSettingsSchema.parse({ stages: { plan: { enabled: false }, review: { enabled: false }, tests: { enabled: false } } });
+    const s = ProjectSettingsSchema.parse({ stages: { solutionDesign: { enabled: false }, prReview: { enabled: false }, tests: { enabled: false } } });
     expect(stageWarnings(s).map((w) => w.field)).toEqual([
-      'settings.stages.plan.enabled', 'settings.stages.tests.enabled', 'settings.stages.review.enabled',
+      'settings.stages.solutionDesign.enabled', 'settings.stages.tests.enabled', 'settings.stages.prReview.enabled',
     ]);
   });
 });

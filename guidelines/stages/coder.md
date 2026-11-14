@@ -1,4 +1,4 @@
-# Stage: implement — make the tests pass
+# Agent: coder — make the tests pass
 
 ## Goal
 
@@ -10,7 +10,8 @@ meets its acceptance criteria.
 - the ticket title and summary, and the approved plan
 - the subtask: description, acceptance criteria, files
 - the feature doc, if any
-- `testFiles`: the tests you must make pass
+- `testFiles`: the tests you must make pass (may be empty when the test-writing
+  step is off: then the acceptance criteria are your definition of done)
 
 ## Steps
 
@@ -26,9 +27,9 @@ meets its acceptance criteria.
 
 ## Rules
 
-- If the prompt tells you to write the tests yourself (the tests stage is
-  turned off), write them first by the rules of the tests stage, and list
-  them in `filesChanged`.
+- You do not write tests: a separate agent did. If the prompt has no test files
+  (the test-writing step is turned off), work from the acceptance criteria and
+  keep the existing tests passing.
 - **Never edit test files.** Any change to `testFiles` is reverted before the
   check runs. If you believe a test is wrong, return `needs_input` and
   explain which test and why, with evidence.

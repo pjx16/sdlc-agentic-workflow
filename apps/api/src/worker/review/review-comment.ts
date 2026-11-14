@@ -1,3 +1,4 @@
+import { FORMATS, fillTemplate } from '@sdlc/shared';
 import { SEVERITY_ORDER, type StoredFinding } from './review-findings';
 
 const HEADINGS: Record<string, string> = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' };
@@ -17,20 +18,22 @@ export interface ReviewCommentInput {
 }
 
 /** The review comment posted on the PR (BUILD_PLAN 6.9): one table per severity that has findings. */
-export function renderReviewComment(input: ReviewCommentInput): string {
-  const parts = [`## Review — round ${input.round}`, input.summary.trim() || '_No summary._'];
+export function renderReviewComment(input: ReviewCommentInput, template: string = defaultFormat('review-comment')): string {
   const bySeverity = new Map<string, ReviewCommentInput['findings'][number][]>();
   for (const f of input.findings) bySeverity.set(f.severity, [...(bySeverity.get(f.severity) ?? []), f]);
   const severities = [...bySeverity.keys()].sort((a, b) => (SEVERITY_ORDER[a] ?? 9) - (SEVERITY_ORDER[b] ?? 9));
 
-  if (severities.length === 0) parts.push('No findings.');
+  const tables: string[] = [];
+  if (severities.length === 0) tables.push('No findings.');
   for (const sev of severities) {
     const rows = (bySeverity.get(sev) ?? []).map((f) => `| ${cell(f.issue)} | ${location(f)} | ${cell(f.rule)} | ${cell(f.fix)} |`);
-    parts.push([`### ${HEADINGS[sev] ?? sev}`, '| Issue | Location | Why it matters | Suggested fix |', '| --- | --- | --- | --- |', ...rows].join('\n'));
+    tables.push([`### ${HEADINGS[sev] ?? sev}`, '| Issue | Location | Why it matters | Suggested fix |', '| --- | --- | --- | --- |', ...rows].join('\n'));
   }
-  if (input.round > 1 && input.previous) parts.push(`Previous findings: ${input.previous.fixed} fixed, ${input.previous.stillOpen} still open.`);
-  return `${parts.join('\n\n')}\n`;
+  const previous = input.round > 1 && input.previous ? `Previous findings: ${input.previous.fixed} fixed, ${input.previous.stillOpen} still open.` : '';
+  return `${fillTemplate(template, { round: input.round, summary: input.summary.trim() || '_No summary._', findings: tables.join('\n\n'), previous })}\n`;
 }
+
+const defaultFormat = (name: string): string => FORMATS.find((f) => f.name === name)?.default ?? '';
 
 /** The open findings as plain text, for the `fix` stage (it works on these only). */
 export function renderFindingsForFix(findings: readonly Pick<StoredFinding, 'severity' | 'file' | 'line' | 'issue' | 'rule' | 'fix'>[]): string {
@@ -48,9 +51,9 @@ export interface ReviewSummaryInput {
 }
 
 /** The comment posted when the PR is marked ready: how the review went, in a few lines. */
-export function renderReviewSummary(input: ReviewSummaryInput): string {
+export function renderReviewSummary(input: ReviewSummaryInput, template: string = defaultFormat('review-summary')): string {
   if (input.rounds === 0) return '## Review summary\n\nThe review stage was not run for this ticket.\n';
   const open = (['critical', 'high', 'medium', 'low'] as const).filter((s) => input.open[s] > 0).map((s) => `${input.open[s]} ${s}`);
   const left = open.length === 0 ? 'No findings remain open.' : `Still open: ${open.join(', ')}.`;
-  return `## Review summary\n\n${input.rounds} review round(s); ${input.fixed} finding(s) fixed. ${left}\n\nCI checks passed; this PR is ready for human review.\n`;
+  return `${fillTemplate(template, { rounds: input.rounds, fixed: input.fixed, left })}\n`;
 }

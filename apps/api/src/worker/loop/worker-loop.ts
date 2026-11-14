@@ -54,6 +54,8 @@ export class WorkerLoop {
     @Optional() @Inject(HOUSEKEEPERS) private readonly housekeepers: Housekeeper[] = [],
     @Optional() private readonly holds?: { onHold(ticketId: string, reason: string, note?: string): Promise<void> },
     @Optional() private readonly creds?: CredentialsService,
+    @Optional() private readonly rerunPrep?: { prepare(ticket: Ticket): Promise<StepOutcome | null> },
+    @Optional() private readonly orchestrator?: { review(ticket: Ticket, outcome: StepOutcome): Promise<StepOutcome> },
   ) {
     this.schedule = new Schedule(now);
   }
@@ -141,7 +143,10 @@ export class WorkerLoop {
     if (!handler) return 'stay';
     let outcome: StepOutcome;
     try {
-      outcome = await handler.run(ticket);
+      // After a rerun the stale code is removed with a revert commit before the stage runs again (BUILD_PLAN v1 6.8).
+      const held = ticket.revertFromSha && this.rerunPrep ? await this.rerunPrep.prepare(ticket) : null;
+      if (held) outcome = held;
+      else outcome = await handler.run(held === null && ticket.revertFromSha ? await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } }) : ticket);
     } catch (err) {
       // An unexpected error in a step is an unrecoverable internal error (6.6 row 18).
       const message = err instanceof Error ? err.message : String(err);
@@ -149,6 +154,8 @@ export class WorkerLoop {
       await this.states.fail(ticket.id, message.slice(0, 500)).catch((e: unknown) => this.logger.error(String(e)));
       return 'failed';
     }
+    // At a decision point with several legal moves the orchestrator may replace the default move (BUILD_PLAN v1 6.11).
+    if (this.orchestrator) outcome = await this.orchestrator.review(ticket, outcome);
     switch (outcome.kind) {
       case 'transition':
         await this.states.transition(ticket.id, outcome.to, 'system', outcome.reason, outcome.stageRunId);

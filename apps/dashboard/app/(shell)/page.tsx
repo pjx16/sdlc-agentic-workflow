@@ -49,11 +49,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
       {summary && <NumberCards summary={summary} />}
       <div className="grid gap-4 lg:grid-cols-2">
         {usage && <UsageChart data={usage} />}
-        {rate && (
-          <div className="lg:col-span-2">
-            <RateCharts data={rate} compact />
-          </div>
-        )}
+        {rate && <RateCharts data={rate} />}
         {tokens && <TokensChart data={tokens} />}
         {merged && <MergedChart data={merged} />}
         {merged && <LinesChart data={merged} />}

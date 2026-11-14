@@ -40,7 +40,7 @@ export class InProgressHandler implements StepHandler {
     if (!next) {
       const extra = await this.steps.allDone?.(ticket);
       if (extra && extra.kind !== 'continue') return extra;
-      return settings.stages.review.enabled
+      return settings.stages.prReview.enabled
         ? { kind: 'transition', to: 'REVIEW', reason: 'Every subtask is done' }
         : { kind: 'transition', to: 'KB_UPDATE', reason: 'Every subtask is done; the review stage is off' };
     }

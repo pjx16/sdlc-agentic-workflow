@@ -200,14 +200,14 @@ describe('Project onboarding API (BUILD_PLAN v1 6.7)', () => {
     });
 
     it('starts a new project with the stage models and turn limits chosen in Settings', async () => {
-      await t.prisma.globalSettings.upsert({ where: { id: 'global' }, update: { stageDefaults: { plan: { model: 'haiku', maxTurns: 6 }, implement: { model: 'opus', maxTurns: 90 } } }, create: { id: 'global', stageDefaults: { plan: { model: 'haiku', maxTurns: 6 }, implement: { model: 'opus', maxTurns: 90 } } } });
+      await t.prisma.globalSettings.upsert({ where: { id: 'global' }, update: { stageDefaults: { solutionDesign: { model: 'haiku', maxTurns: 6 }, implement: { model: 'opus', maxTurns: 90 } } }, create: { id: 'global', stageDefaults: { solutionDesign: { model: 'haiku', maxTurns: 6 }, implement: { model: 'opus', maxTurns: 90 } } } });
       const p = await proposed();
       await patch(p.id, 'statusMap', { action: 'accept' });
       await patch(p.id, 'label', { action: 'accept' });
       const stages = (await t.agent.post(`/projects/${p.id}/onboarding/confirm`).expect(200)).body.project.settings.stages;
-      expect(stages.plan).toMatchObject({ model: 'haiku', maxTurns: 6 });
+      expect(stages.solutionDesign).toMatchObject({ model: 'haiku', maxTurns: 6 });
       expect(stages.implement).toMatchObject({ model: 'opus', maxTurns: 90, enabled: true });
-      expect(stages.review).toMatchObject({ model: 'sonnet', maxTurns: 10 }); // not set: the built-in default
+      expect(stages.prReview).toMatchObject({ model: 'sonnet', maxTurns: 10 }); // not set: the built-in default
       await t.prisma.globalSettings.deleteMany();
     });
 

@@ -85,6 +85,8 @@ export interface SystemView {
   recentEvents: RecentEvent[];
   /** Open items that need you: blocking tickets and approvals. The sidebar badge. */
   inboxBadge: number;
+  /** Open FYI items (for example a pull request ready for human review): they need a look but block nothing. */
+  inboxFyi: number;
   runningStage: { id: string; stage: string; model: string; projectId: string; ticketId: string | null; startedAt: string | null } | null;
   usage: { at: string; fiveHourPct: number | null; sevenDayPct: number | null; status: string | null; resetsAt: string | null; source: string } | null;
 }
@@ -147,10 +149,12 @@ export class SystemSettingsService {
     const intakeRows = await this.prisma.workerStatus.findMany({ where: { id: { in: ['intake-rest'] } }, orderBy: { id: 'asc' } });
     const restarts = await this.prisma.event.count({ where: { type: 'worker', message: { startsWith: 'Worker started' }, at: { gte: new Date(Date.now() - 10 * 60_000) } } });
     const events = await this.prisma.event.findMany({ orderBy: { at: 'desc' }, take: 8, include: { ticket: { select: { key: true } } } });
+    const inboxFyi = await this.prisma.supportTicket.count({ where: { status: 'open', NOT: { OR: [{ kind: 'approval' }, { priority: 'blocking' }] } } });
     const inboxBadge = await this.prisma.supportTicket.count({ where: { status: 'open', OR: [{ kind: 'approval' }, { priority: 'blocking' }] } });
     return {
       settings,
       inboxBadge,
+      inboxFyi,
       worker: worker && {
         online: Date.now() - worker.heartbeatAt.getTime() < WORKER_ONLINE_MS,
         state: workerState(worker, Date.now(), settings.stageTimeoutMin),

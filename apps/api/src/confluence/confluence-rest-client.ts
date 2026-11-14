@@ -1,5 +1,5 @@
 import type { ConfluenceSpace } from '@sdlc/shared';
-import { ConfluenceHttpError, type ConfluenceClient } from './confluence-client';
+import { ConfluenceHttpError, ConfluenceVersionConflict, type ConfluenceClient, type ConfluencePage } from './confluence-client';
 
 export interface ConfluenceRestConfig {
   /** The Atlassian site, for example https://acme.atlassian.net (the same credential as Jira). */
@@ -49,6 +49,33 @@ export class ConfluenceRestClient implements ConfluenceClient {
     if (hit) return { id: String(hit.id), url: this.pageUrl(hit) };
     const created = await this.request<Json>('POST', '/wiki/api/v2/pages', { spaceId: String(spaceId), status: 'current', title, body: { representation: 'storage', value: '<p>Plans written by sdlc-agent. One page per ticket sits under this one.</p>' } });
     return { id: String(created.id), url: this.pageUrl(created) };
+  }
+
+  async createPage(args: { parentId: string; title: string; storage: string }): Promise<ConfluencePage> {
+    const parent = await this.request<Json>('GET', `/wiki/api/v2/pages/${encodeURIComponent(args.parentId)}`);
+    const created = await this.request<Json>('POST', '/wiki/api/v2/pages', { spaceId: String(parent.spaceId), status: 'current', title: args.title, parentId: args.parentId, body: { representation: 'storage', value: args.storage } });
+    return { id: String(created.id), url: this.pageUrl(created), version: Number(created.version?.number ?? 1), title: String(created.title ?? args.title) };
+  }
+
+  async getPage(id: string): Promise<ConfluencePage> {
+    const page = await this.request<Json>('GET', `/wiki/api/v2/pages/${encodeURIComponent(id)}`);
+    return { id: String(page.id), url: this.pageUrl(page), version: Number(page.version?.number ?? 1), title: String(page.title ?? '') };
+  }
+
+  async updatePage(args: { id: string; title: string; storage: string; expectedVersion: number }): Promise<{ version: number }> {
+    try {
+      const res = await this.request<Json>('PUT', `/wiki/api/v2/pages/${encodeURIComponent(args.id)}`, {
+        id: args.id,
+        status: 'current',
+        title: args.title,
+        body: { representation: 'storage', value: args.storage },
+        version: { number: args.expectedVersion + 1, message: 'Updated by sdlc-agent' },
+      });
+      return { version: Number(res?.version?.number ?? args.expectedVersion + 1) };
+    } catch (err) {
+      if (err instanceof ConfluenceHttpError && err.status === 409) throw new ConfluenceVersionConflict(args.id);
+      throw err;
+    }
   }
 
   private pageUrl(page: Json): string {

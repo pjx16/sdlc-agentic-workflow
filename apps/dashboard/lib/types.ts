@@ -78,6 +78,7 @@ export interface SystemView {
   worker?: WorkerStatusView | null;
   recentEvents?: RecentEvent[];
   inboxBadge?: number;
+  inboxFyi?: number;
   runningStage: { id: string; stage: string; model: string; projectId: string; ticketId: string | null; startedAt: string | null } | null;
   usage: { at: string; fiveHourPct: number | null; sevenDayPct: number | null; status: string | null; resetsAt: string | null; source: string } | null;
 }
@@ -120,6 +121,8 @@ export interface TransitionView {
   actor: string;
   reason: string | null;
   stageRunId: string | null;
+  kind?: string;
+  note?: string | null;
   jiraStatusApplied: string | null;
   jiraSyncResult: 'none' | 'applied' | 'failed';
   jiraSyncError: string | null;
@@ -144,6 +147,7 @@ export interface OperationsView {
   load: { stage: string; runs: number; retries: number; loops: number; avgDurationSec: number; avgTokens: number; avgCostUsd: number }[];
   integrations: { source: string; total: number; errors: number; rate: number }[];
   recentErrors: { id: string; at: string; source: string; message: string; errorCode: string | null; ticketId: string | null; ticketKey: string | null }[];
+  orchestrator: { decisions: number; fallbacks: number; fallbackRate: number; costUsd: number; inputTokens: number; outputTokens: number };
 }
 
 export interface RateSeriesView {
@@ -186,6 +190,12 @@ export interface RunView {
   errorCode?: string | null;
   errorSource?: string | null;
   retryAt?: string | null;
+  /** Set when a rerun made the run obsolete: it is kept and shown greyed out (BUILD_PLAN v1 6.8). */
+  supersededAt?: string | null;
+  /** auto | user | orchestrator */
+  trigger?: string;
+  startSha?: string | null;
+  endSha?: string | null;
 }
 
 export interface TicketDetail extends TicketListItem {
@@ -278,6 +288,37 @@ export interface DryRunView {
   count: number;
   tickets: { key: string; summary: string; issueType: string }[];
   note: string | null;
+}
+
+export interface MoveView {
+  kind: 'advance' | 'rerun' | 'hold' | 'resume' | 'fail' | 'retry' | 'approve' | 'reject';
+  to: string;
+  label: string;
+}
+
+export interface ArtifactView {
+  id: string;
+  stage: string;
+  version: number;
+  data: unknown;
+  stale: boolean;
+  supersededAt: string | null;
+  stageRunId: string | null;
+  createdAt: string;
+  externalUrl: string | null;
+}
+
+export interface DecisionView {
+  id: string;
+  at: string;
+  point: string;
+  question: string;
+  options: { kind: string; to: string; label: string }[];
+  chosen: string;
+  reason: string;
+  fallbackUsed: boolean;
+  model: string | null;
+  costUsd: number;
 }
 
 export interface InboxCountsView {

@@ -69,14 +69,14 @@ describe('SettingsForm', () => {
   it('has a default model and turn limit for every stage, and sends them as numbers', async () => {
     fetchMock.mockResolvedValue(reply({ ...settings }));
     render(<SettingsForm settings={settings} />);
-    expect(screen.getByLabelText('Plan: model')).toHaveValue('sonnet');
+    expect(screen.getByLabelText('Solution architect: model')).toHaveValue('sonnet');
     expect(screen.getByLabelText('Assistant: turns')).toHaveValue('10');
-    await userEvent.selectOptions(screen.getByLabelText('Plan: model'), 'opus');
-    await userEvent.clear(screen.getByLabelText('Plan: turns'));
-    await userEvent.type(screen.getByLabelText('Plan: turns'), '20');
+    await userEvent.selectOptions(screen.getByLabelText('Solution architect: model'), 'opus');
+    await userEvent.clear(screen.getByLabelText('Solution architect: turns'));
+    await userEvent.type(screen.getByLabelText('Solution architect: turns'), '20');
     await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));
     const body = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body));
-    expect(body.stageDefaults.plan).toEqual({ model: 'opus', maxTurns: 20 });
+    expect(body.stageDefaults.solutionDesign).toEqual({ model: 'opus', maxTurns: 20 });
     expect(body.stageDefaults.implement).toEqual({ model: 'sonnet', maxTurns: 10 });
   });
 

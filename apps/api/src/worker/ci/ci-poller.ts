@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { ProjectSettingsSchema } from '@sdlc/shared';
+import { ProjectSettingsSchema, loopLimitMessage, type HoldReason } from '@sdlc/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StateMachine } from '../../state/state-machine.service';
 import { GITHUB_CLIENT, type GitHubClient, parseRepo } from '../github/github-client';
@@ -71,7 +71,8 @@ export class CiPoller implements Housekeeper {
           await this.prisma.event.create({ data: { ticketId: ticket.id, type: 'git', message: `Checks of PR #${number} failed; a CI fix round is queued` } });
           return;
         }
-        return this.holdIt(ticket.id, ticket.ciFixDone ? `The checks of PR #${number} still fail after the CI fix` : `The checks of PR #${number} failed`);
+        // The CI fix round already ran once: that back-edge is used up (BUILD_PLAN v1 6.8), so the ticket needs a person.
+        return ticket.ciFixDone ? this.holdIt(ticket.id, `${loopLimitMessage('ciFix', 1)} The checks of PR #${number} still fail after the CI fix`, 'loop_limit') : this.holdIt(ticket.id, `The checks of PR #${number} failed`);
     }
   }
 
@@ -81,10 +82,10 @@ export class CiPoller implements Housekeeper {
     await this.states.transition(ticketId, 'IN_HUMAN_REVIEW', 'system', 'Checks passed; the PR is ready for review');
   }
 
-  private async holdIt(ticketId: string, note: string): Promise<void> {
+  private async holdIt(ticketId: string, note: string, reason: HoldReason = 'needs_help'): Promise<void> {
     await this.prisma.ticket.update({ where: { id: ticketId }, data: { ciWaitStartedAt: null } });
-    await this.states.hold(ticketId, 'needs_help', 'system', note);
-    await this.holds?.onHold(ticketId, 'needs_help', note).catch(() => undefined);
+    await this.states.hold(ticketId, reason, 'system', note);
+    await this.holds?.onHold(ticketId, reason, note).catch(() => undefined);
   }
 
   private loadOne(id: string) {

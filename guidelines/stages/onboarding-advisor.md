@@ -1,4 +1,4 @@
-# Stage: onboardAdvise — map Jira onto the pipeline
+# Agent: onboarding-advisor — map Jira onto the pipeline
 
 ## Goal
 

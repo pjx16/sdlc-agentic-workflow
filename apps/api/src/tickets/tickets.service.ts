@@ -1,6 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ErrorCodes, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type SubtaskDraft, type TicketStatus } from '@sdlc/shared';
+import { DECISION_POINTS, ErrorCodes, legalMoves, PasteTicketSchema, ProjectSettingsSchema, TICKET_STATUSES, kindOfType, typeOfKind, validateBreakdown, type Move, type SubtaskDraft, type TicketStatus } from '@sdlc/shared';
 import { ApiException } from '../common/api-exception';
+import { allArtifacts, writeArtifact } from '../common/artifacts';
 import { parseBody } from '../common/parse-body';
 import { z } from 'zod';
 import { JiraClients } from '../jira/jira-clients';
@@ -11,6 +12,19 @@ import type { Prisma } from '../generated/prisma/client';
 import { type TicketDto, toTicketDto } from './ticket.dto';
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
+
+export interface DecisionDto {
+  id: string;
+  at: string;
+  point: string;
+  question: string;
+  options: { kind: string; to: string; label: string }[];
+  chosen: string;
+  reason: string;
+  fallbackUsed: boolean;
+  model: string | null;
+  costUsd: number;
+}
 
 export interface TicketListItem extends TicketDto {
   projectName: string;
@@ -24,9 +38,25 @@ export interface TransitionDto {
   actor: string;
   reason: string | null;
   stageRunId: string | null;
+  /** advance | rerun | hold | resume | fail | retry | approve | reject */
+  kind: string;
+  note: string | null;
   jiraStatusApplied: string | null;
   jiraSyncResult: 'none' | 'applied' | 'failed';
   jiraSyncError: string | null;
+}
+
+export interface ArtifactDto {
+  id: string;
+  stage: string;
+  version: number;
+  data: unknown;
+  /** Superseded by a rerun: kept, shown greyed out. */
+  stale: boolean;
+  supersededAt: string | null;
+  stageRunId: string | null;
+  createdAt: string;
+  externalUrl: string | null;
 }
 
 export interface TicketEventDto {
@@ -51,7 +81,6 @@ export interface TimelineBar {
   endedAt: string | null;
 }
 
-const RedoTestsBody = z.object({ note: z.string().trim().max(2000, 'must be at most 2000 characters').optional() });
 
 /** Everything the ticket page needs to explain a hold: what happened and what can be done about it. */
 export interface HoldInfo {
@@ -125,6 +154,7 @@ export class TicketsService {
       stageRuns: stageRuns.map((r) => ({
         id: r.id, stage: r.stage, model: r.model, attempt: r.attempt, round: r.round, status: r.status, startedAt: iso(r.startedAt), endedAt: iso(r.endedAt),
         inputTokens: r.inputTokens, outputTokens: r.outputTokens, costUsd: Number(r.costUsd), numTurns: r.numTurns, error: r.error, errorCode: r.errorCode, errorSource: r.errorSource, retryAt: r.retryAt?.toISOString() ?? null,
+        supersededAt: r.supersededAt?.toISOString() ?? null, trigger: r.trigger, startSha: r.startSha, endSha: r.endSha,
       })),
       findings: findings.map((f) => ({ id: f.id, round: f.round, severity: f.severity, file: f.file, line: f.line, issue: f.issue, rule: f.rule, fix: f.fix, status: f.status })),
       supportQueries: supportTickets.map((q) => ({ id: q.id, stage: q.stage, question: q.body, answer: q.response, status: q.status === 'open' ? ('open' as const) : ('answered' as const), createdAt: q.createdAt.toISOString(), answeredAt: iso(q.resolvedAt) })),
@@ -137,7 +167,40 @@ export class TicketsService {
     const rows = await this.prisma.stateTransition.findMany({ where: { ticketId: id }, orderBy: [{ at: 'asc' }, { id: 'asc' }] });
     return rows.map((r) => ({
       id: r.id, at: r.at.toISOString(), fromStatus: r.fromStatus, toStatus: r.toStatus, actor: r.actor, reason: r.reason, stageRunId: r.stageRunId,
-      jiraStatusApplied: r.jiraStatusApplied, jiraSyncResult: r.jiraSyncResult, jiraSyncError: r.jiraSyncError,
+      kind: r.kind, note: r.note, jiraStatusApplied: r.jiraStatusApplied, jiraSyncResult: r.jiraSyncResult, jiraSyncError: r.jiraSyncError,
+    }));
+  }
+
+  /** GET /tickets/:id/moves: every legal move right now (BUILD_PLAN v1 6.8). The dashboard offers reruns from it. */
+  async moves(id: string): Promise<Move[]> {
+    const t = await this.prisma.ticket.findUnique({ where: { id }, include: { project: true } });
+    if (!t) throw new ApiException(HttpStatus.NOT_FOUND, ErrorCodes.notFound, 'Ticket not found');
+    const history = await this.prisma.stateTransition.findMany({ where: { ticketId: id }, orderBy: [{ at: 'asc' }, { id: 'asc' }], select: { fromStatus: true, toStatus: true, kind: true } });
+    const gates = ProjectSettingsSchema.parse(t.project.settings).gates;
+    return legalMoves({ status: t.status, holdFromStatus: t.holdFromStatus, moves: history as never, gates });
+  }
+
+  /** GET /tickets/:id/artifacts: every version of the plan, breakdown, review rounds and KB pointer, stale ones included. */
+  async artifacts(id: string): Promise<ArtifactDto[]> {
+    await this.findOr404(id);
+    return (await allArtifacts(this.prisma, id)).map((a) => ({ id: a.id, stage: a.stage, version: a.version, data: a.data, stale: a.supersededAt !== null, supersededAt: a.supersededAt?.toISOString() ?? null, stageRunId: a.stageRunId, createdAt: a.createdAt.toISOString(), externalUrl: a.externalUrl }));
+  }
+
+  /** GET /tickets/:id/decisions: what the orchestrator was asked at each decision point, the options, its answer and why, oldest first (BUILD_PLAN v1 6.11). */
+  async decisions(id: string): Promise<DecisionDto[]> {
+    await this.findOr404(id);
+    const rows = await this.prisma.orchestratorDecision.findMany({ where: { ticketId: id }, orderBy: [{ at: 'asc' }, { id: 'asc' }] });
+    return rows.map((d) => ({
+      id: d.id,
+      at: d.at.toISOString(),
+      point: d.point,
+      question: (DECISION_POINTS as Record<string, { question: string }>)[d.point]?.question ?? d.point,
+      options: ((d.legalMoves as { kind: string; to: string; label?: string }[] | null) ?? []).map((m) => ({ kind: m.kind, to: m.to, label: m.label ?? `${m.kind} ${m.to}` })),
+      chosen: d.chosen,
+      reason: d.reason,
+      fallbackUsed: d.fallbackUsed,
+      model: d.model,
+      costUsd: Number(d.costUsd),
     }));
   }
 
@@ -204,10 +267,11 @@ export class TicketsService {
     if (planMarkdown !== undefined && planMarkdown !== ticket.planMarkdown) {
       const { count } = await this.prisma.ticket.updateMany({ where: { id, status: 'AWAITING_PLAN_APPROVAL' }, data: { planMarkdown } });
       if (count === 0) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'The ticket changed while it was being updated');
+      await writeArtifact(this.prisma, id, 'plan', { planMarkdown, editedBy: 'user' }).catch(() => undefined);
     }
     if (ticket.source === 'jira' && ticket.externalKey && ticket.project.jiraMode === 'rest') await this.refreshFromJira(ticket.id, ticket.key, ticket.externalKey);
 
-    const { ticket: updated } = await this.states.transition(id, 'BREAKDOWN', 'user', planMarkdown !== undefined && planMarkdown !== ticket.planMarkdown ? 'Plan approved with edits' : 'Plan approved');
+    const { ticket: updated } = await this.states.transition(id, 'BREAKDOWN', 'user', planMarkdown !== undefined && planMarkdown !== ticket.planMarkdown ? 'Plan approved with edits' : 'Plan approved', undefined, { kind: 'approve' });
     return toTicketDto(updated);
   }
 
@@ -215,7 +279,7 @@ export class TicketsService {
   async rejectPlan(id: string, body: unknown): Promise<TicketDto> {
     const { note } = parseBody(RejectBody, body ?? {});
     await this.awaitingPlan(id);
-    const { ticket } = await this.states.transition(id, 'PLANNING', 'user', note);
+    const { ticket } = await this.states.transition(id, 'PLANNING', 'user', note, undefined, { kind: 'reject', note });
     return toTicketDto(ticket);
   }
 
@@ -299,33 +363,6 @@ export class TicketsService {
     };
   }
 
-  /**
-   * POST /tickets/:id/redo-tests: for a held or failed ticket whose current subtask has tests that cannot be satisfied (a test that is
-   * wrong, over-specific or contradicts the code). The subtask goes back to the tests stage with the failure and an optional developer
-   * note as context. The worker discards that subtask's tests and implementation first (the API cannot touch the workspace).
-   */
-  async redoTests(id: string, body: unknown): Promise<TicketDto> {
-    const { note } = parseBody(RedoTestsBody, body ?? {});
-    const ticket = await this.heldOrFailed(id, 'Redo tests');
-    const info = await this.holdInfo(id);
-    const subtask = await this.prisma.subtask.findFirst({ where: { ticketId: id, status: { not: 'DONE' } }, orderBy: { seq: 'asc' } });
-    if (!info.canRedoTests || !subtask) {
-      throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'There are no tests of the current subtask to redo. Use Retry instead.');
-    }
-    const lastFailure = [
-      'The previous tests for this subtask could not be satisfied by the implementation, so they are being written again from scratch.',
-      info.note ? `What went wrong: ${info.note}` : null,
-      note ? `Developer note: ${note}` : null,
-      'Write tests that check the behaviour in the acceptance criteria. Do not require a particular code style (for example `export function` versus `export const`) unless a criterion says so.',
-    ].filter(Boolean).join('\n\n');
-    await this.prisma.$transaction([
-      this.prisma.subtask.update({ where: { id: subtask.id }, data: { status: 'TESTS', fixRounds: 0, lastFailure, retriedAt: new Date(), redoTests: true } }),
-      this.prisma.ticket.update({ where: { id: ticket.id }, data: { ciFixPending: false, ciFixDone: false, ciWaitStartedAt: null, kbUpdatePending: false } }),
-    ]);
-    await this.states.resume(id, 'user', note ? `Tests redone by the developer: ${note}`.slice(0, 500) : 'Tests redone by the developer');
-    return toTicketDto(await this.prisma.ticket.findUniqueOrThrow({ where: { id } }));
-  }
-
   private async awaitingBreakdown(id: string) {
     const ticket = await this.prisma.ticket.findUnique({ where: { id }, include: { project: true } });
     if (!ticket) throw new ApiException(HttpStatus.NOT_FOUND, ErrorCodes.notFound, 'Ticket not found');
@@ -355,10 +392,11 @@ export class TicketsService {
     if (changed) {
       const { count } = await this.prisma.ticket.updateMany({ where: { id, status: 'AWAITING_BREAKDOWN_APPROVAL' }, data: { breakdownDraft: verdict.subtasks as unknown as Prisma.InputJsonValue } });
       if (count === 0) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'The ticket changed while it was being updated');
+      await writeArtifact(this.prisma, id, 'breakdown', { subtasks: verdict.subtasks, editedBy: 'user' }).catch(() => undefined);
     }
     await this.subtasks.create(id, verdict.subtasks as SubtaskDraft[]);
     await this.subtasks.publishToJira(id); // Jira sub-tasks when write-back is on; a Jira problem never blocks
-    const { ticket: updated } = await this.states.transition(id, 'IN_PROGRESS', 'user', changed ? 'Breakdown approved with edits' : 'Breakdown approved');
+    const { ticket: updated } = await this.states.transition(id, 'IN_PROGRESS', 'user', changed ? 'Breakdown approved with edits' : 'Breakdown approved', undefined, { kind: 'approve' });
     return toTicketDto(updated);
   }
 
@@ -366,7 +404,7 @@ export class TicketsService {
   async rejectBreakdown(id: string, body: unknown): Promise<TicketDto> {
     const { note } = parseBody(RejectBody, body ?? {});
     await this.awaitingBreakdown(id);
-    const { ticket } = await this.states.transition(id, 'BREAKDOWN', 'user', note);
+    const { ticket } = await this.states.transition(id, 'BREAKDOWN', 'user', note, undefined, { kind: 'reject', note });
     return toTicketDto(ticket);
   }
 }

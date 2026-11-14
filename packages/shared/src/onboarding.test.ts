@@ -67,13 +67,13 @@ import { GlobalSettingsSchema } from './global-settings';
 describe('global stage defaults', () => {
   it('every stage has a model and a turn limit, taken from the built-in project defaults', () => {
     const d = GlobalSettingsSchema.parse({}).stageDefaults;
-    expect(d.plan).toEqual({ model: 'opus', maxTurns: 15 });
+    expect(d.solutionDesign).toEqual({ model: 'opus', maxTurns: 15 });
     expect(d.repoProfile).toEqual({ model: 'sonnet', maxTurns: 25 });
     expect(Object.keys(d)).toContain('assist');
   });
   it('keeps what was set and refuses a bad value', () => {
-    expect(GlobalSettingsSchema.parse({ stageDefaults: { plan: { model: 'haiku', maxTurns: 5 } } }).stageDefaults.plan).toEqual({ model: 'haiku', maxTurns: 5 });
-    expect(GlobalSettingsSchema.safeParse({ stageDefaults: { plan: { model: 'gpt', maxTurns: 5 } } }).success).toBe(false);
-    expect(GlobalSettingsSchema.safeParse({ stageDefaults: { plan: { model: 'haiku', maxTurns: 0 } } }).success).toBe(false);
+    expect(GlobalSettingsSchema.parse({ stageDefaults: { solutionDesign: { model: 'haiku', maxTurns: 5 } } }).stageDefaults.solutionDesign).toEqual({ model: 'haiku', maxTurns: 5 });
+    expect(GlobalSettingsSchema.safeParse({ stageDefaults: { solutionDesign: { model: 'gpt', maxTurns: 5 } } }).success).toBe(false);
+    expect(GlobalSettingsSchema.safeParse({ stageDefaults: { solutionDesign: { model: 'haiku', maxTurns: 0 } } }).success).toBe(false);
   });
 });

@@ -6,8 +6,28 @@ export interface ConfluenceClient {
   listWritableSpaces(): Promise<ConfluenceSpace[]>;
   /** The page every plan goes under, found by title or created (once). */
   ensureParentPage(spaceKey: string, title: string): Promise<{ id: string; url: string }>;
+  /** Creates a page under a parent. `storage` is Confluence storage format. */
+  createPage(args: { parentId: string; title: string; storage: string }): Promise<ConfluencePage>;
+  getPage(id: string): Promise<ConfluencePage>;
+  /** Updates a page; `expectedVersion` is the version the caller last saw. Throws ConfluenceVersionConflict when the page moved on. */
+  updatePage(args: { id: string; title: string; storage: string; expectedVersion: number }): Promise<{ version: number }>;
   /** Cheap proof that the credential reaches Confluence. */
   test(): Promise<void>;
+}
+
+export interface ConfluencePage {
+  id: string;
+  url: string;
+  version: number;
+  title: string;
+}
+
+/** Someone else changed the page since the version we sent. */
+export class ConfluenceVersionConflict extends Error {
+  constructor(readonly id: string) {
+    super(`Confluence page ${id} was changed since the version we know`);
+    this.name = 'ConfluenceVersionConflict';
+  }
 }
 
 /** A non-retryable HTTP error from Confluence (400, 401, 403, 404, ...). */

@@ -1,6 +1,6 @@
 import type { TicketStatus } from './enums';
 
-export const HOLD_REASONS = ['awaiting_answer', 'needs_help', 'manual', 'pr_closed'] as const;
+export const HOLD_REASONS = ['awaiting_answer', 'needs_help', 'manual', 'pr_closed', 'loop_limit'] as const;
 export type HoldReason = (typeof HOLD_REASONS)[number];
 
 export const ACTORS = ['system', 'user', 'jira'] as const;

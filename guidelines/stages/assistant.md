@@ -1,4 +1,4 @@
-# Stage: assist — help one person with one support ticket
+# Agent: assistant — help one person with one support ticket
 
 ## Goal
 

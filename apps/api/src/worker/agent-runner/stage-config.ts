@@ -4,8 +4,8 @@ export type WorkspaceAccess = 'rw' | 'ro' | 'none';
 
 /** Workspace mounting per stage (BUILD_PLAN 6.4 table). kbBuild and kbUpdate may only change `kbDir`. */
 export const STAGE_WORKSPACE: Record<StageName, WorkspaceAccess> = {
-  kbBuild: 'rw', plan: 'ro', breakdown: 'ro', tests: 'rw', implement: 'rw', fix: 'rw',
-  review: 'ro', kbUpdate: 'rw', assist: 'ro', repoProfile: 'ro', onboardAdvise: 'none',
+  orchestrate: 'none', featureMap: 'ro', kbBuild: 'rw', solutionDesign: 'ro', bugInvestigation: 'ro', technicalDesign: 'ro', tests: 'rw', implement: 'rw', fix: 'rw',
+  prReview: 'ro', qualityReview: 'ro', securityReview: 'ro', kbUpdate: 'rw', ciTriage: 'none', assist: 'ro', repoProfile: 'ro', onboardAdvise: 'none',
 };
 
 /** `stage.json`, read by run-stage (BUILD_PLAN 6.4). `attempt` and `round` are extra, for the test stub and diagnostics. */
@@ -15,6 +15,8 @@ export interface StageJson {
   disallowedTools: string[];
   /** Continue this CLI session (the assistant keeps one conversation per support ticket). */
   resumeSession?: string;
+  /** Extended thinking budget in tokens; set only at the orchestrator's decision points. */
+  thinkingTokens?: number;
   attempt: number;
   round: number;
 }
@@ -29,6 +31,7 @@ export interface StageConfigInput {
   attempt?: number;
   round?: number;
   resumeSession?: string;
+  thinkingTokens?: number;
 }
 
 const ALWAYS_DISALLOWED = ['WebFetch', 'WebSearch'];
@@ -46,6 +49,7 @@ export function buildStageJson(input: StageConfigInput): StageJson {
     attempt: input.attempt ?? 1,
     round: input.round ?? 0,
     ...(input.resumeSession ? { resumeSession: input.resumeSession } : {}),
+    ...(input.thinkingTokens ? { thinkingTokens: input.thinkingTokens } : {}),
   };
   return json;
 }

@@ -1,4 +1,4 @@
-# Stage: fix — fix exactly what failed
+# Agent: fixer — fix exactly what failed
 
 ## Goal
 

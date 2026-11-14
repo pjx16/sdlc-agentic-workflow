@@ -1,4 +1,4 @@
-# Stage: repoProfile — describe how to build and test this repository
+# Agent: repo-profiler — describe how to build and test this repository
 
 ## Goal
 

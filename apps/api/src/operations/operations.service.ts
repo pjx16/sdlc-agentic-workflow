@@ -23,6 +23,8 @@ export interface OperationsDto {
   load: StageLoad[];
   integrations: IntegrationRate[];
   recentErrors: { id: string; at: string; source: string; message: string; errorCode: string | null; ticketId: string | null; ticketKey: string | null }[];
+  /** The orchestrator's decisions in the last 7 days (BUILD_PLAN v1 6.11). */
+  orchestrator: { decisions: number; fallbacks: number; fallbackRate: number; costUsd: number; inputTokens: number; outputTokens: number };
 }
 
 @Injectable()
@@ -52,6 +54,8 @@ export class OperationsService {
     const claude24h = in24h.filter((r) => r.status !== 'killed');
     const state = worker ? workerState(worker, now.getTime(), settings?.stageTimeoutMin ?? 20) : 'unknown';
 
+    const decisions = await this.prisma.orchestratorDecision.findMany({ where: { at: { gte: since7d } } });
+    const fallbacks = decisions.filter((d) => d.fallbackUsed).length;
     return {
       worker: {
         state,
@@ -66,6 +70,14 @@ export class OperationsService {
       failures: { last24h: failureRates(in24h), last7d: failureRates(rows) },
       load: stageLoad(rows),
       integrations: integrationRates({ total: claude24h.length, errors: claude24h.filter((r) => r.status === 'failed' && r.errorSource === 'claude').length }, events24h),
+      orchestrator: {
+        decisions: decisions.length,
+        fallbacks,
+        fallbackRate: decisions.length === 0 ? 0 : fallbacks / decisions.length,
+        costUsd: decisions.reduce((sum, d) => sum + Number(d.costUsd), 0),
+        inputTokens: decisions.reduce((sum, d) => sum + d.inputTokens, 0),
+        outputTokens: decisions.reduce((sum, d) => sum + d.outputTokens, 0),
+      },
       recentErrors: recent.map((e) => ({ id: e.id, at: e.at.toISOString(), source: e.source, message: e.message, errorCode: e.errorCode, ticketId: e.ticketId, ticketKey: e.ticket?.key ?? null })),
     };
   }

@@ -3,10 +3,11 @@
 import { INBOX_GROUPS, INBOX_GROUP_LABEL } from '@sdlc/shared';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ago } from '@/lib/activity';
 import { AssistantToggle } from './assistant-chat';
-import type { InboxGroupView, SupportTicketView } from '@/lib/types';
+import { RerunPicker } from './rerun-picker';
+import type { InboxGroupView, MoveView, SupportTicketView } from '@/lib/types';
 
 const KIND_LABEL: Record<SupportTicketView['kind'], string> = {
   approval: 'Approval', question: 'Question', open_question: 'Open question', hold: 'Hold', ci_infra: 'CI problem', onboarding: 'Onboarding', credential: 'Credential', pr_ready: 'PR ready',
@@ -53,6 +54,27 @@ async function post(id: string, action: string, extra: Record<string, unknown> =
   } catch {
     return 'Cannot reach the server.';
   }
+}
+
+/** "Rerun from here" on an inbox item: the stages the ticket can go back to are fetched when the item is shown. */
+function InboxRerun({ ticketId }: { ticketId: string }) {
+  const [moves, setMoves] = useState<MoveView[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/tickets/${encodeURIComponent(ticketId)}/moves`);
+        const body: unknown = r?.ok ? await r.json() : null;
+        if (alive && Array.isArray(body)) setMoves(body as MoveView[]);
+      } catch {
+        /* no rerun offered when the moves cannot be read */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [ticketId]);
+  return moves ? <div className="mt-3"><RerunPicker ticketId={ticketId} moves={moves} /></div> : null;
 }
 
 function Item({ t, now }: { t: SupportTicketView; now: number }) {
@@ -139,6 +161,7 @@ function Item({ t, now }: { t: SupportTicketView; now: number }) {
         </div>
       )}
       {open && <div className="mt-3"><AssistantToggle supportTicketId={t.id} /></div>}
+      {open && t.ticketId && (t.kind === 'hold' || t.kind === 'approval' || t.kind === 'ci_infra') && <InboxRerun ticketId={t.ticketId} />}
       {error && (
         <p role="alert" className="mt-2 text-xs text-red">
           {error}
@@ -187,23 +210,43 @@ export function Inbox({ tickets, tab, now = Date.now() }: { tickets: SupportTick
   );
 }
 
-/** "Needs you" at the top of the overview: the oldest blocking items, with a link to the whole inbox. */
-export function NeedsYou({ tickets, counts, now = Date.now() }: { tickets: SupportTicketView[]; counts: { badge: number }; now?: number }) {
-  if (counts.badge === 0) return null;
-  const top = tickets.filter((t) => t.status === 'open' && (t.kind === 'approval' || t.priority === 'blocking')).sort((a, b) => a.createdAt.localeCompare(b.createdAt)).slice(0, 5);
+/**
+ * "Needs you" at the top of the overview: everything open, most urgent first (blocking, approvals, questions, then what only needs a look,
+ * such as a pull request ready for human review), each with a link to its ticket, and a count per group.
+ */
+export function NeedsYou({ tickets, counts, now = Date.now() }: { tickets: SupportTicketView[]; counts: { badge: number; groups?: Partial<Record<SupportTicketView['group'], number>> }; now?: number }) {
+  const open = tickets.filter((t) => t.status === 'open');
+  if (open.length === 0 && counts.badge === 0) return null;
+  const rank = (t: SupportTicketView) => INBOX_GROUPS.indexOf(t.group);
+  const top = [...open].sort((a, b) => rank(a) - rank(b) || a.createdAt.localeCompare(b.createdAt)).slice(0, 8);
+  const summary = INBOX_GROUPS.map((g) => ({ g, n: open.filter((t) => t.group === g).length })).filter((x) => x.n > 0);
   return (
-    <section aria-label="Needs you" className="panel border-amber p-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium">Needs you ({counts.badge})</h2>
-        <Link href="/inbox" className="text-sm text-accent hover:underline">
-          Open the inbox
-        </Link>
+    <section aria-label="Needs you" className={`panel p-4 ${counts.badge > 0 ? 'border-amber' : ''}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-medium">Needs you ({open.length})</h2>
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
+          {summary.map(({ g, n }) => (
+            <span key={g}>
+              {n} {INBOX_GROUP_LABEL[g].toLowerCase()}
+            </span>
+          ))}
+          <Link href="/inbox" className="text-sm text-accent hover:underline">
+            Open the inbox
+          </Link>
+        </div>
       </div>
       <ul className="mt-2 space-y-1 text-sm">
         {top.map((t) => (
           <li key={t.id}>
             <span className="mr-2 rounded border border-border px-1.5 py-0.5 text-xs text-muted">{KIND_LABEL[t.kind]}</span>
-            {t.title} <span className="text-xs text-muted">· waiting {ago(t.createdAt, now).replace(' ago', '')}</span>
+            {t.ticketId ? (
+              <Link href={`/tickets/${t.ticketId}`} className="hover:underline">
+                {t.title}
+              </Link>
+            ) : (
+              t.title
+            )}{' '}
+            <span className="text-xs text-muted">· waiting {ago(t.createdAt, now).replace(' ago', '')}</span>
           </li>
         ))}
       </ul>
