@@ -75,13 +75,13 @@ export function Sidebar({ pipeline, inboxBadge = 0, inboxFyi = 0 }: Props) {
               </span>
               {!collapsed && item.label}
               {item.href === '/inbox' && inboxBadge === 0 && inboxFyi > 0 && (
-                <span data-testid="inbox-fyi" className={`rounded-full border border-border px-1.5 text-xs text-muted ${collapsed ? 'absolute -mr-6 -mt-5' : 'ml-auto'}`}>
+                <span data-testid="inbox-fyi" className={`rounded-full bg-red px-1.5 text-xs font-medium text-white ${collapsed ? 'absolute -mr-6 -mt-5' : 'ml-auto'}`}>
                   <span className="sr-only">{inboxFyi} to look at: </span>
                   {inboxFyi > 99 ? '99+' : inboxFyi}
                 </span>
               )}
               {item.href === '/inbox' && inboxBadge > 0 && (
-                <span data-testid="inbox-badge" className={`rounded-full bg-accent px-1.5 text-xs font-medium text-accent-text ${collapsed ? 'absolute -mr-6 -mt-5' : 'ml-auto'}`}>
+                <span data-testid="inbox-badge" className={`rounded-full bg-red px-1.5 text-xs font-medium text-white ${collapsed ? 'absolute -mr-6 -mt-5' : 'ml-auto'}`}>
                   <span className="sr-only">{inboxBadge} waiting for you: </span>
                   {inboxBadge > 99 ? '99+' : inboxBadge}
                 </span>

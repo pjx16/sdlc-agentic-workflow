@@ -57,7 +57,7 @@ export function RateChart({ title, series, action, compact = false }: Props) {
       emptyText="Not enough snapshots yet to show a rate. Two snapshots close together are needed."
       table={{ columns: ['When', `Rate (${series.unit})`, 'Percent'], rows: series.segments.flatMap((s) => s.points.filter((p) => p.rate !== null).map((p) => [label(p.at), p.rate, Math.round(p.pct * 10) / 10])) }}
     >
-      <ResponsiveContainer width="100%" height={compact ? 120 : 220}>
+      <ResponsiveContainer width="100%" height={compact ? 120 : 240}>
         <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
           <CartesianGrid stroke="var(--border)" vertical={false} />
           <XAxis dataKey="label" {...AXIS_PROPS} minTickGap={32} hide={compact} />
