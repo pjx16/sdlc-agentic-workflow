@@ -52,13 +52,13 @@ test('the ticket timeline shows one bar per run, and its data', async ({ page })
 test('the usage page lists the snapshots', async ({ page }) => {
   await login(page);
   await page.goto('/usage');
-  await expect(page.getByRole('table').first()).toContainText('allowed_warning');
+  await expect(page.getByRole('table').filter({ hasText: 'allowed_warning' }).first()).toBeVisible();
 });
 
 test('without data: every chart shows an empty state instead of a chart', async ({ page }) => {
   await withDb(async (c) => {
     await c.query('DELETE FROM "ReviewFinding"');
-    await c.query('DELETE FROM "SupportQuery"');
+    await c.query('DELETE FROM "SupportTicket"');
     await c.query('DELETE FROM "StageRun"');
     await c.query('DELETE FROM "UsageSnapshot"');
     await c.query(`DELETE FROM "Event"`);

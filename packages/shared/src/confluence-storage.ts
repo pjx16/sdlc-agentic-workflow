@@ -15,6 +15,8 @@ export function inlineToStorage(text: string): string {
   s = esc(s)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*\w])\*([^*\s][^*]*)\*(?!\w)/g, '$1<em>$2</em>');
+  // The \u0000 and \u0001 characters are private placeholder markers, so the control characters are intended.
+  // eslint-disable-next-line no-control-regex
   return s.replace(/\u0001(\d+)\u0001/g, (_m, i: string) => links[Number(i)] ?? '').replace(/\u0000(\d+)\u0000/g, (_m, i: string) => codes[Number(i)] ?? '');
 }
 

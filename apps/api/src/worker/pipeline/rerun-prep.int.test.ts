@@ -13,7 +13,6 @@ import { WorkerLoop } from '../loop/worker-loop';
 import { RerunPrep } from './rerun-prep';
 
 const done = (files: string[]): StageEnvelope => ({ status: 'done', summary: 'ok', data: { filesChanged: files } } as StageEnvelope);
-const bot = { GIT_AUTHOR_NAME: 'Dev Bot', GIT_AUTHOR_EMAIL: 'bot@example.com', GIT_COMMITTER_NAME: 'Dev Bot', GIT_COMMITTER_EMAIL: 'bot@example.com' };
 
 describe('commit ranges and the revert before a rerun (BUILD_PLAN v1 6.4 and 6.8)', () => {
   let h: StepsHarness;

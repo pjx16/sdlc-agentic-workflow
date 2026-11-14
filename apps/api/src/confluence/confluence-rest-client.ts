@@ -91,7 +91,7 @@ export class ConfluenceRestClient implements ConfluenceClient {
         body: body === undefined ? undefined : JSON.stringify(body),
       });
     } catch (err) {
-      throw new Error(`Confluence network error: ${err instanceof Error ? err.message : String(err)}`);
+      throw new Error(`Confluence network error: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
     }
     if (!res.ok) {
       const text = await res.text().catch(() => '');

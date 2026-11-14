@@ -105,7 +105,6 @@ jobs:
           cp deploy/docker-compose.yml "${dir}/docker-compose.yml"
           sed "s/^SDLC_VERSION=.*/SDLC_VERSION=${VERSION}/" .env.example > "${dir}/.env.example"
           cp -R guidelines "${dir}/guidelines"
-          cp docker/jira-mcp.example.json "${dir}/docker/jira-mcp.example.json"
           cp LICENSE README.md CHANGELOG.md SECURITY.md "${dir}/"
           tar -czf "${dir}.tar.gz" "${dir}"
           sha256sum "${dir}.tar.gz" > SHA256SUMS

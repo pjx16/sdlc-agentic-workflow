@@ -41,7 +41,6 @@ describe('init --no-start', () => {
     expect(getEnv(env, 'LOG_LEVEL')).toBe('info');
 
     expect(existsSync(path.join(dir, 'docker-compose.yml'))).toBe(true);
-    expect(existsSync(path.join(dir, 'docker/jira-mcp.example.json'))).toBe(true);
     expect(listFiles(path.join(dir, 'guidelines')).length).toBeGreaterThan(5);
 
     const manifest = readManifest(dir);
