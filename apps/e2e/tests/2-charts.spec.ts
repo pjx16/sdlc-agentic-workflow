@@ -58,7 +58,7 @@ test('the usage page lists the snapshots', async ({ page }) => {
 test('without data: every chart shows an empty state instead of a chart', async ({ page }) => {
   await withDb(async (c) => {
     await c.query('DELETE FROM "ReviewFinding"');
-    await c.query('DELETE FROM "SupportQuery"');
+    await c.query('DELETE FROM "SupportTicket"');
     await c.query('DELETE FROM "StageRun"');
     await c.query('DELETE FROM "UsageSnapshot"');
     await c.query(`DELETE FROM "Event"`);
