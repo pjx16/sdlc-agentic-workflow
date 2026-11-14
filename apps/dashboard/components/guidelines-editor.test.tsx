@@ -90,3 +90,35 @@ describe('GuidelinesEditor (3.8)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Guideline not found');
   });
 });
+
+describe('Formats', () => {
+  const formatTree: GuidelineNode[] = [{ name: 'formats', path: 'formats', type: 'dir', children: [{ name: 'review-comment.md', path: 'formats/review-comment.md', type: 'file' }] }];
+
+  it('explains a format file: what it is for, its placeholders, and warns when a needed one is gone', async () => {
+    fetchMock.mockResolvedValue(reply({ content: '## Review {{round}}\n{{summary}}' }));
+    render(<GuidelinesEditor tree={formatTree} />);
+    await userEvent.click(screen.getByRole('button', { name: 'review-comment.md' }));
+    const about = await screen.findByRole('region', { name: 'About this format' });
+    expect(about).toHaveTextContent('Review comment');
+    expect(about).toHaveTextContent('{{findings}}');
+    expect(screen.getByRole('alert')).toHaveTextContent('Missing {{findings}}');
+  });
+
+  it('resets the text to the default, to be saved', async () => {
+    fetchMock.mockResolvedValue(reply({ content: 'custom {{findings}}' }));
+    render(<GuidelinesEditor tree={formatTree} />);
+    await userEvent.click(screen.getByRole('button', { name: 'review-comment.md' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Reset to the default' }));
+    expect((screen.getByLabelText('Content of formats/review-comment.md') as HTMLTextAreaElement).value).toContain('## Review — round {{round}}');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it('other files get no format panel', async () => {
+    fetchMock.mockResolvedValue(reply({ content: 'x' }));
+    render(<GuidelinesEditor tree={tree} />);
+    await userEvent.click(screen.getByRole('button', { name: 'default-CLAUDE.md' }));
+    await screen.findByLabelText('Content of default-CLAUDE.md');
+    expect(screen.queryByRole('region', { name: 'About this format' })).not.toBeInTheDocument();
+  });
+});
+

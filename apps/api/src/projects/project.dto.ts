@@ -5,6 +5,9 @@ export interface ProjectDto extends Omit<ProjectInput, 'settings'> {
   id: string;
   mirrorStatus: 'pending' | 'ok' | 'failed';
   mirrorError: string | null;
+  /** draft | profiling | proposed | confirmed (BUILD_PLAN v1 6.7). The worker only runs confirmed projects. */
+  onboardingStatus: 'draft' | 'profiling' | 'proposed' | 'confirmed';
+  onboardingError: string | null;
   nextLocalNumber: number;
   settings: ProjectSettings;
   createdAt: string;
@@ -30,6 +33,8 @@ export function toDto(p: Project): ProjectDto {
     nextLocalNumber: p.nextLocalNumber,
     mirrorStatus: p.mirrorStatus,
     mirrorError: p.mirrorError,
+    onboardingStatus: p.onboardingStatus,
+    onboardingError: p.onboardingError,
     enabled: p.enabled,
     // Fills defaults for settings stored before a field existed.
     settings: ProjectSettingsSchema.parse(p.settings),
@@ -38,7 +43,7 @@ export function toDto(p: Project): ProjectDto {
   };
 }
 
-const READ_ONLY = ['id', 'mirrorStatus', 'mirrorError', 'nextLocalNumber', 'createdAt', 'updatedAt'];
+const READ_ONLY = ['id', 'mirrorStatus', 'mirrorError', 'onboardingStatus', 'onboardingError', 'nextLocalNumber', 'createdAt', 'updatedAt'];
 
 /** The editable fields of a stored project, as the input schema expects them (used to merge PATCH bodies). */
 export function toInput(dto: ProjectDto): Record<string, unknown> {

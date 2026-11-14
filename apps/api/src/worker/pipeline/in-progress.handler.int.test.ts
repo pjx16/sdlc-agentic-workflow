@@ -86,7 +86,7 @@ describe('IN_PROGRESS handler (subtask orchestration, BUILD_PLAN 6.6)', () => {
   });
 
   it('goes straight to KB_UPDATE when the review stage is off', async () => {
-    await setSettings({ stages: { review: { enabled: false } } });
+    await setSettings({ stages: { prReview: { enabled: false } } });
     const t = await ticket();
     await subtask(t.id, 1, 'DONE');
     expect(await run(t)).toMatchObject({ kind: 'transition', to: 'KB_UPDATE' });

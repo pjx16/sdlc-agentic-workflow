@@ -64,7 +64,15 @@ export class CredentialTester {
           Authorization: `Basic ${Buffer.from(`${c.jira_email}:${c.jira_api_token}`).toString('base64')}`,
           Accept: 'application/json',
         });
-        if (res.status === 200) return { ok: true, message: `Connected as ${((await res.json()) as { displayName?: string }).displayName ?? 'unknown'}` };
+        if (res.status === 200) {
+          const who = `Connected as ${((await res.json()) as { displayName?: string }).displayName ?? 'unknown'}`;
+          // The same credential reaches Confluence; plans are published there when a project has a space. A problem is a note, not a failure.
+          const wiki = await this.get(`${c.jira_base_url.replace(/\/+$/, '')}/wiki/api/v2/spaces?limit=1`, {
+            Authorization: `Basic ${Buffer.from(`${c.jira_email}:${c.jira_api_token}`).toString('base64')}`,
+            Accept: 'application/json',
+          }).catch(() => null);
+          return { ok: true, message: wiki && wiki.status === 200 ? who : `${who} (Confluence is not reachable with this credential, so plans will be posted to Jira)` };
+        }
         if (res.status === 401 || res.status === 403) return { ok: false, message: 'Jira rejected the credentials' };
         return { ok: false, message: `Jira answered ${res.status}` };
       }

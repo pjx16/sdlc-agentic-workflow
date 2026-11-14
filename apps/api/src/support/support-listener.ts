@@ -28,8 +28,8 @@ export class SupportTransitionListener implements TransitionListener {
       await this.raiser.raise({ ...base, kind: 'approval', stage: 'plan', dedupeKey: `approval:${ticket.id}:plan`, title: `Approve the plan for ${ticket.key}`, body: `The plan for **${ticket.key}: ${ticket.title}** is ready and waits for your approval.\n\nApprove it to move on to the breakdown, or reject it with a note to have it redone.` });
     } else if (to === 'AWAITING_BREAKDOWN_APPROVAL') {
       await this.raiser.raise({ ...base, kind: 'approval', stage: 'breakdown', dedupeKey: `approval:${ticket.id}:breakdown`, title: `Approve the breakdown for ${ticket.key}`, body: `The breakdown for **${ticket.key}: ${ticket.title}** is ready and waits for your approval.` });
-    } else if (to === 'ON_HOLD' && ticket.holdReason !== 'awaiting_answer') {
-      // `awaiting_answer` already has its own question ticket, raised by the stage outcome.
+    } else if (to === 'ON_HOLD' && ticket.holdReason !== 'awaiting_answer' && !(await this.raiser.hasOpen(ticket.id, 'ci_infra'))) {
+      // `awaiting_answer` already has its own question ticket, raised by the stage outcome; a CI problem already has its own too.
       await this.raiser.raise({ ...base, kind: 'hold', stage: ticket.holdFromStatus ?? '', dedupeKey: `hold:${ticket.id}`, title: `${ticket.key} is on hold`, body: `**${ticket.key}: ${ticket.title}** is on hold (${ticket.holdReason ?? 'no reason recorded'}).\n\n${transition.reason ?? ''}`.trim() });
     } else if (to === 'FAILED') {
       await this.raiser.raise({ ...base, kind: 'hold', stage: ticket.holdFromStatus ?? '', dedupeKey: `hold:${ticket.id}`, title: `${ticket.key} failed`, body: `**${ticket.key}: ${ticket.title}** failed.\n\n${transition.reason ?? ''}`.trim() });

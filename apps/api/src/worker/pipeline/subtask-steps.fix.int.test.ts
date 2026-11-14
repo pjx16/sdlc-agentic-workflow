@@ -57,7 +57,7 @@ describe('fix rounds (F9)', () => {
     expect((await h.prisma.stageRun.findMany({ where: { subtaskId: s.id } }))[0]).toMatchObject({ stage: 'fix', reason: 'tests', round: 1 });
   });
 
-  it('a failing implementation runs fix rounds and then holds with needs_help (default two rounds)', async () => {
+  it('a failing implementation runs fix rounds and then holds with loop_limit (default two rounds)', async () => {
     h.engine.rules = failing(['FAIL src/f1.test.ts', 'expected 0 to be 1']);
     const { t, s } = await atGreen();
     const trail: string[] = [];
@@ -67,7 +67,7 @@ describe('fix rounds (F9)', () => {
       out = await step(t.id);
     }
     expect(trail).toEqual(['FIXING', 'VERIFY_GREEN', 'FIXING', 'VERIFY_GREEN']);
-    expect(out).toMatchObject({ kind: 'hold', reason: 'needs_help' });
+    expect(out).toMatchObject({ kind: 'hold', reason: 'loop_limit' });
     expect((out as { note: string }).note).toContain('still fails after 2 fix round(s)');
     expect(h.agent.requests.map((r) => [r.stage, r.round, r.reason])).toEqual([['fix', 1, 'tests'], ['fix', 2, 'tests']]);
     expect(await h.reload(s.id)).toMatchObject({ status: 'VERIFY_GREEN', fixRounds: 2 });
@@ -89,12 +89,12 @@ describe('fix rounds (F9)', () => {
     const one = await atGreen();
     await step(one.t.id);
     await step(one.t.id);
-    expect(await step(one.t.id)).toMatchObject({ kind: 'hold', reason: 'needs_help' }); // one fix ran, verify-green failed again, no rounds left
+    expect(await step(one.t.id)).toMatchObject({ kind: 'hold', reason: 'loop_limit' }); // one fix ran, verify-green failed again, no rounds left
     expect((await h.reload(one.s.id)).fixRounds).toBe(1);
 
     await h.setProject({ settings: { limits: { maxTestFixRounds: 0 } } });
     const zero = await atGreen();
-    expect(await step(zero.t.id)).toMatchObject({ kind: 'hold', reason: 'needs_help' });
+    expect(await step(zero.t.id)).toMatchObject({ kind: 'hold', reason: 'loop_limit' });
     expect(h.agent.requests.filter((r) => r.subtaskId === zero.s.id)).toHaveLength(0);
   });
 

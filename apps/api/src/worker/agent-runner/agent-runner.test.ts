@@ -31,7 +31,7 @@ beforeAll(() => {
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
 const request = (over: Partial<StageRequest> = {}): StageRequest => ({
-  projectId: 'p1', ticketId: 't1', stage: 'plan', stack: 'nestjs', claudeMdMode: 'both', modelAlias: 'opus',
+  projectId: 'p1', ticketId: 't1', stage: 'solutionDesign', stack: 'nestjs', claudeMdMode: 'both', modelAlias: 'opus',
   modelAliases: { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' }, maxTurns: 15, stageTimeoutMin: 20, inputs: { ticket: { key: 'A-1', title: 't', body: 'b' } },
   workspacePath: path.join(tmp, 'ws'), ...over,
 });
@@ -48,7 +48,7 @@ describe('AgentRunner (BUILD_PLAN 6.4, 6.8)', () => {
     const res = await runner.run(request());
     expect(res).toMatchObject({ kind: 'done', attempts: 1, envelope: { status: 'done', data: planData } });
     const run = store.runs.get('run-1');
-    expect(run).toMatchObject({ stage: 'plan', model: 'opus', attempt: 1, status: 'succeeded' });
+    expect(run).toMatchObject({ stage: 'solutionDesign', model: 'opus', attempt: 1, status: 'succeeded' });
     expect(run?.finished?.usage).toMatchObject({ inputTokens: 5, outputTokens: 6, costUsd: 0.01, numTurns: 2, sessionId: 's', cliVersion: '2.1.322' });
     expect(run?.containerId).toBe('fake-1');
     expect(engine.created[0]?.name).toBe('sdlc-run-run-1');

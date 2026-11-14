@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, type OnModuleInit, Optional } from '@nestjs/common';
 import { ProjectSettingsSchema, events } from '@sdlc/shared';
 import { logEvent } from '../common/event-log';
 import type { SupportTicket } from '../generated/prisma/client';
@@ -13,6 +13,7 @@ import { GITHUB_CLIENT, type GitHubClient, parseRepo } from './github/github-cli
  * there is a PR, a comment on the PR. Best effort: a Jira or GitHub problem is a recorded warning, never a block.
  * The PR comment for a `needs_help` hold is already written by the HoldNotifier, so it is not written twice.
  */
+import { FormatLoader } from './format-loader';
 @Injectable()
 export class SupportNotifier implements SupportNotifierPort, OnModuleInit {
   private readonly logger = new Logger(SupportNotifier.name);
@@ -22,7 +23,12 @@ export class SupportNotifier implements SupportNotifierPort, OnModuleInit {
     private readonly jira: JiraClients,
     @Inject(GITHUB_CLIENT) private readonly github: GitHubClient,
     private readonly raiser: SupportRaiser,
-  ) {}
+    @Optional() formats?: FormatLoader,
+  ) {
+    this.formats = formats ?? new FormatLoader();
+  }
+
+  private readonly formats: FormatLoader;
 
   /** The worker registers itself: the raiser is shared with the state machine, which has no GitHub client. */
   onModuleInit(): void {
@@ -38,7 +44,7 @@ export class SupportNotifier implements SupportNotifierPort, OnModuleInit {
     const settings = ProjectSettingsSchema.parse(t.project.settings);
     if (t.source === 'jira' && t.externalKey && t.project.jiraMode === 'rest' && settings.jiraWriteBack.comments) {
       try {
-        await (await this.jira.forRest()).comment(t.externalKey, text, jiraMarker(t.key, `support-${ticket.id}`, ticket.id));
+        await (await this.jira.forRest()).comment(t.externalKey, await this.formats.fill('jira-needs-you', { title: ticket.title, body: ticket.body.slice(0, 3800) }), jiraMarker(t.key, `support-${ticket.id}`, ticket.id));
       } catch (err) {
         await this.warn(t.id, 'JIRA_ERROR', 'jira', `Could not tell Jira about "${ticket.title}": ${err instanceof Error ? err.message : String(err)}`);
       }

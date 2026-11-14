@@ -45,11 +45,11 @@ afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
 describe('fake-claude (BUILD_PLAN 11)', () => {
   it('prints valid stream-json that the real parser accepts: init, assistant, result with usage and cost', () => {
-    const r = run('plan', 'ok');
+    const r = run('solutionDesign', 'ok');
     expect(r.status).toBe(0);
     const types = r.lines.map((l) => (JSON.parse(l) as { type: string }).type);
     expect(types).toEqual(['system', 'assistant', 'rate_limit_event', 'result']);
-    const p = parseStream(r.lines, 'plan');
+    const p = parseStream(r.lines, 'solutionDesign');
     expect(p.kind).toBe('ok');
     expect(p.envelope?.status).toBe('done');
     expect(p.usage).toMatchObject({ inputTokens: 100, outputTokens: 200, cliVersion: 'fake-claude' });
@@ -67,11 +67,11 @@ describe('fake-claude (BUILD_PLAN 11)', () => {
     const ws = path.join(tmp, 'ws-wrapper');
     mkdirSync(ws);
     const res = spawnSync('sh', [WRAPPER, '-p', '--model', 'x'], {
-      cwd: ws, input: '<!-- stage: plan -->\n', encoding: 'utf8',
+      cwd: ws, input: '<!-- stage: solutionDesign -->\n', encoding: 'utf8',
       env: { ...process.env, FAKE_CLAUDE_JS: FAKE, FAKE_SCENARIO: 'ok', FAKE_SCENARIOS_DIR: SCENARIOS, FAKE_ATTEMPT: '1' },
     });
     expect(res.status).toBe(0);
-    expect(parseStream(res.stdout.split('\n').filter(Boolean), 'plan').kind).toBe('ok');
+    expect(parseStream(res.stdout.split('\n').filter(Boolean), 'solutionDesign').kind).toBe('ok');
   });
 
   it('selects an entry by promptMatches, so one scenario can differ per input', () => {
@@ -118,48 +118,48 @@ describe('fake-claude (BUILD_PLAN 11)', () => {
   });
 
   it('uses attempt n of the scenario and repeats the last entry', () => {
-    expect(parseStream(run('plan', 'schema-retry', { attempt: 1 }).lines, 'plan').kind).toBe('invalid_output');
-    expect(parseStream(run('plan', 'schema-retry', { attempt: 2 }).lines, 'plan').kind).toBe('ok');
-    expect(parseStream(run('plan', 'schema-retry', { attempt: 5 }).lines, 'plan').kind).toBe('ok');
+    expect(parseStream(run('solutionDesign', 'schema-retry', { attempt: 1 }).lines, 'solutionDesign').kind).toBe('invalid_output');
+    expect(parseStream(run('solutionDesign', 'schema-retry', { attempt: 2 }).lines, 'solutionDesign').kind).toBe('ok');
+    expect(parseStream(run('solutionDesign', 'schema-retry', { attempt: 5 }).lines, 'solutionDesign').kind).toBe('ok');
   });
 
   it('reads the attempt number from /context/stage.json when FAKE_ATTEMPT is not set', () => {
     const ctx = path.join(tmp, 'ctx');
     mkdirSync(ctx);
     writeFileSync(path.join(ctx, 'stage.json'), JSON.stringify({ attempt: 2 }));
-    const r = run('plan', 'schema-retry', { env: { FAKE_ATTEMPT: '', CONTEXT_DIR: ctx } });
-    expect(parseStream(r.lines, 'plan').kind).toBe('ok');
+    const r = run('solutionDesign', 'schema-retry', { env: { FAKE_ATTEMPT: '', CONTEXT_DIR: ctx } });
+    expect(parseStream(r.lines, 'solutionDesign').kind).toBe('ok');
   });
 
   it('plays the other scenarios: schema failure, turn limit, needs_input, rate limit, fenced fallback', () => {
-    expect(parseStream(run('plan', 'schema-fail').lines, 'plan').kind).toBe('invalid_output');
+    expect(parseStream(run('solutionDesign', 'schema-fail').lines, 'solutionDesign').kind).toBe('invalid_output');
 
-    const turn = run('plan', 'turn-limit');
+    const turn = run('solutionDesign', 'turn-limit');
     expect(turn.status).toBe(1);
-    expect(parseStream(turn.lines, 'plan').kind).toBe('turn_limit');
+    expect(parseStream(turn.lines, 'solutionDesign').kind).toBe('turn_limit');
 
-    expect(parseStream(run('plan', 'needs-input').lines, 'plan').envelope).toMatchObject({ status: 'needs_input', question: 'Which database should be used?' });
+    expect(parseStream(run('solutionDesign', 'needs-input').lines, 'solutionDesign').envelope).toMatchObject({ status: 'needs_input', question: 'Which database should be used?' });
 
-    const limited = run('plan', 'rate-limit');
+    const limited = run('solutionDesign', 'rate-limit');
     expect(limited.status).toBe(1);
-    expect(isRateLimited(parseStream(limited.lines, 'plan'))).toBe(true);
+    expect(isRateLimited(parseStream(limited.lines, 'solutionDesign'))).toBe(true);
 
-    const fenced = run('plan', 'fenced');
+    const fenced = run('solutionDesign', 'fenced');
     expect(JSON.parse(fenced.lines.at(-1) as string).structured_output).toBeUndefined();
-    expect(parseStream(fenced.lines, 'plan').kind).toBe('ok');
+    expect(parseStream(fenced.lines, 'solutionDesign').kind).toBe('ok');
   });
 
   it('honours delayMs (for timeout and kill tests) and exitCode', () => {
     const dir = path.join(tmp, 'sc-delay');
     mkdirSync(path.join(dir, 's'), { recursive: true });
-    writeFileSync(path.join(dir, 's', 'plan.json'), JSON.stringify([{ delayMs: 600, exitCode: 7, result: { status: 'blocked', summary: 'x' } }]));
-    const r = run('plan', 's', { scenariosDir: dir });
+    writeFileSync(path.join(dir, 's', 'solutionDesign.json'), JSON.stringify([{ delayMs: 600, exitCode: 7, result: { status: 'blocked', summary: 'x' } }]));
+    const r = run('solutionDesign', 's', { scenariosDir: dir });
     expect(r.seconds).toBeGreaterThanOrEqual(0.55);
     expect(r.status).toBe(7);
   });
 
   it('fails clearly on a missing scenario or a prompt without a stage marker', () => {
-    const missing = run('plan', 'does-not-exist');
+    const missing = run('solutionDesign', 'does-not-exist');
     expect(missing.status).toBe(2);
     expect(missing.stderr).toContain('no scenario file');
     const noMarker = spawnSync('node', [FAKE], { input: 'hello', encoding: 'utf8' });
@@ -168,11 +168,11 @@ describe('fake-claude (BUILD_PLAN 11)', () => {
   });
 
   it('has an ok scenario for the stages the runner tests use, and a default', () => {
-    for (const stage of ['plan', 'implement', 'review'] as StageName[]) {
+    for (const stage of ['solutionDesign', 'implement', 'prReview'] as StageName[]) {
       expect(existsSync(path.join(SCENARIOS, 'ok', `${stage}.json`)), stage).toBe(true);
       expect(existsSync(path.join(SCENARIOS, 'default', `${stage}.json`)), stage).toBe(true);
     }
-    expect(STAGE_NAMES).toContain('plan');
+    expect(STAGE_NAMES).toContain('solutionDesign');
   });
 });
 

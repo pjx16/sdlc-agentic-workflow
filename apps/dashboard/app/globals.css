@@ -29,15 +29,15 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #060a10;
-    --bg-glow: rgba(34, 211, 238, 0.07);
-    --grid-line: rgba(120, 170, 220, 0.05);
-    --surface: #0b121b;
-    --surface-2: #101a26;
-    --border: #1a2938;
-    --border-strong: #27405a;
-    --text: #dbe8f5;
-    --muted: #7c93aa;
+    --bg: #0a0a0a;
+    --bg-glow: rgba(255, 255, 255, 0.035);
+    --grid-line: rgba(255, 255, 255, 0.035);
+    --surface: #121212;
+    --surface-2: #1a1a1a;
+    --border: #262626;
+    --border-strong: #3a3a3a;
+    --text: #ededed;
+    --muted: #8a8a8a;
     --accent: #3ad4ec;
     --accent-text: #04121a;
     --accent-soft: rgba(58, 212, 236, 0.1);
@@ -45,7 +45,7 @@
     --status-green: #3fe0a0;
     --status-amber: #f6bb4a;
     --status-red: #ff6279;
-    --status-grey: #6f8296;
+    --status-grey: #7a7a7a;
   }
 }
 

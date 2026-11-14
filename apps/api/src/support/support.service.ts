@@ -15,6 +15,8 @@ const ActionBody = z.object({
   action: z.enum(['approve', 'reject', 'answer', 'rerun_with_answers', 'resume', 'retry', 'fail', 'fixed', 'hold', 'dismiss']),
   note: z.string().trim().max(2000, 'must be at most 2000 characters').optional(),
   answer: z.string().trim().min(1, 'is required').max(10_000, 'must be at most 10000 characters').optional(),
+  /** Approve with an edited plan (an assistant draft, or an edit in the inbox). */
+  planMarkdown: z.string().trim().min(1, 'must not be empty').max(100_000, 'must be at most 100000 characters').optional(),
 });
 
 export interface SupportTicketDto {
@@ -111,7 +113,7 @@ export class SupportService {
 
   /** POST /support-tickets/:id/action: one endpoint for every action in the plan's table (BUILD_PLAN v1 6.5). */
   async act(id: string, body: unknown): Promise<SupportTicketDto> {
-    const { action, note, answer } = parseBody(ActionBody, body);
+    const { action, note, answer, planMarkdown } = parseBody(ActionBody, body);
     const q = await this.find(id);
     const kind = q.kind as SupportKind;
     if (q.status !== 'open' && !(q.status === 'answered' && kind === 'open_question')) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, `This ticket is already ${q.status}`);
@@ -124,7 +126,7 @@ export class SupportService {
     switch (action) {
       case 'approve':
         if (q.stage === 'breakdown') await this.tickets.approveBreakdown(needTicket(), {});
-        else await this.tickets.approvePlan(needTicket(), {});
+        else await this.tickets.approvePlan(needTicket(), planMarkdown ? { planMarkdown } : {});
         break;
       case 'reject':
         if (!note) throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'Validation failed', { note: 'required' });

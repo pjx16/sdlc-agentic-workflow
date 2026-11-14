@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Injectable } from '@nestjs/common';
-import { ProjectSettingsSchema, type StageEnvelope, type SubtaskStatus } from '@sdlc/shared';
+import { ProjectSettingsSchema, loopLimitMessage, type StageEnvelope, type SubtaskStatus } from '@sdlc/shared';
 import type { Prisma, Subtask, Ticket } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { SubtaskInfo } from '../agent-runner/context-builder';
@@ -206,6 +206,7 @@ export class SubtaskStepsService implements SubtaskSteps {
     const testsOn = settings.stages.tests.enabled;
     if (subtask.status === 'PENDING') await this.setStatus(subtask.id, 'IMPLEMENT');
     await makeWritableForAgent(ws);
+    if (subtask.rerunPart === 'implementation') await this.discardSubtaskWork(ticket, subtask, ws);
     const preHead = await this.head(ws);
 
     const result = await this.launcher.launch(
@@ -217,7 +218,6 @@ export class SubtaskStepsService implements SubtaskSteps {
         subtask: toSubtaskInfo(subtask),
         kbDoc: await this.kbDoc(ticket, ws, project.kbDir),
         testFiles: asStrings(subtask.testFiles),
-        writeTests: !testsOn,
       },
       { workspacePath: ws, subtaskId: subtask.id, validate: (envelope) => (envelope.status === 'done' ? this.guardMessage(ws) : null) },
     );
@@ -239,17 +239,20 @@ export class SubtaskStepsService implements SubtaskSteps {
    * test commit is still the latest commit: anything committed after it is never discarded.
    */
   private async discardSubtaskWork(ticket: Ticket, subtask: Subtask, ws: string): Promise<void> {
-    if (subtask.testCommit) {
-      const head = await this.head(ws);
-      if (head === subtask.testCommit) {
-        await this.git.run(['reset', '--hard', `${subtask.testCommit}^`], { cwd: ws });
-        await this.git.run(['clean', '-fd', '-e', 'node_modules'], { cwd: ws });
-        await this.warn(ticket, `Redo tests: discarded the tests and the implementation of subtask ${subtask.seq}; the tests stage runs again`);
-      } else {
-        await this.warn(ticket, `Redo tests: the workspace has newer commits than this subtask's tests, so nothing was discarded`);
-      }
+    const part = subtask.rerunPart === 'implementation' ? 'implementation' : 'tests';
+    // Tests: back to before the tests were committed (the implementation goes with them). Implementation: back to just after the tests.
+    const from = part === 'tests' ? subtask.testCommit : subtask.featCommit;
+    if (from) {
+      // A revert commit, never a reset: history is append-only (BUILD_PLAN v1 D1). A commit by anyone else, or a conflict, leaves the work as it is.
+      const r = await this.workspaces.revertRange(ticket.id, `${from}^..HEAD`, `revert(${ticket.key}): drop the ${part} of subtask ${subtask.seq} for a rerun`);
+      if (r.status === 'reverted') await this.warn(ticket, `Rerun: reverted the ${part} of subtask ${subtask.seq}; it runs again`);
+      else if (r.status === 'human') await this.warn(ticket, `Warning: the branch has commits not made by sdlc-agent (${r.shas.join(', ')}), so the ${part} of subtask ${subtask.seq} were not discarded`);
+      else if (r.status === 'conflict') await this.warn(ticket, `Warning: reverting the ${part} of subtask ${subtask.seq} conflicts in ${r.files.join(', ')}, so nothing was discarded`);
     }
-    await this.prisma.subtask.update({ where: { id: subtask.id }, data: { redoTests: false, testCommit: null, testFiles: [], featCommit: null } });
+    await this.prisma.subtask.update({
+      where: { id: subtask.id },
+      data: part === 'tests' ? { redoTests: false, rerunPart: null, testCommit: null, testFiles: [], featCommit: null } : { rerunPart: null, featCommit: null },
+    });
   }
 
   // ------------------------------------------------------------------ verify-green
@@ -306,7 +309,8 @@ export class SubtaskStepsService implements SubtaskSteps {
     const tail = output.split('\n').slice(-60).join('\n');
     if (subtask.fixRounds >= maxRounds) {
       await this.prisma.subtask.update({ where: { id: subtask.id }, data: { lastFailure: tail } });
-      return { kind: 'hold', reason: 'needs_help', note: `Subtask ${subtask.seq} still fails after ${subtask.fixRounds} fix round(s):\n${tail.split('\n').slice(-5).join('\n')}`.slice(0, 500) };
+      // The fix loop went round as often as allowed: a loop_limit hold (BUILD_PLAN v1 6.8) with the last lines of the failure.
+      return { kind: 'hold', reason: 'loop_limit', note: `${loopLimitMessage('testFix', maxRounds, `subtask ${subtask.seq}`)} Subtask ${subtask.seq} still fails after ${subtask.fixRounds} fix round(s):\n${tail.split('\n').slice(-5).join('\n')}`.slice(0, 500) };
     }
     await this.setStatus(subtask.id, 'FIXING', { lastFailure: tail });
     await this.warn(ticket, `Verify-green failed for subtask ${subtask.seq}; fix round ${subtask.fixRounds + 1} of ${maxRounds}`);
