@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "features": [
+    {
+      "key": "tracker",
+      "title": "Tracker",
+      "doc": "tracker.md",
+      "globs": [
+        "apps/api/src/jira/**",
+        "apps/api/src/worker/intake/**"
+      ],
+      "builtFromCommit": "a60b8fdc1bc292ea818a9413121ee185e8bc3740",
+      "updatedAt": "2026-11-14T12:28:43.201Z"
+    }
+  ]
+}
