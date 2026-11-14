@@ -12,11 +12,8 @@ import { StatusMapping } from './status-mapping';
 import { collapseListErrors, getIn, setIn, type FormValues } from '@/lib/form';
 import { applyStackChange, initialValues, toPayload } from '@/lib/project-form';
 import type { ProjectView } from '@/lib/types';
+import { STAGE_LABELS } from '@/lib/stage-labels';
 
-const STAGE_LABELS: Record<StageName, string> = {
-  kbBuild: 'KB build', plan: 'Plan', breakdown: 'Breakdown', tests: 'Tests', implement: 'Implement',
-  fix: 'Fix', review: 'Review', kbUpdate: 'KB update',
-};
 const options = (values: readonly string[]) => values.map((v) => ({ value: v, label: v }));
 
 /** Best-effort live view of the warnings, using the same shared functions the API relies on. */
@@ -159,6 +156,10 @@ export function ProjectForm({ project }: { project?: ProjectView }) {
             ))}
           </div>
           <Warnings items={warnings.stages} />
+        </Section>
+
+        <Section title="Security review" description="The security reviewer runs when a change touches risky paths or code. Add your own triggers here.">
+          <TextArea path="settings.securityRiskPatterns" label="Extra security triggers" hint="One regular expression per line. A changed file path or added line that matches calls the security reviewer, besides the built-in rules." rows={4} />
         </Section>
 
         <Section title="Gates" description="Pause for your approval before the pipeline continues.">

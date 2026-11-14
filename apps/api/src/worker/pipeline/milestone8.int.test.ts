@@ -41,7 +41,7 @@ describe('Milestone 8: from the last subtask to a merged PR', () => {
   it('review finds a high issue, one fix round, a clean second review, a KB update, green CI, ready PR, then merged', async () => {
     // The remote workspace is prepared against the local bare repo, then the project points at GitHub (the fake never contacts it).
     const t = await h.ticket({ status: 'REVIEW', featureKey: 'billing' });
-    await h.setProject({ repoUrl: GH, settings: {} });
+    await h.setProject({ repoUrl: GH, settings: { stages: { qualityReview: { enabled: false }, ciTriage: { enabled: false } } } });
     await h.subtask(t.id, 1, { status: 'DONE' });
     const ws = h.ws(t);
     h.write(ws, 'src/f1.ts', 'export const f1 = (x: string) => x;\n');
@@ -52,7 +52,7 @@ describe('Milestone 8: from the last subtask to a merged PR', () => {
 
     let reviews = 0;
     // Round 1 reports a high and a low finding; round 2 reports the high one fixed and the low one still open.
-    h.agent.scripts.review = ({ req }) => {
+    h.agent.scripts.prReview = ({ req }) => {
       reviews++;
       const previous = (req.inputs.previousFindings as { id: string; severity: string }[]).map((f) => ({ id: f.id, status: f.severity === 'high' ? 'fixed' : 'still_open' }));
       return { status: 'done', summary: `round ${reviews}`, data: { findings: reviews === 1 ? [finding(), finding({ severity: 'low', issue: 'Name' })] : [], previousFindings: reviews === 1 ? [] : previous } as never } as StageEnvelope;

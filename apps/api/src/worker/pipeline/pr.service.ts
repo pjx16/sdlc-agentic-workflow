@@ -1,10 +1,13 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { FormatLoader } from '../format-loader';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { SupportRaiser, isAuthFailure } from '../../support/support-raiser';
 import { ProjectSettingsSchema } from '@sdlc/shared';
 import { CredentialsService } from '../../credentials/credentials.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GITHUB_CLIENT, type GitHubClient, parseRepo } from '../github/github-client';
 import { buildPrDescription } from '../github/pr-description';
 import { renderReviewSummary } from '../review/review-comment';
+import { PolicyError, withRetry, type RetryOptions } from '../common/retry-policy';
 import { WorkerConfig } from '../worker-config';
 
 /** Opens (once) and describes the ticket's draft pull request (F9). */
@@ -12,23 +15,35 @@ import { WorkerConfig } from '../worker-config';
 export class PrService {
   private readonly logger = new Logger(PrService.name);
 
+  /** Waits and scale of the retry policy; tests shrink them. */
+  retry: RetryOptions = {};
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: WorkerConfig,
     private readonly creds: CredentialsService,
     @Inject(GITHUB_CLIENT) private readonly github: GitHubClient,
-  ) {}
+    @Optional() private readonly raiser?: SupportRaiser,
+  ) {
+    this.formats = new FormatLoader(config.guidelinesDir);
+  }
+
+  /** The editable formats (guidelines/formats): the description and the review summary use them; the review handler uses them for its comment. */
+  readonly formats: FormatLoader;
 
   /** The description, assembled from what is on record right now. */
   async describe(ticketId: string): Promise<string> {
     const t = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { project: true, subtasks: { orderBy: { seq: 'asc' } } } });
-    return buildPrDescription({
+    return buildPrDescription(
+      {
       ticket: { key: t.key, title: t.title, body: t.body, externalKey: t.externalKey },
       jiraBaseUrl: (await this.creds.resolve()).jira_base_url || undefined,
       testCommand: t.project.testCmdTemplate,
       remainingFindings: await this.remainingFindings(ticketId, t.reviewRound),
       subtasks: t.subtasks.map((s) => ({ seq: s.seq, title: s.title, featCommit: s.featCommit, acceptanceCriteria: Array.isArray(s.acceptanceCriteria) ? s.acceptanceCriteria.map(String) : [] })),
-    });
+      },
+      await this.formats.load('pr-description'),
+    );
   }
 
   /**
@@ -41,13 +56,16 @@ export class PrService {
     if (!ticket.branch) return null;
     try {
       const repo = parseRepo(ticket.project.repoUrl);
-      const opened = await this.github.openDraftPr({ repo, base: ticket.project.baseBranch, head: ticket.branch, title: `${ticket.key}: ${ticket.title}`, body: await this.describe(ticketId) });
+      const body = await this.describe(ticketId);
+      const branch = ticket.branch;
+      const opened = await withRetry('GITHUB_ERROR', () => this.github.openDraftPr({ repo, base: ticket.project.baseBranch, head: branch, title: `${ticket.key}: ${ticket.title}`, body }), { isFinal: (e) => /HTTP 4\d\d/.test(e instanceof Error ? e.message : ''), ...this.retry });
       await this.prisma.ticket.update({ where: { id: ticketId }, data: { prNumber: opened.number, prUrl: opened.url } });
       await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Opened draft PR #${opened.number}: ${opened.url}` } });
       return opened.number;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Opening the draft PR for ${ticket.key} failed: ${message}`);
+      if (isAuthFailure(err instanceof PolicyError ? (err.cause ?? err) : err)) await this.raiser?.credentialFailed('github', `GitHub refused the credential while opening the PR for ${ticket.key}: ${message}`).catch(() => undefined);
       await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Warning: could not open the draft PR: ${message}`.slice(0, 500) } });
       return null;
     }
@@ -106,7 +124,7 @@ export class PrService {
     const open = await this.prisma.reviewFinding.groupBy({ by: ['severity'], where: { ticketId, status: 'open' }, _count: true });
     const fixed = await this.prisma.reviewFinding.count({ where: { ticketId, status: 'fixed' } });
     const count = (sev: string) => open.find((r) => r.severity === sev)?._count ?? 0;
-    const summary = renderReviewSummary({ rounds: ticket.reviewRound, fixed, open: { critical: count('critical'), high: count('high'), medium: count('medium'), low: count('low') } });
+    const summary = renderReviewSummary({ rounds: ticket.reviewRound, fixed, open: { critical: count('critical'), high: count('high'), medium: count('medium'), low: count('low') } }, await this.formats.load('review-summary'));
     await attempt('post the summary', () => this.github.comment(repo, number, summary));
     for (const w of warnings) await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Warning: could not ${w}`.slice(0, 500) } });
     return warnings;

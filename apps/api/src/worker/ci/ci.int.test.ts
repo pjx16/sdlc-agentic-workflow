@@ -34,7 +34,7 @@ describe('CI polling and the CI fix round (F12)', () => {
   beforeEach(async () => {
     h.github.reset();
     h.agent.requests = [];
-    await h.setProject({ repoUrl: GH, installCmd: '', settings: {} });
+    await h.setProject({ repoUrl: GH, installCmd: '', settings: { stages: { ciTriage: { enabled: false } } } });
     // Other tests' tickets must not be looked at.
     await h.prisma.ticket.updateMany({ where: { status: 'AWAITING_CI' }, data: { status: 'DONE' } });
   });
@@ -86,9 +86,10 @@ describe('CI polling and the CI fix round (F12)', () => {
     await poller.check(); // a ticket with a pending fix is not polled
     expect(h.github.calls.filter((c) => c === 'checks')).toHaveLength(1);
 
+    // The CI fix round is a back-edge with a limit of one: a second failure is a loop_limit hold.
     await h.prisma.ticket.update({ where: { id: t.id }, data: { ciFixPending: false, ciFixDone: true } });
     await poller.check();
-    expect(await h.reloadTicket(t.id)).toMatchObject({ status: 'ON_HOLD', holdReason: 'needs_help' });
+    expect(await h.reloadTicket(t.id)).toMatchObject({ status: 'ON_HOLD', holdReason: 'loop_limit' });
   });
 
   it('with pr.ciFixRound off a failure holds straight away', async () => {
@@ -97,6 +98,45 @@ describe('CI polling and the CI fix round (F12)', () => {
     h.github.setChecks('fail');
     await poller.check();
     expect(await h.reloadTicket(t.id)).toMatchObject({ status: 'ON_HOLD', holdReason: 'needs_help', ciFixPending: false });
+  });
+
+  describe('the CI triager', () => {
+    const triage = (kind: string) => ({ status: 'done', summary: 'triaged', data: { kind, summary: `It is ${kind}.` } as never }) as StageEnvelope;
+    beforeEach(async () => {
+      await h.setProject({ repoUrl: GH, installCmd: '', settings: {} });
+    });
+
+    it('a code failure goes on to the fixer', async () => {
+      const t = await awaitingCi({ ciFixPending: true });
+      h.agent.scripts.ciTriage = () => triage('code');
+      h.agent.scripts.fix = ({ ws }) => {
+        h.write(ws, 'src/app.ts', 'export const app = 3;\n');
+        return { status: 'done', summary: 'fixed', data: { filesChanged: ['src/app.ts'] } as never } as StageEnvelope;
+      };
+      expect(await fixer.run(await h.reloadTicket(t.id))).toEqual({ kind: 'continue' });
+      expect(h.agent.requests.map((r) => r.stage)).toEqual(['ciTriage', 'fix']);
+    });
+
+    it('a flaky failure runs the checks again once; a second one becomes a CI problem for a person', async () => {
+      const t = await awaitingCi({ ciFixPending: true });
+      h.agent.scripts.ciTriage = () => triage('flaky');
+      expect(await fixer.run(await h.reloadTicket(t.id))).toEqual({ kind: 'stay' });
+      expect(h.github.calls).toContain('rerunFailed');
+      expect(await h.reloadTicket(t.id)).toMatchObject({ ciFixPending: false, ciRerunDone: true, ciFixDone: false });
+
+      await h.prisma.ticket.update({ where: { id: t.id }, data: { ciFixPending: true } });
+      const out = await fixer.run(await h.reloadTicket(t.id));
+      expect(out).toMatchObject({ kind: 'hold', reason: 'needs_help' });
+      expect(await h.prisma.supportTicket.count({ where: { ticketId: t.id, kind: 'ci_infra', status: 'open' } })).toBe(1);
+    });
+
+    it('an infrastructure failure raises a CI problem without using the fix round', async () => {
+      const t = await awaitingCi({ ciFixPending: true });
+      h.agent.scripts.ciTriage = () => triage('infra');
+      expect(await fixer.run(await h.reloadTicket(t.id))).toMatchObject({ kind: 'hold' });
+      expect(await h.prisma.supportTicket.count({ where: { ticketId: t.id, kind: 'ci_infra', status: 'open' } })).toBe(1);
+      expect(await h.reloadTicket(t.id)).toMatchObject({ ciFixDone: false, ciFixPending: false });
+    });
   });
 
   it('the CI fix gets the failing log, commits "fix(<KEY>): resolve CI failure", pushes, and the checks are polled again', async () => {

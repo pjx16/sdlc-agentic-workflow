@@ -10,14 +10,14 @@ A stand-in for the `claude` CLI so tests never call a real model (BUILD_PLAN sec
 
 | Scenario | What it does |
 | --- | --- |
-| `ok` / `default` | `plan`, `implement` and `review` succeed; `plan` reports a rate-limit event |
-| `schema-fail` | `plan` returns invalid output every time |
-| `schema-retry` | `plan` returns invalid output, then a valid result on attempt 2 |
-| `slow` | `plan` waits 60 s (for timeout and kill tests) |
-| `turn-limit` | `plan` ends with `error_max_turns` |
-| `needs-input` | `plan` asks a question |
-| `rate-limit` | `plan` is rejected by the rate limiter |
-| `leak` | `plan` prints `CLAUDE_CODE_OAUTH_TOKEN` in its output (tests log redaction) |
+| `ok` / `default` | `solutionDesign`, `implement` and `review` succeed; `solutionDesign` reports a rate-limit event |
+| `schema-fail` | `solutionDesign` returns invalid output every time |
+| `schema-retry` | `solutionDesign` returns invalid output, then a valid result on attempt 2 |
+| `slow` | `solutionDesign` waits 60 s (for timeout and kill tests) |
+| `turn-limit` | `solutionDesign` ends with `error_max_turns` |
+| `needs-input` | `solutionDesign` asks a question |
+| `rate-limit` | `solutionDesign` is rejected by the rate limiter |
+| `leak` | `solutionDesign` prints `CLAUDE_CODE_OAUTH_TOKEN` in its output (tests log redaction) |
 | `kb-new` | `kbBuild` writes a new doc and also edits a file outside the KB directory |
 | `kb-existing` | `kbBuild` selects the existing `bookings` key |
 | `kb-bad-key` | `kbBuild` returns `isNew: false` with a key that is not in the index |
@@ -25,4 +25,4 @@ A stand-in for the `claude` CLI so tests never call a real model (BUILD_PLAN sec
 | `tdd-bad-impl` | `implement` and `fix` never produce a working implementation |
 | `tdd-tamper` | `implement` edits the committed test file to always pass, leaving the implementation broken |
 | `tdd-red-invalid` | `tests` writes tests whose run fails with `Cannot find module` (an invalid red) |
-| `fenced` | `plan` returns its result as a fenced JSON block instead of `structured_output` |
+| `fenced` | `solutionDesign` returns its result as a fenced JSON block instead of `structured_output` |

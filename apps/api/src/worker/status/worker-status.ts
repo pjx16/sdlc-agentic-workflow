@@ -1,3 +1,5 @@
+import { events } from '@sdlc/shared';
+import { writeEvent } from '../../common/event-log';
 import type { PrismaService } from '../../prisma/prisma.service';
 
 const ID = 'worker';
@@ -47,10 +49,10 @@ export async function recordStart(prisma: Pick<PrismaService, 'workerStatus' | '
     const now = new Date();
     const data = { heartbeatAt: now, tickOutcome: 'starting', tickDetail: null, phase: 'idle', phaseDetail: null, phaseSince: now, startedAt: now, pid, version };
     await prisma.workerStatus.upsert({ where: { id: ID }, update: data, create: { id: ID, ...data } });
-    await prisma.event.create({ data: { type: 'worker', message: `Worker started (version ${version}, pid ${pid})` } });
+    await writeEvent(prisma, events.workerStarted({ version, pid }));
     const since = new Date(now.getTime() - RESTART_WINDOW_MS);
     const starts = await prisma.event.count({ where: { type: 'worker', message: { startsWith: 'Worker started' }, at: { gte: since } } });
-    if (starts >= RESTART_LIMIT) await prisma.event.create({ data: { type: 'error', message: 'Worker is restarting repeatedly' } });
+    if (starts >= RESTART_LIMIT) await writeEvent(prisma, events.workerRestarting());
   } catch {
     /* status is best effort */
   }

@@ -1,6 +1,7 @@
 import { HttpStatus, Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { ErrorCodes, checkTransition, type Actor, type HoldReason, type TicketStatus } from '@sdlc/shared';
+import { ErrorCodes, checkMove, checkTransition, events, type MoveKind, type Actor, type HoldReason, type TicketStatus } from '@sdlc/shared';
 import { ApiException } from '../common/api-exception';
+import { writeEvent } from '../common/event-log';
 import type { StateTransition, Ticket } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -30,6 +31,12 @@ export const TRANSITION_LISTENERS = Symbol('TRANSITION_LISTENERS');
 export interface TransitionOptions {
   /** Required when moving to ON_HOLD. */
   holdReason?: HoldReason;
+  /** What kind of move this is (BUILD_PLAN v1 6.8). Defaults to `advance`. */
+  kind?: MoveKind;
+  /** The person's instructions for a rerun, or the reason for a rejection. */
+  note?: string;
+  /** The move did not come from the state table alone, so it is not checked as an ordinary advance (a rerun is checked against the history). */
+  trigger?: 'auto' | 'user' | 'orchestrator';
 }
 
 /**
@@ -58,7 +65,12 @@ export class StateMachine {
       if (!ticket) throw new ApiException(HttpStatus.NOT_FOUND, ErrorCodes.notFound, 'Ticket not found');
       const from = ticket.status as TicketStatus;
 
-      const verdict = checkTransition(from, to, { holdFromStatus: ticket.holdFromStatus as TicketStatus | null });
+      const kind: MoveKind = options.kind ?? 'advance';
+      const holdFrom = ticket.holdFromStatus as TicketStatus | null;
+      const verdict =
+        kind === 'rerun'
+          ? checkMove({ status: from, holdFromStatus: holdFrom, moves: await tx.stateTransition.findMany({ where: { ticketId }, orderBy: [{ at: 'asc' }, { id: 'asc' }], select: { fromStatus: true, toStatus: true, kind: true } }) as never }, 'rerun', to)
+          : checkTransition(from, to, { holdFromStatus: holdFrom });
       if (!verdict.ok) throw new InvalidTransitionError(from, to, verdict.reason);
       if (to === 'ON_HOLD' && !options.holdReason) {
         throw new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.validation, 'A hold needs a reason', { holdReason: 'required' });
@@ -79,8 +91,8 @@ export class StateMachine {
       const { count } = await tx.ticket.updateMany({ where: { id: ticketId, status: from }, data: { status: to, ...bookkeeping } });
       if (count === 0) throw new ApiException(HttpStatus.CONFLICT, ErrorCodes.conflict, 'The ticket changed while it was being updated');
 
-      const transition = await tx.stateTransition.create({ data: { ticketId, fromStatus: from, toStatus: to, actor, reason: reason ?? null, stageRunId: stageRunId ?? null } });
-      await tx.event.create({ data: { ticketId, type: 'state', message: `${ticket.key}: ${from} -> ${to}${reason ? ` (${reason})` : ''}` } });
+      const transition = await tx.stateTransition.create({ data: { ticketId, fromStatus: from, toStatus: to, actor, reason: reason ?? null, stageRunId: stageRunId ?? null, kind, note: options.note ?? null } });
+      await writeEvent(tx, kind === 'rerun' ? events.rerun({ stage: to, actor, note: options.note }) : events.transition({ ticketKey: ticket.key, from, to, reason, actor, kind }), { ticketId, stageRunId });
       return { ticket: await tx.ticket.findUniqueOrThrow({ where: { id: ticketId } }), transition };
     });
 
@@ -95,7 +107,7 @@ export class StateMachine {
   }
 
   hold(ticketId: string, holdReason: HoldReason, actor: Actor, note?: string, stageRunId?: string): Promise<TransitionResult> {
-    return this.transition(ticketId, 'ON_HOLD', actor, note ?? holdReason, stageRunId, { holdReason });
+    return this.transition(ticketId, 'ON_HOLD', actor, note ?? holdReason, stageRunId, { holdReason, kind: 'hold' });
   }
 
   /** Resume from a hold, or retry after a failure: back to the state the ticket was in (rows 17 and 18). */
@@ -105,10 +117,10 @@ export class StateMachine {
     if (ticket.status !== 'ON_HOLD' && ticket.status !== 'FAILED') {
       throw new InvalidTransitionError(ticket.status, ticket.status, `A ${ticket.status} ticket is not on hold or failed`);
     }
-    return this.transition(ticketId, ticket.holdFromStatus as TicketStatus, actor, note ?? 'resumed');
+    return this.transition(ticketId, ticket.holdFromStatus as TicketStatus, actor, note ?? 'resumed', undefined, { kind: ticket.status === 'FAILED' ? 'retry' : 'resume' });
   }
 
   fail(ticketId: string, reason: string, stageRunId?: string): Promise<TransitionResult> {
-    return this.transition(ticketId, 'FAILED', 'system', reason, stageRunId);
+    return this.transition(ticketId, 'FAILED', 'system', reason, stageRunId, { kind: 'fail' });
   }
 }

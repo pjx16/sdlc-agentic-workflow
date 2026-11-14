@@ -9,9 +9,11 @@ import { type CmdResult, VerifyService } from '../verify/verify.service';
 import { WorkerConfig } from '../worker-config';
 import { readNoFollowSync, readTextNoFollowSync, writeTextNoFollowSync } from '../fs/safe-fs';
 import { assertSafeKey, branchName } from './branch';
-import { type CommitResult, commitAll, pushBranch } from './commit';
+import { PolicyError, withRetry, type RetryOptions } from '../common/retry-policy';
+import { type CommitResult, PushRejectedError, commitAll, pushBranch } from './commit';
 import { GitRunner } from './git-runner';
 import { makeWritableForAgent, prepareWorkspace } from './workspace';
+import { revertRange, type RevertResult } from './revert';
 
 export interface WorkspaceResult {
   path: string;
@@ -53,6 +55,8 @@ export class WorkspaceService {
     private readonly creds: CredentialsService,
   ) {}
 
+  /** Waits and scale of the retry policy; tests shrink them. */
+  retry: RetryOptions = {};
   async prepare(ticketId: string): Promise<WorkspaceResult> {
     const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId }, include: { project: true } });
     const { project } = ticket;
@@ -95,7 +99,26 @@ export class WorkspaceService {
     const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
     const identity = await this.creds.resolve();
     const result = await commitAll(this.git, this.config.workspacePath(ticket.projectId, ticket.key), message, { name: identity.git_author_name, email: identity.git_author_email }, opts);
-    if (result.committed) await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Committed ${result.sha.slice(0, 8)}: ${message.split('\n')[0]}`.slice(0, 500) } });
+    if (result.committed) {
+      await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Committed ${result.sha.slice(0, 8)}: ${message.split('\n')[0]}`.slice(0, 500) } });
+      // The stage that made this commit ends here (BUILD_PLAN v1 6.8): its range is startSha..endSha.
+      const run = await this.prisma.stageRun.findFirst({ where: { ticketId, startSha: { not: null }, endedAt: { not: null } }, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }] });
+      if (run) await this.prisma.stageRun.update({ where: { id: run.id }, data: { endSha: result.sha } }).catch(() => undefined);
+    }
+    return result;
+  }
+
+  /** The identity commits are made as. */
+  async identity(): Promise<{ name: string; email: string }> {
+    const c = await this.creds.resolve();
+    return { name: c.git_author_name, email: c.git_author_email };
+  }
+
+  /** Removes work with a revert commit (BUILD_PLAN v1 D1): history is append-only and nothing is ever force-pushed. */
+  async revertRange(ticketId: string, range: string, message: string): Promise<RevertResult> {
+    const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
+    const result = await revertRange(this.git, this.config.workspacePath(ticket.projectId, ticket.key), range, message, await this.identity());
+    if (result.status === 'reverted') await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Reverted ${result.commits} commit${result.commits === 1 ? '' : 's'} (${result.sha.slice(0, 8)}): ${message.split('\n')[0]}`.slice(0, 500) } });
     return result;
   }
 
@@ -104,7 +127,15 @@ export class WorkspaceService {
     const ticket = await this.prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
     if (!ticket.branch) throw new Error(`${ticket.key} has no branch yet`);
     const project = await this.prisma.project.findUniqueOrThrow({ where: { id: ticket.projectId } });
-    await pushBranch(this.git, this.config.workspacePath(ticket.projectId, ticket.key), ticket.branch, project.repoUrl, this.config.pushUrlPrefixes);
+    const branch = ticket.branch;
+    // A failed push is retried by the GIT_ERROR policy (3 times, 1, 4 and 10 minutes). A rejected push is never retried: the remote moved on.
+    await withRetry('GIT_ERROR', () => pushBranch(this.git, this.config.workspacePath(ticket.projectId, ticket.key), branch, project.repoUrl, this.config.pushUrlPrefixes), {
+      ...this.retry,
+      isFinal: (e) => e instanceof PushRejectedError,
+      onRetry: ({ attempt, message }) => this.logger.warn(`Push of ${branch} failed (attempt ${attempt}): ${message}`),
+    }).catch((e: unknown) => {
+      throw e instanceof PolicyError && e.cause instanceof PushRejectedError ? e.cause : e;
+    });
     await this.prisma.event.create({ data: { ticketId, type: 'git', message: `Pushed ${ticket.branch}` } });
   }
 }

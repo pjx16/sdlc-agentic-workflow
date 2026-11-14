@@ -12,6 +12,8 @@ const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
 export interface GlobalSettingsView extends GlobalSettingsInput {
   pipelinePaused: boolean;
   pausedReason: string | null;
+  /** The ERROR_CODES value behind the pause (CLAUDE_AUTH, CLAUDE_USAGE_LIMIT, ...), or null for a manual or threshold pause. */
+  pausedCode: string | null;
   resetsAt: string | null;
   usageIgnoredUntil: string | null;
   intakePaused: boolean;
@@ -81,6 +83,10 @@ export interface SystemView {
   settings: GlobalSettingsView;
   worker: WorkerStatusView | null;
   recentEvents: RecentEvent[];
+  /** Open items that need you: blocking tickets and approvals. The sidebar badge. */
+  inboxBadge: number;
+  /** Open FYI items (for example a pull request ready for human review): they need a look but block nothing. */
+  inboxFyi: number;
   runningStage: { id: string; stage: string; model: string; projectId: string; ticketId: string | null; startedAt: string | null } | null;
   usage: { at: string; fiveHourPct: number | null; sevenDayPct: number | null; status: string | null; resetsAt: string | null; source: string } | null;
 }
@@ -97,12 +103,15 @@ function toView(row: GlobalSettings): GlobalSettingsView {
     verifyTimeoutSec: row.verifyTimeoutSec,
     workspaceRetentionDays: row.workspaceRetentionDays,
     logRetentionDays: row.logRetentionDays,
+    assistantTokenCap: row.assistantTokenCap,
+    stageDefaults: GlobalSettingsSchema.parse({ stageDefaults: row.stageDefaults }).stageDefaults,
     modelAliases: row.modelAliases,
   });
   return {
     ...parsed,
     pipelinePaused: row.pipelinePaused,
     pausedReason: row.pausedReason,
+    pausedCode: row.pausedCode,
     resetsAt: row.resetsAt?.toISOString() ?? null,
     usageIgnoredUntil: row.usageIgnoredUntil?.toISOString() ?? null,
     intakePaused: row.intakePaused,
@@ -123,6 +132,7 @@ export class SystemSettingsService {
         id: GLOBAL_ID,
         ...d,
         modelAliases: d.modelAliases as unknown as Prisma.InputJsonValue,
+        stageDefaults: d.stageDefaults as unknown as Prisma.InputJsonValue,
       },
     });
   }
@@ -139,8 +149,12 @@ export class SystemSettingsService {
     const intakeRows = await this.prisma.workerStatus.findMany({ where: { id: { in: ['intake-rest'] } }, orderBy: { id: 'asc' } });
     const restarts = await this.prisma.event.count({ where: { type: 'worker', message: { startsWith: 'Worker started' }, at: { gte: new Date(Date.now() - 10 * 60_000) } } });
     const events = await this.prisma.event.findMany({ orderBy: { at: 'desc' }, take: 8, include: { ticket: { select: { key: true } } } });
+    const inboxFyi = await this.prisma.supportTicket.count({ where: { status: 'open', NOT: { OR: [{ kind: 'approval' }, { priority: 'blocking' }] } } });
+    const inboxBadge = await this.prisma.supportTicket.count({ where: { status: 'open', OR: [{ kind: 'approval' }, { priority: 'blocking' }] } });
     return {
       settings,
+      inboxBadge,
+      inboxFyi,
       worker: worker && {
         online: Date.now() - worker.heartbeatAt.getTime() < WORKER_ONLINE_MS,
         state: workerState(worker, Date.now(), settings.stageTimeoutMin),
@@ -195,6 +209,7 @@ export class SystemSettingsService {
       data: {
         ...next,
         modelAliases: next.modelAliases as unknown as Prisma.InputJsonValue,
+        stageDefaults: next.stageDefaults as unknown as Prisma.InputJsonValue,
       },
     });
     await this.event('settings', 'Global settings updated');
@@ -212,7 +227,7 @@ export class SystemSettingsService {
     await this.row();
     const row = await this.prisma.globalSettings.update({
       where: { id: GLOBAL_ID },
-      data: { pipelinePaused: false, pausedReason: null, resetsAt: null },
+      data: { pipelinePaused: false, pausedReason: null, pausedCode: null, resetsAt: null },
     });
     await this.event('state', 'Pipeline resumed');
     return toView(row);

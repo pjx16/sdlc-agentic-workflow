@@ -46,7 +46,7 @@ describe('DockerodeEngine.ensureImage (3.1)', () => {
 
 describe('WorkerRunner start-up image check (3.1)', () => {
   const runner = (engine: FakeEngine) =>
-    new WorkerRunner({ agentImage: 'agent:1', databaseUrl: 'postgresql://x' } as never, {} as never, {} as never, engine, {} as never) as unknown as { ensureAgentImage(): Promise<void> };
+    new WorkerRunner({ agentImage: 'agent:1', databaseUrl: 'postgresql://x' } as never, {} as never, {} as never, {} as never, engine, {} as never) as unknown as { ensureAgentImage(): Promise<void> };
 
   it('asks the engine for the configured agent image', async () => {
     const engine = new FakeEngine();

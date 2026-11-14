@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto';
+import type { JiraFacts } from '@sdlc/shared';
+
 /** What the pipeline needs from Jira (BUILD_PLAN 8 Worker interfaces). Two implementations: REST (default) and MCP. */
 
 export interface JiraTicket {
@@ -20,6 +23,8 @@ export interface JiraIssueStatus {
 }
 
 export interface JiraSubtaskInput {
+  /** Stored as a label; a second call with the same marker finds the first sub-task instead of creating another. */
+  marker?: string;
   summary: string;
   /** Markdown. */
   description: string;
@@ -37,12 +42,29 @@ export interface JiraProjectRef {
 export interface JiraClient {
   searchTickets(project: JiraProjectRef): Promise<JiraTicket[]>;
   readStatus(key: string): Promise<JiraIssueStatus>;
-  comment(key: string, markdown: string): Promise<void>;
+  /** With a `marker` the call is safe to repeat: when the issue already has a comment carrying it, nothing is posted. */
+  comment(key: string, markdown: string, marker?: string): Promise<void>;
+  /** Posts the comment, or, when one carrying the marker exists, rewrites it in place (a changed body replaces the old one). */
+  upsertComment(key: string, markdown: string, marker: string): Promise<void>;
   /** Moves the issue to the status with this name (case-insensitive). Throws JiraStatusNotFoundError if there is none. */
   transition(key: string, statusName: string): Promise<void>;
   createSubtask(parentKey: string, subtask: JiraSubtaskInput): Promise<{ key: string }>;
   listStatuses(projectKey: string): Promise<string[]>;
+  /** What onboarding needs to know about a Jira project (BUILD_PLAN v1 6.7). */
+  projectFacts(projectKey: string): Promise<JiraFacts>;
 }
+
+/**
+ * The hidden marker that makes a Jira write safe to repeat (BUILD_PLAN v1 6.3): `[sdlc-agent:{ticket}:{purpose}:{version}]`.
+ * The version is a short hash of the content, so changed content is posted again and identical content is not.
+ */
+export function jiraMarker(ticketKey: string, purpose: string, content = ''): string {
+  const version = createHash('sha1').update(content).digest('hex').slice(0, 8);
+  return `[sdlc-agent:${ticketKey}:${purpose}:${version}]`;
+}
+
+/** The same marker as a Jira label (labels cannot hold brackets or colons). */
+export const markerLabel = (marker: string): string => marker.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 255);
 
 /** A non-retryable HTTP error from Jira (400, 401, 403, 404, ...). */
 export class JiraHttpError extends Error {
