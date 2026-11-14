@@ -73,7 +73,7 @@ Key points:
 - **Dashboard:** single-user password login, live logs, queue, approvals, support queries, settings, guideline editing and minimal charts.
 - **Jira integration:** REST polling with a configurable JQL per project (default). Pasting tickets works with or without Jira. Ticket states can be mapped to Jira statuses.
 
-The full flow, state machine and acceptance criteria are in [`BUILD_PLAN.md`](./docs/build-plan/v0.0.0/BUILD_PLAN.md). For how the pieces fit together (services, trust boundaries, ticket lifecycle, worker loop, data model) and how that has changed over time, see [`docs/architecture`](./docs/architecture/README.md).
+The full flow, state machine and acceptance criteria are in [`BUILD_PLAN.md`](./docs/build-plan/v0.0.0/BUILD_PLAN.md). The Jira integration is described in [`TRACKER.md`](./TRACKER.md). For how the pieces fit together (services, trust boundaries, ticket lifecycle, worker loop, data model) and how that has changed over time, see [`docs/architecture`](./docs/architecture/README.md).
 
 ## Design principles
 
