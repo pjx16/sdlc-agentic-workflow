@@ -21,6 +21,7 @@ All notable changes to this project are documented here. The format follows [Kee
   - Orchestrator: five more decision points are wired (review findings, review limit, adding the security reviewer, skipping planning for a chore, a second flaky CI failure), each with a default that applies when the orchestrator is off or fails, and a person already called in is not asked again. A Decisions tab on the ticket shows the question, options, choice and reason; `GET /tickets/:id/decisions`.
 
 ### Fixed
+- Code scanning and dependency alerts: prototype-pollution guard written as explicit key checks, no check-then-read race in `scripts/generate-agents.mjs`, and the dev-only `glob` dependency now uses a patched `minimatch` (override). The CLI build and release packaging no longer copy the removed `docker/jira-mcp.example.json`.
 - CI lint on `dev`: removed unused imports and variables, kept the cause on rethrown errors, and allowed the intentional placeholder control characters in the Confluence storage converter.
 - The worker no longer shows as offline while it runs a long stage: the heartbeat is written by its own timer every 5 seconds. The dashboard shows idle, busy (with phase and time), stalled and offline, and a banner when the worker restarts repeatedly. The `worker` service has a Docker healthcheck.
 - A usage snapshot is now recorded after every run (done, failed, killed or container error), linked to the run and model, with every window the event carried. Snapshots older than 90 days are reduced to one per hour.

@@ -18,7 +18,6 @@ const copy = (from, to) => {
 };
 copy('deploy/docker-compose.yml', 'docker-compose.yml');
 copy('guidelines', 'guidelines');
-copy('docker/jira-mcp.example.json', 'docker/jira-mcp.example.json');
 copy('CHANGELOG.md', 'CHANGELOG.md');
 copy('LICENSE', 'LICENSE');
 cpSync(path.join(root, 'LICENSE'), path.join(pkg, 'LICENSE'));

@@ -1,7 +1,7 @@
 // Writes .claude/agents/sdlc-<name>.md from guidelines/stages/<name>.md for every agent in the roster
 // (packages/shared/src/agents.ts), and removes sdlc-* files of agents that no longer exist.
 // Run `npm run build -w @sdlc/shared` first. `--check` only reports drift and exits 1 when a file is out of date.
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -20,7 +20,13 @@ for (const agent of AGENTS) {
 let drift = 0;
 for (const [file, text] of wanted) {
   const target = path.join(out, file);
-  if (!existsSync(target) || readFileSync(target, 'utf8') !== text) {
+  let current = null;
+  try {
+    current = readFileSync(target, 'utf8');
+  } catch {
+    // not there yet
+  }
+  if (current !== text) {
     drift++;
     if (!check) writeFileSync(target, text);
   }

@@ -17,15 +17,12 @@ export function zodFields(error: z.ZodError): Record<string, string> {
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 
-/** Keys that must never be copied from request data: they would change an object's prototype instead of adding a value. */
-const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-
 /** Recursively merges `patch` into `base`; arrays and scalars in `patch` replace the base value. Prototype-related keys are ignored. */
 export function deepMerge<T>(base: T, patch: unknown): T {
   if (!isPlainObject(base) || !isPlainObject(patch)) return (patch === undefined ? base : patch) as T;
   const out: Record<string, unknown> = { ...base };
   for (const [k, v] of Object.entries(patch)) {
-    if (v === undefined || UNSAFE_KEYS.has(k)) continue;
+    if (v === undefined || k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
     out[k] = isPlainObject(out[k]) && isPlainObject(v) ? deepMerge(out[k], v) : v;
   }
   return out as T;
