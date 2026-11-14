@@ -78,6 +78,7 @@ export interface SystemView {
   worker?: WorkerStatusView | null;
   recentEvents?: RecentEvent[];
   inboxBadge?: number;
+  inboxFyi?: number;
   runningStage: { id: string; stage: string; model: string; projectId: string; ticketId: string | null; startedAt: string | null } | null;
   usage: { at: string; fiveHourPct: number | null; sevenDayPct: number | null; status: string | null; resetsAt: string | null; source: string } | null;
 }
@@ -146,6 +147,7 @@ export interface OperationsView {
   load: { stage: string; runs: number; retries: number; loops: number; avgDurationSec: number; avgTokens: number; avgCostUsd: number }[];
   integrations: { source: string; total: number; errors: number; rate: number }[];
   recentErrors: { id: string; at: string; source: string; message: string; errorCode: string | null; ticketId: string | null; ticketKey: string | null }[];
+  orchestrator: { decisions: number; fallbacks: number; fallbackRate: number; costUsd: number; inputTokens: number; outputTokens: number };
 }
 
 export interface RateSeriesView {
@@ -304,6 +306,19 @@ export interface ArtifactView {
   stageRunId: string | null;
   createdAt: string;
   externalUrl: string | null;
+}
+
+export interface DecisionView {
+  id: string;
+  at: string;
+  point: string;
+  question: string;
+  options: { kind: string; to: string; label: string }[];
+  chosen: string;
+  reason: string;
+  fallbackUsed: boolean;
+  model: string | null;
+  costUsd: number;
 }
 
 export interface InboxCountsView {

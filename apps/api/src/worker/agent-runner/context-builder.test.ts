@@ -59,6 +59,7 @@ describe('prompt.md (BUILD_PLAN 6.4)', () => {
     bugInvestigation: ['Ticket', 'KB doc', 'Output'],
     qualityReview: ['Acceptance criteria', 'Diff', 'Review checklist', 'Output'],
     securityReview: ['Acceptance criteria', 'Diff', 'Review checklist', 'Output'],
+    orchestrate: ['Ticket', 'Question', 'Legal moves', 'Recent events', 'Last stage', 'Counts', 'Open findings', 'Open support tickets', 'Output'],
     ciTriage: ['Failing check', 'Times the checks were run again', 'Log tail', 'Output'],
     solutionDesign: ['Instructions', 'Ticket', 'KB doc', 'Output'],
     technicalDesign: ['Ticket', 'Approved plan', 'KB doc', 'Output'],

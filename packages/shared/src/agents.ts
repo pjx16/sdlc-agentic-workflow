@@ -31,6 +31,7 @@ export const AGENTS: readonly AgentSpec[] = [
   { name: 'pr-reviewer', stages: ['prReview'], job: 'Review a diff for correctness, and whether every acceptance criterion is met and tested.', workspace: 'read-only', model: 'sonnet' },
   { name: 'quality-reviewer', stages: ['qualityReview'], job: 'Review a diff for readability and the repository’s standards.', workspace: 'read-only', model: 'haiku' },
   { name: 'security-reviewer', stages: ['securityReview'], job: 'Review a diff for security problems only.', workspace: 'read-only', model: 'sonnet' },
+  { name: 'orchestrator', stages: ['orchestrate'], job: 'Choose one of the legal moves for a ticket at a decision point, and say why.', workspace: 'none', model: 'haiku' },
   { name: 'ci-triager', stages: ['ciTriage'], job: 'Classify a failed CI run as a code problem, a flaky test or an infrastructure problem.', workspace: 'none', model: 'haiku' },
 ];
 

@@ -7,10 +7,10 @@ import { FormProvider, Section, Select, Text, TextArea } from './form';
 import { setIn, type FormValues } from '@/lib/form';
 
 /** Paste a ticket into a project (F3). Works in every Jira mode. */
-export function TicketForm({ projects }: { projects: { id: string; name: string; mirrorStatus: string; enabled: boolean; onboardingStatus?: string }[] }) {
+export function TicketForm({ projects, template = '' }: { projects: { id: string; name: string; mirrorStatus: string; enabled: boolean; onboardingStatus?: string }[]; /** The team's ticket format (guidelines/formats/ticket.md): the description starts with it. */ template?: string }) {
   const router = useRouter();
   const usable = projects.filter((p) => p.enabled && (p.onboardingStatus ?? 'confirmed') === 'confirmed');
-  const [values, setValues] = useState<FormValues>({ projectId: usable[0]?.id ?? '', title: '', body: '', kind: 'feature', featureKey: '' });
+  const [values, setValues] = useState<FormValues>({ projectId: usable[0]?.id ?? '', title: '', body: template, kind: 'feature', featureKey: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

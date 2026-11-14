@@ -1,4 +1,6 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { FormatLoader } from '../format-loader';
+import { OrchestratorService } from '../orchestrator/orchestrator.service';
 import { writeArtifact } from '../../common/artifacts';
 import { SupportRaiser } from '../../support/support-raiser';
 import { ProjectSettingsSchema, type StageEnvelope } from '@sdlc/shared';
@@ -42,9 +44,14 @@ export class PlanHandler implements StepHandler {
     private readonly outcomes: StageOutcomes,
     private readonly jira: JiraClients,
     @Optional() raiser?: SupportRaiser,
+    @Optional() @Inject(OrchestratorService) private readonly orchestrator?: OrchestratorService,
+    @Optional() formats?: FormatLoader,
   ) {
     this.raiser = raiser ?? new SupportRaiser(prisma);
+    this.formats = formats ?? new FormatLoader();
   }
+
+  private readonly formats: FormatLoader;
 
   private readonly raiser: SupportRaiser;
 
@@ -59,6 +66,17 @@ export class PlanHandler implements StepHandler {
       return { kind: 'transition', to: 'BREAKDOWN', reason: 'The plan stage is off: the ticket body is the plan' };
     }
 
+    // A chore with the plan gate off may skip planning, but only when the orchestrator says so (BUILD_PLAN v1 6.11).
+    if (ticket.kind === 'chore' && !settings.gates.plan && this.orchestrator && (await this.prisma.stageArtifact.count({ where: { ticketId: ticket.id, stage: 'plan' } })) === 0) {
+      const pick = await this.orchestrator.choose(ticket, 'chore_plan', [{ kind: 'plan', to: 'plan', label: 'Write a plan' }, { kind: 'skip_plan', to: 'skip_plan', label: 'Skip planning: the ticket body is the plan' }], 'plan', `Title: ${ticket.title}. Description length: ${(ticket.body ?? '').length} characters.`);
+      if (pick.option.kind === 'skip_plan') {
+        const plan = ticket.body || ticket.title;
+        await this.prisma.ticket.update({ where: { id: ticket.id }, data: { planMarkdown: plan } });
+        await writeArtifact(this.prisma, ticket.id, 'plan', { planMarkdown: plan }, null).catch(() => undefined);
+        return { kind: 'transition', to: 'BREAKDOWN', reason: `Planning was skipped for this chore: ${pick.reason}` };
+      }
+    }
+
     const ws = this.launcher.workspaceOf(ticket);
     const { match } = await lookup(ws, project.kbDir, featureKeyOf(ticket));
     const rejection = await this.rejection(ticket);
@@ -69,6 +87,7 @@ export class PlanHandler implements StepHandler {
       {
         ticket: { key: ticket.key, title: ticket.title, body: ticket.body },
         kbDoc: match?.content,
+        planFormat: await this.formats.load('plan'),
         ...(rejection ? { previousPlan: ticket.planMarkdown ?? undefined, rejectionNote: rejection } : {}),
       },
       { workspacePath: ws },
@@ -111,7 +130,7 @@ export class PlanHandler implements StepHandler {
   private async commentOnJira(ticket: Ticket, jiraMode: string, enabled: boolean, plan: string): Promise<void> {
     if (!enabled || jiraMode !== 'rest' || ticket.source !== 'jira' || !ticket.externalKey) return;
     try {
-      await (await this.jira.forRest()).comment(ticket.externalKey, `## Plan for ${ticket.key}\n\n${plan}`, jiraMarker(ticket.key, 'plan', plan));
+      await (await this.jira.forRest()).comment(ticket.externalKey, await this.formats.fill('jira-plan', { key: ticket.key, plan }), jiraMarker(ticket.key, 'plan', plan));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Posting the plan to ${ticket.externalKey} failed: ${message}`);

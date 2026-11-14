@@ -27,6 +27,7 @@ import { GITHUB_CLIENT, GhCliClient, type GitHubClient } from './github/github-c
 import { InProgressHandler, SUBTASK_STEPS } from './pipeline/in-progress.handler';
 import { PrService } from './pipeline/pr.service';
 import { SubtaskStepsService } from './pipeline/subtask-steps.service';
+import { FormatLoader } from './format-loader';
 import { PlanHandler } from './pipeline/plan.handler';
 import { KB_BUILDER, KbHandler } from './pipeline/kb.handler';
 import { KbBuildService } from './pipeline/kb-build.service';
@@ -54,6 +55,7 @@ import { UsageRetention } from './usage/usage-retention';
 import { OrphanCleanup } from './cleanup/orphan-cleanup';
 import { MergePoller } from './ci/merge-poller';
 import { PlanPageSync } from './plan-pages/plan-page-sync';
+import { OrchestratorService } from './orchestrator/orchestrator.service';
 import { ConfluenceClients } from '../confluence/confluence-clients';
 import { CiFixHandler } from './ci/ci-fix.handler';
 import { WorkerConfig } from './worker-config';
@@ -79,6 +81,7 @@ import { WorkerRunner } from './worker-runner';
     StageOutcomes,
     StageLauncher,
     KbBuildService,
+    { provide: FormatLoader, useFactory: (c: WorkerConfig) => new FormatLoader(c.guidelinesDir), inject: [WorkerConfig] },
     PlanHandler,
     BreakdownHandler,
     { provide: GITHUB_CLIENT, useFactory: (c: WorkerConfig, creds: CredentialsService) => new GhCliClient({ token: async () => (await creds.resolve()).github_token, tmpDir: c.dataDir }), inject: [WorkerConfig, CredentialsService] },
@@ -103,7 +106,7 @@ import { WorkerRunner } from './worker-runner';
     { provide: CleanupService, useFactory: (p: PrismaService, c: WorkerConfig) => new CleanupService(p, c), inject: [PrismaService, WorkerConfig] },
     { provide: CiPoller, useFactory: (p: PrismaService, st: StateMachine, pr: PrService, gh: GitHubClient, hn: HoldNotifier) => new CiPoller(p, st, pr, gh, undefined, hn), inject: [PrismaService, StateMachine, PrService, GITHUB_CLIENT, HoldNotifier] },
     { provide: MergePoller, useFactory: (p: PrismaService, st: StateMachine, gh: GitHubClient) => new MergePoller(p, st, gh), inject: [PrismaService, StateMachine, GITHUB_CLIENT] },
-    { provide: PlanPageSync, useFactory: (p: PrismaService, c: ConfluenceClients, j: JiraClients) => new PlanPageSync(p, c, j), inject: [PrismaService, ConfluenceClients, JiraClients] },
+    { provide: OrchestratorService, useFactory: (p: PrismaService, l: StageLauncher) => new OrchestratorService(p, l), inject: [PrismaService, StageLauncher] },
     { provide: HOUSEKEEPERS, useFactory: (ci: CiPoller, merge: MergePoller, cleanup: CleanupService, orphans: OrphanCleanup, retention: UsageRetention, onboarding: OnboardingWorker, pages: PlanPageSync): Housekeeper[] => [ci, merge, cleanup, orphans, retention, onboarding, pages], inject: [CiPoller, MergePoller, CleanupService, OrphanCleanup, UsageRetention, OnboardingWorker, PlanPageSync] },
     NewTicketHandler,
     KbHandler,
@@ -111,8 +114,8 @@ import { WorkerRunner } from './worker-runner';
     RestartRecovery,
     {
       provide: WorkerLoop,
-      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine, handlers: StepHandler[], housekeepers: Housekeeper[], holds: HoldNotifier, creds: CredentialsService, prep: RerunPrep) => new WorkerLoop(prisma, mirrors, intake, approvals, states, handlers, undefined, housekeepers, holds, creds, prep),
-      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine, STEP_HANDLERS, HOUSEKEEPERS, HoldNotifier, CredentialsService, RerunPrep],
+      useFactory: (prisma: PrismaService, mirrors: MirrorService, intake: IntakePoller, approvals: ApprovalPoller, states: StateMachine, handlers: StepHandler[], housekeepers: Housekeeper[], holds: HoldNotifier, creds: CredentialsService, prep: RerunPrep, orchestrator: OrchestratorService) => new WorkerLoop(prisma, mirrors, intake, approvals, states, handlers, undefined, housekeepers, holds, creds, prep, orchestrator),
+      inject: [PrismaService, MirrorService, IntakePoller, ApprovalPoller, StateMachine, STEP_HANDLERS, HOUSEKEEPERS, HoldNotifier, CredentialsService, RerunPrep, OrchestratorService],
     },
     WorkerRunner,
   ],

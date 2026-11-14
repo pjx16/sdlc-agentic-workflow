@@ -42,6 +42,8 @@ export interface StageInputs {
   plan?: string;
   /** For a re-run of `plan` after a rejection (F7). */
   previousPlan?: string;
+  /** The sections the plan should have (guidelines/formats/plan.md). */
+  planFormat?: string;
   /** For breakdown: the limit, and on a re-run the previous list (as JSON) and the rejection note. */
   maxSubtasks?: number;
   previousBreakdown?: string;
@@ -63,6 +65,8 @@ export interface StageInputs {
   previousFindings?: FindingInfo[];
   /** For the security reviewer: the rules that matched. */
   securityReasons?: string[];
+  /** For the orchestrator: a short summary of one ticket at a decision point. Never code or diffs. */
+  orchestrate?: { ticketKey: string; kind: string; state: string; question: string; moves: { kind: string; to: string; label: string; isDefault: boolean }[]; events: string[]; lastSummary: string; counts: string; findings: string[]; supportTickets: string[]; facts?: string };
   /** For the CI triager. */
   ci?: { check: string; logTail: string; reruns: number };
   /** Earlier questions this stage asked for the ticket and the developer's answers (F13), oldest first. */
@@ -108,6 +112,7 @@ const STACK_FILE: Record<ProjectStack, string> = { ts_node: 'ts-node.md', nestjs
 /** What each stage's `data` object must contain (BUILD_PLAN 6.5), as plain text for the prompt. */
 const DATA_SHAPES: Record<StageName, string> = {
   kbBuild: '{ featureKey, isNew (true), docPath, globs[] }',
+  orchestrate: '{ move: { kind, to }, reason }. `move` must be exactly one of the legal moves.',
   featureMap: '{ featureKey, isNew, reason }. If isNew is false, featureKey must be a key from the list.',
   solutionDesign: '{ planMarkdown, risks[], openQuestions[] }',
   bugInvestigation: '{ planMarkdown, risks[], openQuestions[], rootCause: { file, line, explanation } }',
@@ -212,6 +217,7 @@ function planSections(stage: StageName, i: StageInputs): Plan {
     case 'solutionDesign':
     case 'bugInvestigation':
       sections.push(ticketFull(), kb());
+      if (i.planFormat) sections.push({ heading: 'Plan format', body: `Write \`planMarkdown\` with exactly these sections, in this order. This replaces the structure in your instructions.\n\n${i.planFormat.trim()}` });
       if (i.previousPlan) sections.push({ heading: 'Previous plan', body: i.previousPlan });
       if (i.rejectionNote) sections.push({ heading: 'Rejection note', body: `The developer rejected the previous plan with this note. Address every point.\n\n${i.rejectionNote}` });
       break;
@@ -245,6 +251,21 @@ function planSections(stage: StageName, i: StageInputs): Plan {
       sections.push({ heading: 'Acceptance criteria', body: list(i.acceptanceCriteria ?? []) }, diff(), { heading: 'Review checklist', body: i.reviewChecklist ?? '_No checklist._' });
       if (i.previousFindings && i.previousFindings.length > 0) sections.push({ heading: 'Previous findings', body: findingsText(i.previousFindings) });
       break;
+    case 'orchestrate': {
+      const o = i.orchestrate;
+      sections.push(
+        { heading: 'Ticket', body: o ? `${o.ticketKey} (${o.kind}), state ${o.state}` : '_No ticket._' },
+        { heading: 'Question', body: o?.question ?? '' },
+        { heading: 'Legal moves', body: list((o?.moves ?? []).map((m) => `${m.kind} ${m.to}${m.isDefault ? ' (default)' : ''}: ${m.label}`)) },
+        { heading: 'Recent events', body: list(o?.events ?? []) },
+        { heading: 'Last stage', body: o?.lastSummary || '_none_' },
+        { heading: 'Counts', body: o?.counts ?? '' },
+        { heading: 'Open findings', body: list(o?.findings ?? []) },
+        { heading: 'Open support tickets', body: list(o?.supportTickets ?? []) },
+      );
+      if (o?.facts) sections.push({ heading: 'More facts', body: o.facts });
+      break;
+    }
     case 'ciTriage':
       sections.push({ heading: 'Failing check', body: i.ci?.check ?? '_unknown_' }, { heading: 'Times the checks were run again', body: String(i.ci?.reruns ?? 0) }, { heading: 'Log tail', body: fenced(i.ci?.logTail ?? '') });
       break;

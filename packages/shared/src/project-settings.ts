@@ -54,6 +54,7 @@ export const ProjectSettingsSchema = z.object({
       securityReview: stage('sonnet', 10),
       kbUpdate: stage('sonnet', 15),
       ciTriage: stage('haiku', 5),
+      orchestrate: stage('haiku', 6),
       assist: stage('sonnet', 8),
       repoProfile: stage('sonnet', 25),
       onboardAdvise: stage('haiku', 5),
@@ -138,6 +139,7 @@ const STAGE_OFF_EFFECTS: Partial<Record<StageName, string>> = {
   qualityReview: 'The readability and standards review is skipped.',
   securityReview: 'The security review never runs, even for changes that touch risky code.',
   ciTriage: 'Every CI failure is treated as a code failure.',
+  orchestrate: 'Every choice between several moves uses the default move.',
 };
 
 /** Stage-dependency warnings shown when a dependent stage is disabled (F2). */
